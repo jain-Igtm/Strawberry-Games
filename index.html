@@ -1,539 +1,103 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
-  <title>Strawberry Games - Infinite Forest</title>
-  <style>
-    * {
-      box-sizing: border-box;
-      -webkit-tap-highlight-color: transparent;
-      touch-action: none;
-      user-select: none;
-    }
-
-    html, body {
-      margin: 0;
-      width: 100%;
-      height: 100%;
-      overflow: hidden;
-      background: #07110c;
-      font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
-      color: white;
-    }
-
-    canvas {
-      display: block;
-      width: 100vw;
-      height: 100vh;
-    }
-
-    #hud {
-      position: fixed;
-      top: 10px;
-      left: 10px;
-      right: 10px;
-      z-index: 5;
-      display: flex;
-      justify-content: space-between;
-      align-items: flex-start;
-      gap: 10px;
-      pointer-events: none;
-      text-shadow: 0 2px 5px rgba(0,0,0,0.8);
-      font-size: 13px;
-      line-height: 1.35;
-    }
-
-    #title {
-      font-weight: 800;
-      letter-spacing: 0.03em;
-    }
-
-    #coords {
-      text-align: right;
-      opacity: 0.85;
-      font-variant-numeric: tabular-nums;
-    }
-
-    #centerDot {
-      position: fixed;
-      left: 50%;
-      top: 50%;
-      width: 6px;
-      height: 6px;
-      margin-left: -3px;
-      margin-top: -3px;
-      border-radius: 50%;
-      background: rgba(255,255,255,0.45);
-      box-shadow: 0 0 10px rgba(255,255,255,0.3);
-      z-index: 4;
-      pointer-events: none;
-    }
-
-    #joystick {
-      position: absolute;
-      left: 24px;
-      bottom: 24px;
-      width: 130px;
-      height: 130px;
-      border-radius: 50%;
-      background: rgba(255,255,255,0.12);
-      border: 1.5px solid rgba(255,255,255,0.3);
-      backdrop-filter: blur(4px);
-      -webkit-backdrop-filter: blur(4px);
-      box-shadow: 0 4px 12px rgba(0,0,0,0.15);
-      z-index: 10;
-      touch-action: none;
-    }
-
-    #stick {
-      position: absolute;
-      left: 45px;
-      top: 45px;
-      width: 40px;
-      height: 40px;
-      border-radius: 50%;
-      background: linear-gradient(135deg, #ffffff 0%, #bbbbbb 100%);
-      box-shadow: 0 2px 6px rgba(0,0,0,0.3);
-    }
-
-    #look {
-      position: absolute;
-      right: 0;
-      top: 0;
-      width: 100%;
-      height: 100%;
-    }
-
-    #hint {
-      position: fixed;
-      left: 50%;
-      bottom: 164px;
-      transform: translateX(-50%);
-      z-index: 5;
-      width: min(92vw, 520px);
-      padding: 9px 12px;
-      border-radius: 12px;
-      background: rgba(0,0,0,0.42);
-      border: 1px solid rgba(255,255,255,0.12);
-      font-size: 13px;
-      line-height: 1.35;
-      text-align: center;
-      color: rgba(255,255,255,0.88);
-      pointer-events: none;
-      opacity: 1;
-      transition: opacity 1s ease;
-    }
-
-    #startOverlay {
-      position: fixed;
-      inset: 0;
-      z-index: 20;
-      display: grid;
-      place-items: center;
-      padding: 24px;
-      background: radial-gradient(circle at center, rgba(30,65,45,0.45), rgba(5,10,8,0.92));
-    }
-
-    #startCard {
-      width: min(92vw, 420px);
-      padding: 22px;
-      border-radius: 20px;
-      background: rgba(0,0,0,0.58);
-      border: 1px solid rgba(255,255,255,0.16);
-      box-shadow: 0 20px 60px rgba(0,0,0,0.45);
-      text-align: center;
-    }
-
-    #startCard h1 {
-      margin: 0 0 8px;
-      font-size: 24px;
-    }
-
-    #startCard p {
-      margin: 8px 0;
-      color: rgba(255,255,255,0.78);
-      font-size: 14px;
-      line-height: 1.45;
-    }
-
-    #startBtn {
-      margin-top: 14px;
-      width: 100%;
-      padding: 13px 16px;
-      border: 0;
-      border-radius: 14px;
-      background: #f2557b;
-      color: white;
-      font-size: 16px;
-      font-weight: 800;
-      cursor: pointer;
-    }
-  </style>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+<title>Strawberry Games - Forest World</title>
+<style>
+*{box-sizing:border-box;-webkit-tap-highlight-color:transparent;touch-action:none;user-select:none}
+html,body{margin:0;width:100%;height:100%;overflow:hidden;background:#a9d9ff;color:white;font-family:system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif}
+canvas{display:block;width:100vw;height:100vh}
+#hud{position:fixed;top:10px;left:10px;right:10px;z-index:30;display:flex;justify-content:space-between;gap:10px;pointer-events:none;text-shadow:0 2px 6px rgba(0,0,0,.75);font-size:13px;line-height:1.35}
+#title{font-weight:900;letter-spacing:.06em}
+#coords{text-align:right;opacity:.9;font-variant-numeric:tabular-nums}
+#centerDot{position:fixed;left:50%;top:50%;width:6px;height:6px;margin-left:-3px;margin-top:-3px;border-radius:50%;background:rgba(255,255,255,.7);box-shadow:0 0 10px rgba(0,0,0,.25);z-index:25;pointer-events:none}
+#look{position:fixed;inset:0;z-index:20;touch-action:none}
+#joystick{position:fixed;left:24px;bottom:24px;width:130px;height:130px;border-radius:50%;background:rgba(255,255,255,.18);border:1.5px solid rgba(255,255,255,.45);backdrop-filter:blur(4px);-webkit-backdrop-filter:blur(4px);box-shadow:0 4px 14px rgba(0,0,0,.22);z-index:40;touch-action:none}
+#stick{position:absolute;left:45px;top:45px;width:40px;height:40px;border-radius:50%;background:linear-gradient(135deg,#fff 0%,#c9c9c9 100%);box-shadow:0 2px 7px rgba(0,0,0,.4)}
+#hint{position:fixed;left:50%;bottom:164px;transform:translateX(-50%);z-index:35;width:min(92vw,520px);padding:9px 12px;border-radius:12px;background:rgba(0,0,0,.38);border:1px solid rgba(255,255,255,.16);font-size:13px;line-height:1.35;text-align:center;color:rgba(255,255,255,.92);pointer-events:none;opacity:1;transition:opacity 1s ease}
+#startOverlay{position:fixed;inset:0;z-index:100;display:grid;place-items:center;padding:24px;background:radial-gradient(circle at center,rgba(98,160,100,.52),rgba(21,55,34,.85))}
+#startCard{width:min(92vw,430px);padding:22px;border-radius:20px;background:rgba(0,0,0,.55);border:1px solid rgba(255,255,255,.2);box-shadow:0 20px 70px rgba(0,0,0,.45);text-align:center}
+#startCard h1{margin:0 0 8px;font-size:25px}.p,#startCard p{margin:8px 0;color:rgba(255,255,255,.84);font-size:14px;line-height:1.45}
+#startBtn{margin-top:14px;width:100%;padding:13px 16px;border:0;border-radius:14px;background:#f2557b;color:white;font-size:16px;font-weight:900;cursor:pointer}
+</style>
 </head>
 <body>
-  <div id="hud">
-    <div>
-      <div id="title">STRAWBERRY FOREST</div>
-      <div>Left joystick: move / strafe<br>Drag screen: look around</div>
-    </div>
-    <div id="coords">x: 0<br>z: 0</div>
-  </div>
-
-  <div id="centerDot"></div>
-  <div id="hint">Move with the left joystick. Drag anywhere else on the screen to look around.</div>
-
-  <div id="joystick"><div id="stick"></div></div>
-  <div id="look"></div>
-
-  <div id="startOverlay">
-    <div id="startCard">
-      <h1>Strawberry Forest</h1>
-      <p>A basic infinite 3D forest prototype built for Android touch controls.</p>
-      <p>Left joystick moves. Drag the screen to look.</p>
-      <button id="startBtn">Start</button>
-    </div>
-  </div>
-
-  <script type="module">
-    import * as THREE from "https://unpkg.com/three@0.160.0/build/three.module.js";
-
-    const scene = new THREE.Scene();
-    scene.background = new THREE.Color(0x07110c);
-    scene.fog = new THREE.FogExp2(0x07110c, 0.035);
-
-    const camera = new THREE.PerspectiveCamera(72, window.innerWidth / window.innerHeight, 0.1, 700);
-    camera.position.set(0, 2.25, 0);
-
-    const renderer = new THREE.WebGLRenderer({ antialias: true, powerPreference: "high-performance" });
-    renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 1.6));
-    renderer.setSize(window.innerWidth, window.innerHeight);
-    renderer.shadowMap.enabled = true;
-    renderer.shadowMap.type = THREE.PCFSoftShadowMap;
-    document.body.appendChild(renderer.domElement);
-
-    const hemi = new THREE.HemisphereLight(0xa9d8b9, 0x172016, 1.45);
-    scene.add(hemi);
-
-    const sun = new THREE.DirectionalLight(0xfff1c9, 1.65);
-    sun.position.set(-35, 70, 28);
-    sun.castShadow = true;
-    sun.shadow.mapSize.width = 1024;
-    sun.shadow.mapSize.height = 1024;
-    sun.shadow.camera.near = 1;
-    sun.shadow.camera.far = 180;
-    sun.shadow.camera.left = -80;
-    sun.shadow.camera.right = 80;
-    sun.shadow.camera.top = 80;
-    sun.shadow.camera.bottom = -80;
-    scene.add(sun);
-
-    const groundGeo = new THREE.PlaneGeometry(1, 1);
-    const groundMat = new THREE.MeshStandardMaterial({ color: 0x1b331f, roughness: 0.96, metalness: 0.0 });
-
-    const trunkGeo = new THREE.CylinderGeometry(0.18, 0.28, 3.8, 7);
-    const trunkMat = new THREE.MeshStandardMaterial({ color: 0x3a2416, roughness: 0.9 });
-
-    const crownGeo = new THREE.ConeGeometry(1.25, 4.0, 8);
-    const crownMat = new THREE.MeshStandardMaterial({ color: 0x123b22, roughness: 0.95 });
-
-    const rockGeo = new THREE.DodecahedronGeometry(0.55, 0);
-    const rockMat = new THREE.MeshStandardMaterial({ color: 0x58615a, roughness: 1.0 });
-
-    const chunkSize = 48;
-    const chunkRadius = 3;
-    const chunks = new Map();
-
-    function hash2(x, z) {
-      let n = x * 374761393 + z * 668265263;
-      n = (n ^ (n >> 13)) * 1274126177;
-      return ((n ^ (n >> 16)) >>> 0) / 4294967295;
-    }
-
-    function randRange(x, z, salt, min, max) {
-      return min + hash2(x + salt * 1013, z - salt * 917) * (max - min);
-    }
-
-    function makeChunk(cx, cz) {
-      const key = cx + "," + cz;
-      if (chunks.has(key)) return;
-
-      const group = new THREE.Group();
-      group.name = "chunk_" + key;
-
-      const ground = new THREE.Mesh(groundGeo, groundMat);
-      ground.scale.set(chunkSize, chunkSize, 1);
-      ground.rotation.x = -Math.PI / 2;
-      ground.position.set(cx * chunkSize + chunkSize / 2, 0, cz * chunkSize + chunkSize / 2);
-      ground.receiveShadow = true;
-      group.add(ground);
-
-      const pathWidth = 5.5;
-      const pathGeo = new THREE.PlaneGeometry(chunkSize, pathWidth);
-      const pathMat = new THREE.MeshStandardMaterial({ color: 0x43533d, roughness: 1.0 });
-      const path = new THREE.Mesh(pathGeo, pathMat);
-      path.rotation.x = -Math.PI / 2;
-      path.position.set(cx * chunkSize + chunkSize / 2, 0.012, cz * chunkSize + chunkSize / 2);
-      path.receiveShadow = true;
-      group.add(path);
-
-      const treeCount = 26;
-      for (let i = 0; i < treeCount; i++) {
-        const seedX = cx * 1000 + i * 37;
-        const seedZ = cz * 1000 - i * 53;
-        const x = cx * chunkSize + randRange(seedX, seedZ, 1, 2, chunkSize - 2);
-        const z = cz * chunkSize + randRange(seedX, seedZ, 2, 2, chunkSize - 2);
-
-        if (Math.abs(z - (cz * chunkSize + chunkSize / 2)) < pathWidth * 0.9) continue;
-
-        const s = randRange(seedX, seedZ, 3, 0.75, 1.55);
-        const rot = randRange(seedX, seedZ, 4, 0, Math.PI * 2);
-
-        const tree = new THREE.Group();
-        tree.position.set(x, 0, z);
-        tree.rotation.y = rot;
-        tree.scale.setScalar(s);
-
-        const trunk = new THREE.Mesh(trunkGeo, trunkMat);
-        trunk.position.y = 1.9;
-        trunk.castShadow = true;
-        tree.add(trunk);
-
-        const crown1 = new THREE.Mesh(crownGeo, crownMat);
-        crown1.position.y = 4.0;
-        crown1.castShadow = true;
-        tree.add(crown1);
-
-        const crown2 = new THREE.Mesh(crownGeo, crownMat);
-        crown2.position.y = 5.55;
-        crown2.scale.setScalar(0.72);
-        crown2.castShadow = true;
-        tree.add(crown2);
-
-        group.add(tree);
-      }
-
-      for (let i = 0; i < 5; i++) {
-        const seedX = cx * 800 + i * 71;
-        const seedZ = cz * 800 - i * 41;
-        const x = cx * chunkSize + randRange(seedX, seedZ, 7, 3, chunkSize - 3);
-        const z = cz * chunkSize + randRange(seedX, seedZ, 8, 3, chunkSize - 3);
-        const rock = new THREE.Mesh(rockGeo, rockMat);
-        rock.position.set(x, 0.32, z);
-        rock.rotation.set(randRange(seedX, seedZ, 9, 0, 1), randRange(seedX, seedZ, 10, 0, Math.PI * 2), randRange(seedX, seedZ, 11, 0, 1));
-        rock.scale.setScalar(randRange(seedX, seedZ, 12, 0.45, 1.25));
-        rock.castShadow = true;
-        rock.receiveShadow = true;
-        group.add(rock);
-      }
-
-      scene.add(group);
-      chunks.set(key, group);
-    }
-
-    function updateChunks() {
-      const pcx = Math.floor(camera.position.x / chunkSize);
-      const pcz = Math.floor(camera.position.z / chunkSize);
-
-      for (let x = pcx - chunkRadius; x <= pcx + chunkRadius; x++) {
-        for (let z = pcz - chunkRadius; z <= pcz + chunkRadius; z++) {
-          makeChunk(x, z);
-        }
-      }
-
-      for (const [key, group] of chunks) {
-        const [cx, cz] = key.split(",").map(Number);
-        if (Math.abs(cx - pcx) > chunkRadius + 1 || Math.abs(cz - pcz) > chunkRadius + 1) {
-          scene.remove(group);
-          chunks.delete(key);
-        }
-      }
-    }
-
-    const move = { x: 0, y: 0 };
-    const keys = new Set();
-    let yaw = 0;
-    let pitch = 0;
-    let lastTime = performance.now();
-    let started = false;
-
-    const joystick = document.getElementById("joystick");
-    const stick = document.getElementById("stick");
-    const look = document.getElementById("look");
-    const coords = document.getElementById("coords");
-    const hint = document.getElementById("hint");
-    const startOverlay = document.getElementById("startOverlay");
-    const startBtn = document.getElementById("startBtn");
-
-    let joyActive = false;
-    let joyTouchId = null;
-
-    joystick.addEventListener("touchstart", e => {
-      joyActive = true;
-      const touch = e.changedTouches[0];
-      joyTouchId = touch.identifier;
-      e.preventDefault();
-    }, { passive: false });
-
-    joystick.addEventListener("touchmove", e => {
-      if (!joyActive) return;
-      let t = null;
-      for (let i = 0; i < e.touches.length; i++) {
-        if (e.touches[i].identifier === joyTouchId) {
-          t = e.touches[i];
-          break;
-        }
-      }
-      if (!t) return;
-
-      const rect = joystick.getBoundingClientRect();
-      let x = t.clientX - rect.left - 65;
-      let y = t.clientY - rect.top - 65;
-      const d = Math.sqrt(x * x + y * y);
-
-      if (d > 45) {
-        x *= 45 / d;
-        y *= 45 / d;
-      }
-
-      stick.style.left = (45 + x) + "px";
-      stick.style.top = (45 + y) + "px";
-      move.x = x / 45;
-      move.y = y / 45;
-      e.preventDefault();
-    }, { passive: false });
-
-    joystick.addEventListener("touchend", e => {
-      for (let i = 0; i < e.changedTouches.length; i++) {
-        if (e.changedTouches[i].identifier === joyTouchId) {
-          joyActive = false;
-          joyTouchId = null;
-          move.x = 0;
-          move.y = 0;
-          stick.style.left = "45px";
-          stick.style.top = "45px";
-          break;
-        }
-      }
-    });
-
-    joystick.addEventListener("touchcancel", e => {
-      joyActive = false;
-      joyTouchId = null;
-      move.x = 0;
-      move.y = 0;
-      stick.style.left = "45px";
-      stick.style.top = "45px";
-    });
-
-    let lookActive = false;
-    let lookTouchId = null;
-    let lx = 0;
-    let ly = 0;
-
-    look.addEventListener("touchstart", e => {
-      if (e.target === joystick || joystick.contains(e.target)) return;
-      lookActive = true;
-      const touch = e.changedTouches[0];
-      lookTouchId = touch.identifier;
-      lx = touch.clientX;
-      ly = touch.clientY;
-    });
-
-    look.addEventListener("touchmove", e => {
-      if (!lookActive) return;
-      let t = null;
-      for (let i = 0; i < e.touches.length; i++) {
-        if (e.touches[i].identifier === lookTouchId) {
-          t = e.touches[i];
-          break;
-        }
-      }
-      if (!t) return;
-
-      const nx = t.clientX;
-      const ny = t.clientY;
-
-      yaw += (nx - lx) * 0.005;
-      pitch += (ny - ly) * 0.005;
-      pitch = Math.max(-1.3, Math.min(1.3, pitch));
-
-      lx = nx;
-      ly = ny;
-    });
-
-    look.addEventListener("touchend", e => {
-      for (let i = 0; i < e.changedTouches.length; i++) {
-        if (e.changedTouches[i].identifier === lookTouchId) {
-          lookActive = false;
-          lookTouchId = null;
-          break;
-        }
-      }
-    });
-
-    look.addEventListener("touchcancel", () => {
-      lookActive = false;
-      lookTouchId = null;
-    });
-
-    window.addEventListener("keydown", e => keys.add(e.code));
-    window.addEventListener("keyup", e => keys.delete(e.code));
-
-    startBtn.addEventListener("click", () => {
-      started = true;
-      startOverlay.style.display = "none";
-      setTimeout(() => { hint.style.opacity = "0"; }, 4500);
-    });
-
-    function resize() {
-      camera.aspect = window.innerWidth / window.innerHeight;
-      camera.updateProjectionMatrix();
-      renderer.setSize(window.innerWidth, window.innerHeight);
-    }
-
-    window.addEventListener("resize", resize);
-    window.addEventListener("orientationchange", () => setTimeout(resize, 120));
-
-    function animate(now) {
-      requestAnimationFrame(animate);
-      const dt = Math.min((now - lastTime) / 1000, 0.05);
-      lastTime = now;
-
-      if (started) {
-        let forwardInput = -move.y;
-        let strafeInput = move.x;
-
-        if (keys.has("KeyW") || keys.has("ArrowUp")) forwardInput += 1;
-        if (keys.has("KeyS") || keys.has("ArrowDown")) forwardInput -= 1;
-        if (keys.has("KeyA") || keys.has("ArrowLeft")) strafeInput -= 1;
-        if (keys.has("KeyD") || keys.has("ArrowRight")) strafeInput += 1;
-
-        forwardInput = THREE.MathUtils.clamp(forwardInput, -1, 1);
-        strafeInput = THREE.MathUtils.clamp(strafeInput, -1, 1);
-
-        const speed = 12.0;
-        const sin = Math.sin(yaw);
-        const cos = Math.cos(yaw);
-
-        const dx = (sin * forwardInput + cos * strafeInput) * speed * dt;
-        const dz = (cos * forwardInput - sin * strafeInput) * speed * dt;
-
-        camera.position.x += dx;
-        camera.position.z += dz;
-        camera.position.y = 2.25 + Math.sin(now * 0.006) * 0.035 * Math.abs(forwardInput);
-        camera.rotation.set(pitch, yaw, 0, "YXZ");
-      }
-
-      sun.target.position.copy(camera.position);
-      sun.target.updateMatrixWorld();
-      updateChunks();
-      coords.innerHTML = `x: ${camera.position.x.toFixed(1)}<br>z: ${camera.position.z.toFixed(1)}`;
-      renderer.render(scene, camera);
-    }
-
-    updateChunks();
-    requestAnimationFrame(animate);
-  </script>
+<div id="hud"><div><div id="title">STRAWBERRY FOREST</div><div>Joystick: move / strafe<br>Drag screen: look around</div></div><div id="coords">x: 0<br>z: 0</div></div>
+<div id="centerDot"></div><div id="look"></div><div id="joystick"><div id="stick"></div></div>
+<div id="hint">Joystick up moves toward the center dot. Drag anywhere else to look.</div>
+<div id="startOverlay"><div id="startCard"><h1>Strawberry Forest</h1><p>Bright open forest world prototype with hills, trail, grass, flowers, rocks, water, and corrected mobile controls.</p><p>Push up to move forward.</p><button id="startBtn">Start</button></div></div>
+<script type="module">
+import * as THREE from "https://unpkg.com/three@0.160.0/build/three.module.js";
+
+const scene=new THREE.Scene();
+scene.background=new THREE.Color(0xa9d9ff);
+scene.fog=new THREE.Fog(0xa9d9ff,70,360);
+const camera=new THREE.PerspectiveCamera(72,innerWidth/innerHeight,.1,900);
+camera.position.set(0,4,8);
+const renderer=new THREE.WebGLRenderer({antialias:true,powerPreference:"high-performance"});
+renderer.setPixelRatio(Math.min(devicePixelRatio||1,1.45));
+renderer.setSize(innerWidth,innerHeight);renderer.shadowMap.enabled=true;renderer.shadowMap.type=THREE.PCFSoftShadowMap;document.body.appendChild(renderer.domElement);
+
+scene.add(new THREE.HemisphereLight(0xe8fff3,0x486b35,1.55));
+const sun=new THREE.DirectionalLight(0xfff1c9,2.25);sun.position.set(-70,115,55);sun.castShadow=true;sun.shadow.mapSize.set(1024,1024);sun.shadow.camera.near=1;sun.shadow.camera.far=260;sun.shadow.camera.left=-120;sun.shadow.camera.right=120;sun.shadow.camera.top=120;sun.shadow.camera.bottom=-120;scene.add(sun);scene.add(sun.target);
+
+const chunkSize=52,chunkRadius=3,seg=14,chunks=new Map();
+const groundMat=new THREE.MeshStandardMaterial({color:0x65a847,roughness:1});
+const pathMat=new THREE.MeshStandardMaterial({color:0xb39462,roughness:1});
+const waterMat=new THREE.MeshStandardMaterial({color:0x4aa6c7,roughness:.38,metalness:.05,transparent:true,opacity:.72});
+const trunkMat=new THREE.MeshStandardMaterial({color:0x7a4d28,roughness:.9});
+const pineMats=[0x2e7d32,0x206b35,0x3f8f3f].map(c=>new THREE.MeshStandardMaterial({color:c,roughness:.95}));
+const leafMats=[0x5fbf4a,0x71c957,0x4fa83f].map(c=>new THREE.MeshStandardMaterial({color:c,roughness:.92}));
+const rockMat=new THREE.MeshStandardMaterial({color:0x8d958f,roughness:1});
+const flowerMats=[0xffe26b,0xff6f91,0xd98bff,0xffffff].map(c=>new THREE.MeshStandardMaterial({color:c,roughness:.7}));
+const grassMat=new THREE.MeshStandardMaterial({color:0x3f8f32,roughness:1});
+const pineTrunkGeo=new THREE.CylinderGeometry(.18,.32,3.4,7);
+const pineTopGeo=new THREE.ConeGeometry(1.55,3.5,8);
+const pineMidGeo=new THREE.ConeGeometry(1.95,3.9,8);
+const roundTrunkGeo=new THREE.CylinderGeometry(.2,.34,2.8,8);
+const roundLeafGeo=new THREE.SphereGeometry(1.75,10,8);
+const rockGeo=new THREE.DodecahedronGeometry(.75,0);
+const grassGeo=new THREE.ConeGeometry(.055,.55,5);
+const flowerGeo=new THREE.SphereGeometry(.09,6,6);
+
+function hash2(x,z){let n=(x*374761393+z*668265263)|0;n=(n^(n>>13))*1274126177;return ((n^(n>>16))>>>0)/4294967295}
+function rnd(x,z,s,a,b){return a+hash2(x+s*999,z-s*719)*(b-a)}
+function sm(t){return t*t*(3-2*t)}
+function noise(x,z){const xi=Math.floor(x),zi=Math.floor(z),xf=x-xi,zf=z-zi;const a=hash2(xi,zi),b=hash2(xi+1,zi),c=hash2(xi,zi+1),d=hash2(xi+1,zi+1);const u=sm(xf),v=sm(zf);return THREE.MathUtils.lerp(THREE.MathUtils.lerp(a,b,u),THREE.MathUtils.lerp(c,d,u),v)}
+function rawHeight(x,z){return (noise(x*.018,z*.018)-.5)*12+(noise(x*.055+70,z*.055-20)-.5)*3.8+(noise(x*.12,z*.12)-.5)*1.2}
+function pathZ(x){return Math.sin(x*.025)*12+Math.sin(x*.008+1.4)*24}
+function pathBlend(x,z){return THREE.MathUtils.clamp(1-Math.abs(z-pathZ(x))/8,0,1)}
+function waterBlend(x,z){const v=noise(x*.018+200,z*.018-80);return v>.77?THREE.MathUtils.clamp((v-.77)/.1,0,1):0}
+function h(x,z){let y=rawHeight(x,z);y=THREE.MathUtils.lerp(y,.25,pathBlend(x,z));if(waterBlend(x,z)>.3)y=Math.min(y,-1.15);return y}
+
+function makeTerrain(cx,cz){const geo=new THREE.PlaneGeometry(chunkSize,chunkSize,seg,seg);geo.rotateX(-Math.PI/2);const p=geo.attributes.position;for(let i=0;i<p.count;i++){const wx=cx*chunkSize+chunkSize/2+p.getX(i),wz=cz*chunkSize+chunkSize/2+p.getZ(i);p.setY(i,h(wx,wz))}geo.computeVertexNormals();const m=new THREE.Mesh(geo,groundMat);m.position.set(cx*chunkSize+chunkSize/2,0,cz*chunkSize+chunkSize/2);m.receiveShadow=true;return m}
+function makePath(cx,cz){const geo=new THREE.PlaneGeometry(chunkSize,7.4,24,1);geo.rotateX(-Math.PI/2);const p=geo.attributes.position;for(let i=0;i<p.count;i++){const wx=cx*chunkSize+chunkSize/2+p.getX(i),lat=p.getZ(i),wz=pathZ(wx)+lat;p.setZ(i,wz-(cz*chunkSize+chunkSize/2));p.setY(i,h(wx,wz)+.04)}geo.computeVertexNormals();const m=new THREE.Mesh(geo,pathMat);m.position.set(cx*chunkSize+chunkSize/2,0,cz*chunkSize+chunkSize/2);m.receiveShadow=true;return m}
+function makeWater(cx,cz){const geo=new THREE.PlaneGeometry(chunkSize,chunkSize,5,5);geo.rotateX(-Math.PI/2);const m=new THREE.Mesh(geo,waterMat);m.position.set(cx*chunkSize+chunkSize/2,-1.05,cz*chunkSize+chunkSize/2);m.receiveShadow=true;return m}
+function pine(x,z,sa,sb){const g=new THREE.Group(),y=h(x,z),s=rnd(sa,sb,1,.75,1.55),mat=pineMats[Math.floor(rnd(sa,sb,2,0,pineMats.length-.01))];g.position.set(x,y,z);g.rotation.y=rnd(sa,sb,3,0,Math.PI*2);g.scale.setScalar(s);const tr=new THREE.Mesh(pineTrunkGeo,trunkMat);tr.position.y=1.7;tr.castShadow=true;g.add(tr);const a=new THREE.Mesh(pineMidGeo,mat);a.position.y=3.45;a.castShadow=true;g.add(a);const b=new THREE.Mesh(pineTopGeo,mat);b.position.y=4.85;b.castShadow=true;g.add(b);return g}
+function leafy(x,z,sa,sb){const g=new THREE.Group(),y=h(x,z),s=rnd(sa,sb,1,.75,1.35),mat=leafMats[Math.floor(rnd(sa,sb,2,0,leafMats.length-.01))];g.position.set(x,y,z);g.rotation.y=rnd(sa,sb,3,0,Math.PI*2);g.scale.setScalar(s);const tr=new THREE.Mesh(roundTrunkGeo,trunkMat);tr.position.y=1.4;tr.castShadow=true;g.add(tr);const lf=new THREE.Mesh(roundLeafGeo,mat);lf.position.y=3.25;lf.scale.set(1.1,.82,1.1);lf.castShadow=true;g.add(lf);return g}
+function detailPlant(x,z,sa,sb){const g=new THREE.Group();g.position.set(x,h(x,z),z);const n=Math.floor(rnd(sa,sb,1,3,7));for(let i=0;i<n;i++){const blade=new THREE.Mesh(grassGeo,grassMat);blade.position.set(rnd(sa,sb,2+i,-.45,.45),.25,rnd(sa,sb,20+i,-.45,.45));blade.rotation.set(rnd(sa,sb,40+i,-.35,.35),rnd(sa,sb,60+i,0,Math.PI*2),rnd(sa,sb,80+i,-.35,.35));blade.castShadow=false;g.add(blade)}if(rnd(sa,sb,99,0,1)>.45){const f=new THREE.Mesh(flowerGeo,flowerMats[Math.floor(rnd(sa,sb,100,0,flowerMats.length-.01))]);f.position.set(0,.58,0);g.add(f)}return g}
+function makeChunk(cx,cz){const key=cx+','+cz;if(chunks.has(key))return;const group=new THREE.Group();group.add(makeTerrain(cx,cz));group.add(makePath(cx,cz));let hasWater=false;for(let t=0;t<4;t++){const x=cx*chunkSize+rnd(cx*31,cz*31,t,0,chunkSize),z=cz*chunkSize+rnd(cx*37,cz*37,t,0,chunkSize);if(waterBlend(x,z)>.2)hasWater=true}if(hasWater)group.add(makeWater(cx,cz));
+for(let i=0;i<44;i++){const sx=cx*1000+i*37,sz=cz*1000-i*53,x=cx*chunkSize+rnd(sx,sz,1,2,chunkSize-2),z=cz*chunkSize+rnd(sx,sz,2,2,chunkSize-2);if(pathBlend(x,z)>.23||waterBlend(x,z)>.15)continue;group.add(rnd(sx,sz,3,0,1)>.38?pine(x,z,sx,sz):leafy(x,z,sx,sz))}
+for(let i=0;i<12;i++){const sx=cx*700+i*97,sz=cz*700-i*29,x=cx*chunkSize+rnd(sx,sz,7,3,chunkSize-3),z=cz*chunkSize+rnd(sx,sz,8,3,chunkSize-3);if(pathBlend(x,z)>.6||waterBlend(x,z)>.2)continue;const r=new THREE.Mesh(rockGeo,rockMat);r.position.set(x,h(x,z)+.38,z);r.rotation.set(rnd(sx,sz,9,0,1),rnd(sx,sz,10,0,Math.PI*2),rnd(sx,sz,11,0,1));r.scale.setScalar(rnd(sx,sz,12,.32,1.05));r.castShadow=true;r.receiveShadow=true;group.add(r)}
+for(let i=0;i<34;i++){const sx=cx*501+i*19,sz=cz*501-i*23,x=cx*chunkSize+rnd(sx,sz,1,1,chunkSize-1),z=cz*chunkSize+rnd(sx,sz,2,1,chunkSize-1);if(waterBlend(x,z)>.15)continue;group.add(detailPlant(x,z,sx,sz))}
+scene.add(group);chunks.set(key,group)}
+function updateChunks(){const pcx=Math.floor(camera.position.x/chunkSize),pcz=Math.floor(camera.position.z/chunkSize);for(let x=pcx-chunkRadius;x<=pcx+chunkRadius;x++)for(let z=pcz-chunkRadius;z<=pcz+chunkRadius;z++)makeChunk(x,z);for(const[key,g]of chunks){const[cx,cz]=key.split(',').map(Number);if(Math.abs(cx-pcx)>chunkRadius+1||Math.abs(cz-pcz)>chunkRadius+1){scene.remove(g);chunks.delete(key)}}}
+
+const joystick=document.getElementById('joystick'),stick=document.getElementById('stick'),look=document.getElementById('look'),coords=document.getElementById('coords'),hint=document.getElementById('hint'),startOverlay=document.getElementById('startOverlay'),startBtn=document.getElementById('startBtn');
+const move={x:0,y:0};let joyActive=false,joyTouchId=null,lookActive=false,lookTouchId=null,lx=0,ly=0,yaw=0,pitch=-.08,last=performance.now(),started=false;const keys=new Set();
+joystick.addEventListener('touchstart',e=>{joyActive=true;joyTouchId=e.changedTouches[0].identifier;e.preventDefault()},{passive:false});
+joystick.addEventListener('touchmove',e=>{if(!joyActive)return;let t=null;for(let i=0;i<e.touches.length;i++)if(e.touches[i].identifier===joyTouchId){t=e.touches[i];break}if(!t)return;const r=joystick.getBoundingClientRect();let x=t.clientX-r.left-65,y=t.clientY-r.top-65,d=Math.hypot(x,y);if(d>45){x*=45/d;y*=45/d}stick.style.left=45+x+'px';stick.style.top=45+y+'px';move.x=x/45;move.y=y/45;e.preventDefault()},{passive:false});
+function resetJoy(){joyActive=false;joyTouchId=null;move.x=0;move.y=0;stick.style.left='45px';stick.style.top='45px'}
+joystick.addEventListener('touchend',e=>{for(let i=0;i<e.changedTouches.length;i++)if(e.changedTouches[i].identifier===joyTouchId)resetJoy()});joystick.addEventListener('touchcancel',resetJoy);
+look.addEventListener('touchstart',e=>{if(e.target===joystick||joystick.contains(e.target))return;lookActive=true;lookTouchId=e.changedTouches[0].identifier;lx=e.changedTouches[0].clientX;ly=e.changedTouches[0].clientY});
+look.addEventListener('touchmove',e=>{if(!lookActive)return;let t=null;for(let i=0;i<e.touches.length;i++)if(e.touches[i].identifier===lookTouchId){t=e.touches[i];break}if(!t)return;const nx=t.clientX,ny=t.clientY;yaw+=(nx-lx)*.005;pitch+=(ny-ly)*.005;pitch=Math.max(-1.25,Math.min(1.1,pitch));lx=nx;ly=ny});
+function resetLook(){lookActive=false;lookTouchId=null}look.addEventListener('touchend',resetLook);look.addEventListener('touchcancel',resetLook);
+window.addEventListener('keydown',e=>keys.add(e.code));window.addEventListener('keyup',e=>keys.delete(e.code));
+startBtn.addEventListener('click',()=>{started=true;startOverlay.style.display='none';setTimeout(()=>hint.style.opacity='0',4500)});
+function resize(){camera.aspect=innerWidth/innerHeight;camera.updateProjectionMatrix();renderer.setSize(innerWidth,innerHeight)}addEventListener('resize',resize);addEventListener('orientationchange',()=>setTimeout(resize,120));
+function animate(now){requestAnimationFrame(animate);const dt=Math.min((now-last)/1000,.05);last=now;if(started){let f=-move.y,s=move.x;if(keys.has('KeyW')||keys.has('ArrowUp'))f+=1;if(keys.has('KeyS')||keys.has('ArrowDown'))f-=1;if(keys.has('KeyA')||keys.has('ArrowLeft'))s-=1;if(keys.has('KeyD')||keys.has('ArrowRight'))s+=1;f=THREE.MathUtils.clamp(f,-1,1);s=THREE.MathUtils.clamp(s,-1,1);const speed=15,sn=Math.sin(yaw),cs=Math.cos(yaw);camera.position.x+=(-sn*f+cs*s)*speed*dt;camera.position.z+=(-cs*f-sn*s)*speed*dt;const ground=h(camera.position.x,camera.position.z);camera.position.y=ground+3.25+Math.sin(now*.007)*.035*Math.abs(f);camera.rotation.set(pitch,yaw,0,'YXZ')}sun.target.position.copy(camera.position);sun.target.updateMatrixWorld();updateChunks();coords.innerHTML=`x: ${camera.position.x.toFixed(1)}<br>z: ${camera.position.z.toFixed(1)}`;renderer.render(scene,camera)}
+updateChunks();requestAnimationFrame(animate);
+</script>
 </body>
 </html>
