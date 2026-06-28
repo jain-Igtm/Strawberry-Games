@@ -71,3 +71,18 @@ window.addEventListener("keyup",(e)=>{
     if(e.key==="d") keys.right=false;
 
 });
+// =====================================================
+// Update
+// =====================================================
+
+function update(){
+
+    if(keys.up) player.y -= player.speed;
+    if(keys.down) player.y += player.speed;
+    if(keys.left) player.x -= player.speed;
+    if(keys.right) player.x += player.speed;
+
+    camera.x = player.x;
+    camera.y = player.y;
+
+}
