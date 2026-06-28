@@ -1,39 +1,73 @@
-const canvas = document.getElementById("gameCanvas");
+// =====================================================
+// Forest Explorer
+// Part 1 - Engine Setup
+// =====================================================
+
+// Canvas
+const canvas = document.getElementById("game");
 const ctx = canvas.getContext("2d");
 
-function resizeCanvas() {
-    canvas.width = window.innerWidth;
-    canvas.height = window.innerHeight;
-}
+// Screen size
+let screenWidth = window.innerWidth;
+let screenHeight = window.innerHeight;
 
-window.addEventListener("resize", resizeCanvas);
-resizeCanvas();
+canvas.width = screenWidth;
+canvas.height = screenHeight;
 
-let player = {
+// Camera
+const camera = {
     x: 0,
-    y: 0
+    y: 0,
+    zoom: 1
 };
 
-function draw() {
+// Player
+const player = {
+    x: 0,
+    y: 0,
 
-    // Background
-    ctx.fillStyle = "#3b6b2f";
-    ctx.fillRect(0,0,canvas.width,canvas.height);
+    speed: 3,
 
-    // Player
-    ctx.fillStyle = "orange";
+    radius: 12,
 
-    ctx.beginPath();
-    ctx.arc(
-        canvas.width/2,
-        canvas.height/2,
-        12,
-        0,
-        Math.PI*2
-    );
-    ctx.fill();
+    color: "#ff9d00"
+};
 
-    requestAnimationFrame(draw);
-}
+// Controls
+const keys = {
+    up:false,
+    down:false,
+    left:false,
+    right:false
+};
 
-draw();
+// Resize support
+window.addEventListener("resize", () => {
+
+    screenWidth = window.innerWidth;
+    screenHeight = window.innerHeight;
+
+    canvas.width = screenWidth;
+    canvas.height = screenHeight;
+
+});
+
+// Keyboard controls (for testing on PC)
+
+window.addEventListener("keydown",(e)=>{
+
+    if(e.key==="w") keys.up=true;
+    if(e.key==="s") keys.down=true;
+    if(e.key==="a") keys.left=true;
+    if(e.key==="d") keys.right=true;
+
+});
+
+window.addEventListener("keyup",(e)=>{
+
+    if(e.key==="w") keys.up=false;
+    if(e.key==="s") keys.down=false;
+    if(e.key==="a") keys.left=false;
+    if(e.key==="d") keys.right=false;
+
+});
