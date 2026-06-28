@@ -34,12 +34,11 @@ const sky = new THREE.Mesh(
 );
 scene.add(sky);
 
-const pineModel = await loadModel("assets/models/trees/pine_tall.gltf");
-if (pineModel) {
-  pineModel.traverse(obj => {
-    obj.frustumCulled = true;
-  });
-}
+let pineModel = null;
+loadModel("assets/models/trees/pine_tall.gltf").then(model => {
+  pineModel = model;
+  if (pineModel) pineModel.traverse(obj => { obj.frustumCulled = true; });
+});
 
 const chunkSize = 76;
 const chunkRadius = 2;
