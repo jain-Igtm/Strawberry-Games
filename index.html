@@ -1,0 +1,712 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+<title>Forest Explorer - Rivers, Lakes & Ruins</title>
+
+<style>
+html,body{
+margin:0;
+overflow:hidden;
+background:#b4d6e4;
+touch-action:none;
+}
+
+#joystick{
+position:absolute;
+left:24px;
+bottom:24px;
+width:130px;
+height:130px;
+border-radius:50%;
+background:rgba(255,255,255,0.12);
+border:1.5px solid rgba(255,255,255,0.3);
+backdrop-filter: blur(4px);
+-webkit-backdrop-filter: blur(4px);
+box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+z-index: 10;
+}
+
+#stick{
+position:absolute;
+left:45px;
+top:45px;
+width:40px;
+height:40px;
+border-radius:50%;
+background: linear-gradient(135deg, #ffffff 0%, #bbbbbb 100%);
+box-shadow: 0 2px 6px rgba(0,0,0,0.3);
+}
+
+#look{
+position:absolute;
+right:0;
+top:0;
+width:100%; 
+height:100%;
+}
+
+#info{
+position:absolute;
+top:15px;
+left:15px;
+color:white;
+font-family:-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+font-size: 14px;
+letter-spacing: 1px;
+text-transform: uppercase;
+background:rgba(0,0,0,0.4);
+padding:6px 12px;
+border-radius: 4px;
+pointer-events: none;
+z-index: 10;
+}
+</style>
+</head>
+<body>
+
+<div id="info">Forest Explorer</div>
+
+<div id="joystick">
+<div id="stick"></div>
+</div>
+
+<div id="look"></div>
+
+<div id="pauseBtn" style="position:absolute;top:15px;right:15px;z-index:20;padding:8px 12px;background:rgba(0,0,0,0.5);color:white;border-radius:6px;font-family:sans-serif;">Pause</div>
+
+<div id="pauseMenu" style="display:none;position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);background:rgba(20,20,20,0.95);padding:16px;border-radius:12px;color:white;z-index:50;font-family:sans-serif;min-width:220px;">
+<h3 style="margin-top:0;">Paused</h3>
+<button id="settingsBtn">Settings</button>
+<div id="settingsPanel" style="display:none;margin-top:12px;">
+<button id="coordsToggle">Coords ON</button><br><br><button id="weatherToggle">Weather: AUTO</button>
+</div>
+</div>
+
+<div id="coords" style="position:absolute;top:55px;left:15px;color:white;background:rgba(0,0,0,0.4);padding:6px 12px;border-radius:4px;font-family:sans-serif;z-index:10;">
+X: 0<br>Y: 0<br>Z: 0
+</div>
+
+
+<script type="module">
+
+import * as THREE from 'https://cdn.jsdelivr.net/npm/three@0.165.0/build/three.module.js';
+
+const scene = new THREE.Scene();
+
+scene.background = new THREE.Color(0xcbe3db);
+scene.fog = new THREE.FogExp2(0xcbe3db, 0.012);
+
+const camera = new THREE.PerspectiveCamera(75, window.innerWidth/window.innerHeight, 0.1, 1000);
+
+const renderer = new THREE.WebGLRenderer({
+antialias:true,
+powerPreference: "high-performance"
+});
+
+renderer.setSize(window.innerWidth,window.innerHeight);
+renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+renderer.shadowMap.enabled=true;
+renderer.shadowMap.type = THREE.VSMShadowMap;
+renderer.toneMapping = THREE.ACESFilmicToneMapping;
+renderer.toneMappingExposure = 1.0;
+
+document.body.appendChild(renderer.domElement);
+
+const sun = new THREE.DirectionalLight(0xfff3e0, 2.5);
+sun.position.set(120, 180, 80);
+sun.castShadow=true;
+sun.shadow.mapSize.width = 1024;
+sun.shadow.mapSize.height = 1024;
+sun.shadow.camera.near = 0.5;
+sun.shadow.camera.far = 400;
+const d = 150;
+sun.shadow.camera.left = -d;
+sun.shadow.camera.right = d;
+sun.shadow.camera.top = d;
+sun.shadow.camera.bottom = -d;
+sun.shadow.bias = -0.0005;
+scene.add(sun);
+
+const hemiLight = new THREE.HemisphereLight(0xa5c9eb, 0x5d784c, 1.2);
+hemiLight.position.set(0, 50, 0);
+scene.add(hemiLight);
+
+const colliders = [];
+const treePositions = [];
+const burnables = [];
+const burningObjects = [];
+
+// --- GEOGRAPHY CONFIGURATION ---
+const lakeCenterX = -150;
+const lakeCenterZ = -150;
+const lakeRadius = 90;
+
+// --- FUTURE TOWN PLAIN ---
+const townPlainX = 420;
+const townPlainZ = 120;
+const townPlainRadius = 180;
+const townPlainHeight = 2.5;
+
+function getRiverX(z) {
+    return Math.sin(z * 0.015) * 45 + Math.cos(z * 0.005) * 20 + 30; 
+}
+
+// Master Terrain Height Function
+function height(x, z) {
+    let baseTerrain = (
+        Math.sin(x*0.02)*3 +
+        Math.cos(z*0.015)*4 +
+        Math.sin((x+z)*0.01)*5
+    );
+
+    // 1. CARVE RIVER
+    let riverX = getRiverX(z);
+    let distToRiver = Math.abs(x - riverX);
+    if(distToRiver < 25) {
+        let t = distToRiver / 25;
+        let smoothT = t * t * (3 - 2 * t);
+        baseTerrain = THREE.MathUtils.lerp(-5.0, baseTerrain, smoothT);
+    }
+
+    // 2. CARVE LAKE WITH ISLAND
+    let dx = x - lakeCenterX;
+    let dz = z - lakeCenterZ;
+    let distToLakeCenter = Math.sqrt(dx * dx + dz * dz);
+
+    if (distToLakeCenter < lakeRadius) {
+        let t = distToLakeCenter / lakeRadius; 
+        let lakeFloor = -6.0;
+        let lakeShape = THREE.MathUtils.lerp(lakeFloor, baseTerrain, t);
+        
+        if (distToLakeCenter < lakeRadius * 0.35) {
+            let islandT = distToLakeCenter / (lakeRadius * 0.35); 
+            let islandShape = Math.cos(islandT * Math.PI * 0.5) * 4.5 + lakeFloor; 
+            baseTerrain = Math.max(lakeShape, islandShape);
+        } else {
+            baseTerrain = lakeShape;
+        }
+    }
+
+    let pdx = x - townPlainX;
+    let pdz = z - townPlainZ;
+    let pDist = Math.sqrt(pdx*pdx + pdz*pdz);
+
+    if(pDist < townPlainRadius){
+        let t = pDist / townPlainRadius;
+        let smoothT = t*t*(3-2*t);
+        baseTerrain = THREE.MathUtils.lerp(townPlainHeight, baseTerrain, smoothT);
+    }
+
+    return baseTerrain;
+}
+
+const terrainSize=1500;
+const segments=220; 
+
+const terrainGeo = new THREE.PlaneGeometry(terrainSize, terrainSize, segments, segments);
+terrainGeo.rotateX(-Math.PI/2);
+
+const pos = terrainGeo.attributes.position;
+const colorAttr = new THREE.BufferAttribute(new Float32Array(pos.count * 3), 3);
+
+const baseColor = new THREE.Color(0x3B5E30); 
+const peakColor = new THREE.Color(0x557B43); 
+const riverBankColor = new THREE.Color(0x766145); 
+const tempColor = new THREE.Color();
+
+for(let i=0; i<pos.count; i++){
+    let x = pos.getX(i);
+    let z = pos.getZ(i);
+    let y = height(x,z);
+    pos.setY(i, y);
+
+    let riverX = getRiverX(z);
+    let distToRiver = Math.abs(x - riverX);
+    
+    let dx = x - lakeCenterX;
+    let dz = z - lakeCenterZ;
+    let distToLakeCenter = Math.sqrt(dx*dx + dz*dz);
+
+    if (distToRiver < 22) {
+        let t = distToRiver / 22;
+        tempColor.lerpColors(riverBankColor, baseColor, t * 0.8 + 0.2);
+    } else if (distToLakeCenter < lakeRadius && Math.abs(y - (-1.2)) < 1.0) {
+        tempColor.copy(riverBankColor);
+    } else {
+        let hRatio = (y + 12) / 24; 
+        hRatio = Math.max(0, Math.min(1, hRatio));
+        tempColor.lerpColors(baseColor, peakColor, hRatio);
+    }
+    
+    let noise = (Math.sin(x*0.5) * Math.cos(z*0.5)) * 0.02;
+    colorAttr.setXYZ(i, tempColor.r + noise, tempColor.g + noise, tempColor.b + noise);
+}
+terrainGeo.setAttribute('color', colorAttr);
+terrainGeo.computeVertexNormals();
+
+const terrainMat = new THREE.MeshStandardMaterial({
+    vertexColors: true,
+    roughness: 0.9,
+    metalness: 0.02
+});
+
+const terrain = new THREE.Mesh(terrainGeo, terrainMat);
+terrain.receiveShadow = true;
+scene.add(terrain);
+
+
+// --- ADD WATER SURFACE ---
+const waterGeo = new THREE.PlaneGeometry(terrainSize, terrainSize);
+const waterMat = new THREE.MeshStandardMaterial({
+    color: 0x1d4a43,
+    transparent: true,
+    opacity: 0.75,
+    roughness: 0.12,
+    metalness: 0.15
+});
+const water = new THREE.Mesh(waterGeo, waterMat);
+water.rotateX(-Math.PI/2);
+water.position.y = -1.2; 
+scene.add(water);
+
+
+// --- PROCEDURAL TREES POPULATION ---
+const trunkGeo = new THREE.CylinderGeometry(0.18, 0.35, 6, 6);
+trunkGeo.translate(0, 3, 0); 
+const leafGeo = new THREE.ConeGeometry(2.2, 5, 5);
+leafGeo.translate(0, 2.5, 0);
+const trunkMat = new THREE.MeshStandardMaterial({ color: 0x4d321d, roughness: 0.9 });
+
+function createTree(){
+    const group = new THREE.Group();
+    const trunk = new THREE.Mesh(trunkGeo, trunkMat);
+    trunk.castShadow = true;
+    group.add(trunk);
+
+    const greenVariation = 0.25 + Math.random() * 0.15;
+    const leafMat = new THREE.MeshStandardMaterial({
+        color: new THREE.Color(greenVariation * 0.4, greenVariation, greenVariation * 0.35),
+        roughness: 0.8,
+        flatShading: true
+    });
+
+    const layers = 3;
+    for(let i=0; i<layers; i++) {
+        const leaves = new THREE.Mesh(leafGeo, leafMat);
+        leaves.position.y = 3.8 + (i * 2.2);
+        let s = 1.0 - (i * 0.25);
+        leaves.scale.set(s, s, s);
+        leaves.castShadow = true;
+        group.add(leaves);
+    }
+    return group;
+}
+
+
+function createOakTree(){
+
+    const group = new THREE.Group();
+
+    const trunk = new THREE.Mesh(
+        new THREE.CylinderGeometry(0.35,0.55,7,8),
+        trunkMat
+    );
+    trunk.position.y = 3.5;
+    trunk.castShadow = true;
+    group.add(trunk);
+
+    const branchMat = trunkMat;
+
+    for(let i=0;i<5;i++){
+
+        const branch = new THREE.Mesh(
+            new THREE.CylinderGeometry(0.08,0.12,2.8,6),
+            branchMat
+        );
+
+        branch.position.y = 5 + Math.random()*1.5;
+        branch.rotation.z = (Math.random()-0.5)*1.3;
+        branch.rotation.x = (Math.random()-0.5)*1.0;
+        branch.rotation.y = Math.random()*Math.PI*2;
+
+        group.add(branch);
+    }
+
+    const leafMat = new THREE.MeshStandardMaterial({
+        color:0x4d7f38,
+        flatShading:true
+    });
+
+    for(let i=0;i<8;i++){
+
+        const clump = new THREE.Mesh(
+            new THREE.IcosahedronGeometry(1.6 + Math.random()*0.8,0),
+            leafMat
+        );
+
+        clump.position.set(
+            (Math.random()-0.5)*3,
+            6 + Math.random()*3,
+            (Math.random()-0.5)*3
+        );
+
+        clump.castShadow = true;
+        group.add(clump);
+    }
+
+    return group;
+}
+
+function createBareTree(){
+
+    const group = new THREE.Group();
+
+    const trunk = new THREE.Mesh(
+        new THREE.CylinderGeometry(0.18,0.3,9,6),
+        trunkMat
+    );
+    trunk.position.y = 4.5;
+    trunk.castShadow = true;
+    group.add(trunk);
+
+    for(let i=0;i<9;i++){
+
+        const branch = new THREE.Mesh(
+            new THREE.CylinderGeometry(0.03,0.07,2.5,5),
+            trunkMat
+        );
+
+        branch.position.y = 5 + Math.random()*3;
+        branch.rotation.z = 0.5 + Math.random()*1.1;
+        branch.rotation.y = Math.random()*Math.PI*2;
+
+        group.add(branch);
+    }
+
+    return group;
+}
+
+
+const treeCount = 1800; 
+for(let i=0; i<treeCount; i++){
+    let x = (Math.random()-0.5)*1300;
+    let z = (Math.random()-0.5)*1300;
+    
+    if(Math.abs(x) < 15 && Math.abs(z) < 15) continue;
+    if(Math.abs(x - getRiverX(z)) < 22) continue; 
+
+    let dx = x - lakeCenterX;
+    let dz = z - lakeCenterZ;
+    let distToLake = Math.sqrt(dx*dx + dz*dz);
+    let y = height(x,z);
+    
+    if (distToLake < lakeRadius && y < -1.0) continue;
+    if(Math.hypot(x-townPlainX,z-townPlainZ) < townPlainRadius) continue; 
+
+    const tree = createTree();
+    tree.position.set(x, y - 0.2, z);
+
+    let s = 0.7 + Math.random() * 1.5;
+    tree.scale.set(s, s + (Math.random()*0.3), s);
+    tree.rotation.y = Math.random() * Math.PI;
+
+    scene.add(tree);
+    burnables.push({mesh:tree,burnTime:12,burning:false});
+
+    treePositions.push({x,z});
+    colliders.push({x,z,radius:1.6*s});
+}
+
+
+
+for(let i=0;i<450;i++){
+
+    const x=(Math.random()-0.5)*1300;
+    const z=(Math.random()-0.5)*1300;
+
+    if(Math.abs(x - getRiverX(z)) < 22) continue;
+
+    const y=height(x,z);
+    if(y < -1) continue;
+    if(Math.hypot(x-townPlainX,z-townPlainZ) < townPlainRadius) continue;
+
+    const tree = Math.random()<0.75 ? createOakTree() : createBareTree();
+
+    const s = 0.8 + Math.random()*1.8;
+
+    tree.position.set(x,y-0.2,z);
+    tree.scale.setScalar(s);
+    tree.rotation.y = Math.random()*Math.PI*2;
+
+    scene.add(tree);
+
+    burnables.push({mesh:tree,burnTime:14,burning:false});
+    colliders.push({x,z,radius:2.2*s});
+}
+
+
+// --- PROCEDURAL WOODEN STRUCTURES, HOUSES & RUINS ---
+const stoneMat = new THREE.MeshStandardMaterial({ color: 0x8a8a80, roughness: 0.85, flatShading: true });
+const woodMat = new THREE.MeshStandardMaterial({ color: 0x5a3d28, roughness: 0.9, flatShading: true });
+const darkWoodMat = new THREE.MeshStandardMaterial({ color: 0x3d2719, roughness: 0.9, flatShading: true });
+const roofMat = new THREE.MeshStandardMaterial({ color: 0x943a2d, roughness: 0.85, flatShading: true });
+const doorMat = new THREE.MeshStandardMaterial({ color: 0xf59e0b, roughness: 0.5 });
+
+const pillarGeo = new THREE.BoxGeometry(1.2, 7, 1.2);
+const slabGeo = new THREE.BoxGeometry(6, 0.8, 2);
+
+function createRuinTemple() {
+    const ruinGroup = new THREE.Group();
+    const p1 = new THREE.Mesh(pillarGeo, stoneMat); p1.position.set(-2.2, 3.5, 0); p1.castShadow = p1.receiveShadow = true; ruinGroup.add(p1);
+    const p2 = new THREE.Mesh(pillarGeo, stoneMat); p2.position.set(2.2, 3.5, 0); p2.castShadow = p2.receiveShadow = true; ruinGroup.add(p2);
+    const slab = new THREE.Mesh(slabGeo, stoneMat); slab.position.set(0, 7.4, 0); slab.castShadow = slab.receiveShadow = true; ruinGroup.add(slab);
+    return ruinGroup;
+}
+
+function createWoodenStructure() {
+    const structGroup = new THREE.Group();
+    const postGeo = new THREE.CylinderGeometry(0.2, 0.2, 6);
+    const offsets = [-2, 2];
+    offsets.forEach(px => {
+        offsets.forEach(pz => {
+            const post = new THREE.Mesh(postGeo, woodMat);
+            post.position.set(px, 3, pz);
+            post.castShadow = true;
+            structGroup.add(post);
+        });
+    });
+
+    const deckGeo = new THREE.BoxGeometry(4.8, 0.3, 4.8);
+    const deck = new THREE.Mesh(deckGeo, woodMat);
+    deck.position.y = 5.5;
+    deck.castShadow = deck.receiveShadow = true;
+    structGroup.add(deck);
+
+    const roofGeo = new THREE.ConeGeometry(3.5, 2.5, 4);
+    const roof = new THREE.Mesh(roofGeo, new THREE.MeshStandardMaterial({color: 0x7c5a3c, roughness:0.95, flatShading:true}));
+    roof.position.y = 7.75;
+    roof.rotation.y = Math.PI / 4;
+    roof.castShadow = true;
+    structGroup.add(roof);
+
+    return structGroup;
+}
+
+// Custom House Model
+function createHouse() {
+    const houseGroup = new THREE.Group();
+
+    const bodyGeo = new THREE.BoxGeometry(5.5, 4, 4.5);
+    const body = new THREE.Mesh(bodyGeo, darkWoodMat);
+    body.position.y = 2;
+    body.castShadow = body.receiveShadow = true;
+    houseGroup.add(body);
+
+    const houseRoofGeo = new THREE.ConeGeometry(4.8, 3, 4);
+    const houseRoof = new THREE.Mesh(houseRoofGeo, roofMat);
+    houseRoof.position.y = 4 + 1;
+    houseRoof.rotation.y = Math.PI / 4; 
+    houseRoof.scale.set(1.3, 1, 1.1); 
+    houseRoof.castShadow = true;
+    houseGroup.add(houseRoof);
+
+    const doorGeo = new THREE.PlaneGeometry(1, 2.2);
+    const door = new THREE.Mesh(doorGeo, doorMat);
+    door.position.set(0, 1.1, 2.26); 
+    houseGroup.add(door);
+
+    return houseGroup;
+}
+
+// Custom Bridge Model
+function createBridge(spanLength) {
+    const bridgeGroup = new THREE.Group();
+    const width = 4.5;
+    
+    const deckGeo = new THREE.BoxGeometry(spanLength, 0.4, width);
+    const deck = new THREE.Mesh(deckGeo, woodMat);
+    deck.castShadow = deck.receiveShadow = true;
+    bridgeGroup.add(deck);
+
+    const railHeight = 1.1;
+    const postCount = 5;
+    const railThickness = 0.15;
+
+    for (let side of [-1, 1]) {
+        let sideZ = (width / 2 - 0.15) * side;
+        
+        const barGeo = new THREE.BoxGeometry(spanLength, railThickness, railThickness);
+        const topBar = new THREE.Mesh(barGeo, darkWoodMat);
+        topBar.position.set(0, railHeight, sideZ);
+        topBar.castShadow = true;
+        bridgeGroup.add(topBar);
+
+        for (let i = 0; i < postCount; i++) {
+            let t = i / (postCount - 1);
+            let posX = (t - 0.5) * (spanLength - 1);
+            
+            const fencePostGeo = new THREE.CylinderGeometry(railThickness, railThickness, railHeight + 0.2);
+            const fencePost = new THREE.Mesh(fencePostGeo, darkWoodMat);
+            fencePost.position.set(posX, railHeight / 2, sideZ);
+            fencePost.castShadow = true;
+            bridgeGroup.add(fencePost);
+        }
+    }
+
+    const pierGeo = new THREE.CylinderGeometry(0.3, 0.3, 7);
+    for (let offset of [-spanLength * 0.25, spanLength * 0.25]) {
+        const pierL = new THREE.Mesh(pierGeo, darkWoodMat);
+        pierL.position.set(offset, -3.3, width / 2 - 0.4);
+        pierL.castShadow = true;
+        bridgeGroup.add(pierL);
+
+        const pierR = new THREE.Mesh(pierGeo, darkWoodMat);
+        pierR.position.set(offset, -3.3, -(width / 2 - 0.4));
+        pierR.castShadow = true;
+        bridgeGroup.add(pierR);
+    }
+
+    return bridgeGroup;
+}
+
+// Spawn Bridges safely over predefined intervals along the River
+const totalBridges = 5;
+for (let i = 0; i < totalBridges; i++) {
+    let z = ((i + 1) / (totalBridges + 1) - 0.5) * 1000;
+    let x = getRiverX(z);
+    
+    let bridge = createBridge(36);
+    bridge.position.set(x, -0.6, z); // Fixed height to perfectly clear water level
+    
+    let sampleDelta = 2;
+    let riverAngle = Math.atan2(sampleDelta * 2, getRiverX(z + sampleDelta) - getRiverX(z - sampleDelta));
+    bridge.rotation.y = riverAngle;
+    
+    scene.add(bridge);
+}
+
+// Spawn Structures & Houses across dry terrain
+const totalStructuresCount = 0;
+for(let i=0; i<totalStructuresCount; i++) {
+    let x = (Math.random() - 0.5) * 1100;
+    let z = (Math.random() - 0.5) * 1100;
+
+    if(Math.abs(x) < 20 && Math.abs(z) < 20) continue;
+    if(Math.abs(x - getRiverX(z)) < 26) continue; 
+
+    let dx = x - lakeCenterX;
+    let dz = z - lakeCenterZ;
+    let distToLake = Math.sqrt(dx*dx + dz*dz);
+    
+    let y = height(x, z);
+    
+    
+    if(y > -0.5) {
+
+        let nearTree = false;
+        for(const t of treePositions){
+            const dx = x - t.x;
+            const dz = z - t.z;
+            if(dx*dx + dz*dz < 225){
+                nearTree = true;
+                break;
+            }
+        }
+
+        if(nearTree) continue;
+
+        let structure;
+        let randVal = Math.random();
+
+        if (randVal < 0.4) {
+            structure = createHouse(); 
+        } else if (distToLake < lakeRadius + 60 && randVal > 0.7) {
+            structure = createWoodenStructure();
+        } else {
+            structure = createRuinTemple();
+        }
+
+        structure.position.set(x, y - 0.05, z);
+        structure.rotation.y = Math.random() * Math.PI;
+        
+        let scale = 0.8 + Math.random() * 0.4;
+        structure.scale.set(scale, scale, scale);
+        
+        scene.add(structure);
+
+        colliders.push({
+            x,
+            z,
+            radius:6
+        });
+    }
+}
+
+
+
+// --- GRASS ---
+const grassMat = new THREE.MeshStandardMaterial({
+    color:0x5f8f45,
+    side:THREE.DoubleSide
+});
+
+for(let i=0;i<1500;i++){
+    const x=(Math.random()-0.5)*1300;
+    const z=(Math.random()-0.5)*1300;
+    const y=height(x,z);
+
+    const blade=new THREE.Mesh(
+        new THREE.PlaneGeometry(0.35,1.0),
+        grassMat
+    );
+
+    blade.position.set(x,y+0.4,z);
+    blade.rotation.y=Math.random()*Math.PI;
+    scene.add(blade);
+    if(Math.random()<0.25) burnables.push({mesh:blade,burnTime:2,burning:false});
+}
+
+
+// --- FALLEN LOGS ---
+const fallenLogMat = new THREE.MeshStandardMaterial({
+    color:0x6b4a2e,
+    roughness:0.95
+});
+
+for(let i=0;i<180;i++){
+    const x=(Math.random()-0.5)*1300;
+    const z=(Math.random()-0.5)*1300;
+    const y=height(x,z);
+
+    if(y < -0.8) continue;
+
+    const logLength = 2 + Math.random()*8;
+    const logRadius = 0.12 + Math.random()*0.25;
+
+    const log = new THREE.Mesh(
+        new THREE.CylinderGeometry(logRadius,logRadius,logLength,8),
+        fallenLogMat
+    );
+
+    log.rotation.z = Math.PI/2;
+    log.rotation.x = (Math.random()-0.5)*0.25;
+    log.rotation.y = Math.random()*Math.PI;
+
+    log.position.set(
+        x,
+        y + logRadius*0.7,
+        z
+    );
+
+    log.castShadow = true;
+    log.receiveShadow = true;
+
+    scene.add(log);
+    burnables.push({mesh:log,burnTime:8,burning:false});
+}
+
+
+// --- BUSHES ---
+const bushGeo = new THREE.Icosahed
