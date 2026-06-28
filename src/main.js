@@ -1,6 +1,6 @@
 import * as THREE from "https://unpkg.com/three@0.160.0/build/three.module.js";
 
-const BUILD = "v15 first graphics landmark pass";
+const BUILD = "v16 inverted horizontal look";
 const hudTitle = document.getElementById("title");
 const hint = document.getElementById("hint");
 const coords = document.getElementById("coords");
@@ -11,7 +11,7 @@ const stick = document.getElementById("stick");
 const look = document.getElementById("look");
 
 if (hudTitle) hudTitle.textContent = "STRAWBERRY FOREST — " + BUILD;
-if (hint) hint.textContent = "Build v15 loaded. Graphics pass: cabin landmark, logs, better snags, richer forest floor.";
+if (hint) hint.textContent = "Build v16 loaded. Graphics pass kept. Horizontal look inverted again.";
 if (startBtn) startBtn.textContent = "Start — " + BUILD;
 
 window.addEventListener("error", event => {
@@ -29,7 +29,7 @@ if (startBtn) {
 
 fetch("assets/models/trees/pine_tall.gltf", { cache: "no-store" })
   .then(r => {
-    if (hint && r.ok) hint.textContent = "Build v15 loaded. Local tree asset found. Landmark graphics pass running.";
+    if (hint && r.ok) hint.textContent = "Build v16 loaded. Local tree asset found. Landmark graphics pass running.";
   })
   .catch(() => {});
 
@@ -411,7 +411,7 @@ look.addEventListener("touchmove", e => {
   for (let i = 0; i < e.touches.length; i++) if (e.touches[i].identifier === lookTouchId) { t = e.touches[i]; break; }
   if (!t) return;
   const nx = t.clientX, ny = t.clientY;
-  yaw -= (nx - lx) * 0.005;
+  yaw += (nx - lx) * 0.005;
   pitch += (ny - ly) * 0.005;
   pitch = Math.max(-1.25, Math.min(1.05, pitch));
   lx = nx;
