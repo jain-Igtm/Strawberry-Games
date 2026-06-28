@@ -1,0 +1,499 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+  <title>Strawberry Games - Infinite Forest</title>
+  <style>
+    * {
+      box-sizing: border-box;
+      -webkit-tap-highlight-color: transparent;
+      touch-action: none;
+      user-select: none;
+    }
+
+    html, body {
+      margin: 0;
+      width: 100%;
+      height: 100%;
+      overflow: hidden;
+      background: #07110c;
+      font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      color: white;
+    }
+
+    canvas {
+      display: block;
+      width: 100vw;
+      height: 100vh;
+    }
+
+    #hud {
+      position: fixed;
+      top: 10px;
+      left: 10px;
+      right: 10px;
+      z-index: 5;
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-start;
+      gap: 10px;
+      pointer-events: none;
+      text-shadow: 0 2px 5px rgba(0,0,0,0.8);
+      font-size: 13px;
+      line-height: 1.35;
+    }
+
+    #title {
+      font-weight: 800;
+      letter-spacing: 0.03em;
+    }
+
+    #coords {
+      text-align: right;
+      opacity: 0.85;
+      font-variant-numeric: tabular-nums;
+    }
+
+    #centerDot {
+      position: fixed;
+      left: 50%;
+      top: 50%;
+      width: 6px;
+      height: 6px;
+      margin-left: -3px;
+      margin-top: -3px;
+      border-radius: 50%;
+      background: rgba(255,255,255,0.45);
+      box-shadow: 0 0 10px rgba(255,255,255,0.3);
+      z-index: 4;
+      pointer-events: none;
+    }
+
+    .pad {
+      position: fixed;
+      bottom: 24px;
+      width: 128px;
+      height: 128px;
+      border-radius: 50%;
+      border: 1px solid rgba(255,255,255,0.18);
+      background: rgba(255,255,255,0.08);
+      box-shadow: inset 0 0 22px rgba(255,255,255,0.06), 0 8px 25px rgba(0,0,0,0.35);
+      z-index: 6;
+      touch-action: none;
+    }
+
+    #movePad {
+      left: 20px;
+    }
+
+    #lookPad {
+      right: 20px;
+    }
+
+    .knob {
+      position: absolute;
+      left: 50%;
+      top: 50%;
+      width: 46px;
+      height: 46px;
+      margin-left: -23px;
+      margin-top: -23px;
+      border-radius: 50%;
+      background: rgba(255,255,255,0.32);
+      border: 1px solid rgba(255,255,255,0.28);
+      box-shadow: 0 4px 14px rgba(0,0,0,0.35);
+      transform: translate(0px, 0px);
+    }
+
+    #hint {
+      position: fixed;
+      left: 50%;
+      bottom: 164px;
+      transform: translateX(-50%);
+      z-index: 5;
+      width: min(92vw, 520px);
+      padding: 9px 12px;
+      border-radius: 12px;
+      background: rgba(0,0,0,0.42);
+      border: 1px solid rgba(255,255,255,0.12);
+      font-size: 13px;
+      line-height: 1.35;
+      text-align: center;
+      color: rgba(255,255,255,0.88);
+      pointer-events: none;
+      opacity: 1;
+      transition: opacity 1s ease;
+    }
+
+    #startOverlay {
+      position: fixed;
+      inset: 0;
+      z-index: 10;
+      display: grid;
+      place-items: center;
+      padding: 24px;
+      background: radial-gradient(circle at center, rgba(30,65,45,0.45), rgba(5,10,8,0.92));
+    }
+
+    #startCard {
+      width: min(92vw, 420px);
+      padding: 22px;
+      border-radius: 20px;
+      background: rgba(0,0,0,0.58);
+      border: 1px solid rgba(255,255,255,0.16);
+      box-shadow: 0 20px 60px rgba(0,0,0,0.45);
+      text-align: center;
+    }
+
+    #startCard h1 {
+      margin: 0 0 8px;
+      font-size: 24px;
+    }
+
+    #startCard p {
+      margin: 8px 0;
+      color: rgba(255,255,255,0.78);
+      font-size: 14px;
+      line-height: 1.45;
+    }
+
+    #startBtn {
+      margin-top: 14px;
+      width: 100%;
+      padding: 13px 16px;
+      border: 0;
+      border-radius: 14px;
+      background: #f2557b;
+      color: white;
+      font-size: 16px;
+      font-weight: 800;
+      cursor: pointer;
+    }
+
+    @media (min-width: 800px) {
+      .pad { opacity: 0.65; }
+      #hint { bottom: 24px; }
+    }
+  </style>
+</head>
+<body>
+  <div id="hud">
+    <div>
+      <div id="title">STRAWBERRY FOREST</div>
+      <div>Left pad: move / strafe<br>Right pad: look around</div>
+    </div>
+    <div id="coords">x: 0<br>z: 0</div>
+  </div>
+
+  <div id="centerDot"></div>
+  <div id="hint">Move with the left circle. Look with the right circle. Forward moves toward the center dot.</div>
+
+  <div id="movePad" class="pad"><div id="moveKnob" class="knob"></div></div>
+  <div id="lookPad" class="pad"><div id="lookKnob" class="knob"></div></div>
+
+  <div id="startOverlay">
+    <div id="startCard">
+      <h1>Strawberry Forest</h1>
+      <p>A basic infinite 3D forest prototype built for Android touch controls.</p>
+      <p>Hold your phone upright or sideways. Forward always moves toward where you are looking.</p>
+      <button id="startBtn">Start</button>
+    </div>
+  </div>
+
+  <script type="module">
+    import * as THREE from "https://unpkg.com/three@0.160.0/build/three.module.js";
+
+    const scene = new THREE.Scene();
+    scene.background = new THREE.Color(0x07110c);
+    scene.fog = new THREE.FogExp2(0x07110c, 0.035);
+
+    const camera = new THREE.PerspectiveCamera(72, window.innerWidth / window.innerHeight, 0.1, 700);
+    camera.position.set(0, 2.25, 0);
+
+    const renderer = new THREE.WebGLRenderer({ antialias: true, powerPreference: "high-performance" });
+    renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 1.6));
+    renderer.setSize(window.innerWidth, window.innerHeight);
+    renderer.shadowMap.enabled = true;
+    renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+    document.body.appendChild(renderer.domElement);
+
+    const hemi = new THREE.HemisphereLight(0xa9d8b9, 0x172016, 1.45);
+    scene.add(hemi);
+
+    const sun = new THREE.DirectionalLight(0xfff1c9, 1.65);
+    sun.position.set(-35, 70, 28);
+    sun.castShadow = true;
+    sun.shadow.mapSize.width = 1024;
+    sun.shadow.mapSize.height = 1024;
+    sun.shadow.camera.near = 1;
+    sun.shadow.camera.far = 180;
+    sun.shadow.camera.left = -80;
+    sun.shadow.camera.right = 80;
+    sun.shadow.camera.top = 80;
+    sun.shadow.camera.bottom = -80;
+    scene.add(sun);
+
+    const groundGeo = new THREE.PlaneGeometry(1, 1);
+    const groundMat = new THREE.MeshStandardMaterial({ color: 0x1b331f, roughness: 0.96, metalness: 0.0 });
+
+    const trunkGeo = new THREE.CylinderGeometry(0.18, 0.28, 3.8, 7);
+    const trunkMat = new THREE.MeshStandardMaterial({ color: 0x3a2416, roughness: 0.9 });
+
+    const crownGeo = new THREE.ConeGeometry(1.25, 4.0, 8);
+    const crownMat = new THREE.MeshStandardMaterial({ color: 0x123b22, roughness: 0.95 });
+
+    const rockGeo = new THREE.DodecahedronGeometry(0.55, 0);
+    const rockMat = new THREE.MeshStandardMaterial({ color: 0x58615a, roughness: 1.0 });
+
+    const chunkSize = 48;
+    const chunkRadius = 3;
+    const chunks = new Map();
+    const reusable = new THREE.Vector3();
+
+    function hash2(x, z) {
+      let n = x * 374761393 + z * 668265263;
+      n = (n ^ (n >> 13)) * 1274126177;
+      return ((n ^ (n >> 16)) >>> 0) / 4294967295;
+    }
+
+    function randRange(x, z, salt, min, max) {
+      return min + hash2(x + salt * 1013, z - salt * 917) * (max - min);
+    }
+
+    function makeChunk(cx, cz) {
+      const key = cx + "," + cz;
+      if (chunks.has(key)) return;
+
+      const group = new THREE.Group();
+      group.name = "chunk_" + key;
+
+      const ground = new THREE.Mesh(groundGeo, groundMat);
+      ground.scale.set(chunkSize, chunkSize, 1);
+      ground.rotation.x = -Math.PI / 2;
+      ground.position.set(cx * chunkSize + chunkSize / 2, 0, cz * chunkSize + chunkSize / 2);
+      ground.receiveShadow = true;
+      group.add(ground);
+
+      const pathWidth = 5.5;
+      const pathGeo = new THREE.PlaneGeometry(chunkSize, pathWidth);
+      const pathMat = new THREE.MeshStandardMaterial({ color: 0x43533d, roughness: 1.0 });
+      const path = new THREE.Mesh(pathGeo, pathMat);
+      path.rotation.x = -Math.PI / 2;
+      path.position.set(cx * chunkSize + chunkSize / 2, 0.012, cz * chunkSize + chunkSize / 2);
+      path.receiveShadow = true;
+      group.add(path);
+
+      const treeCount = 26;
+      for (let i = 0; i < treeCount; i++) {
+        const seedX = cx * 1000 + i * 37;
+        const seedZ = cz * 1000 - i * 53;
+        const x = cx * chunkSize + randRange(seedX, seedZ, 1, 2, chunkSize - 2);
+        const z = cz * chunkSize + randRange(seedX, seedZ, 2, 2, chunkSize - 2);
+
+        if (Math.abs(z - (cz * chunkSize + chunkSize / 2)) < pathWidth * 0.9) continue;
+
+        const s = randRange(seedX, seedZ, 3, 0.75, 1.55);
+        const rot = randRange(seedX, seedZ, 4, 0, Math.PI * 2);
+
+        const tree = new THREE.Group();
+        tree.position.set(x, 0, z);
+        tree.rotation.y = rot;
+        tree.scale.setScalar(s);
+
+        const trunk = new THREE.Mesh(trunkGeo, trunkMat);
+        trunk.position.y = 1.9;
+        trunk.castShadow = true;
+        tree.add(trunk);
+
+        const crown1 = new THREE.Mesh(crownGeo, crownMat);
+        crown1.position.y = 4.0;
+        crown1.castShadow = true;
+        tree.add(crown1);
+
+        const crown2 = new THREE.Mesh(crownGeo, crownMat);
+        crown2.position.y = 5.55;
+        crown2.scale.setScalar(0.72);
+        crown2.castShadow = true;
+        tree.add(crown2);
+
+        group.add(tree);
+      }
+
+      for (let i = 0; i < 5; i++) {
+        const seedX = cx * 800 + i * 71;
+        const seedZ = cz * 800 - i * 41;
+        const x = cx * chunkSize + randRange(seedX, seedZ, 7, 3, chunkSize - 3);
+        const z = cz * chunkSize + randRange(seedX, seedZ, 8, 3, chunkSize - 3);
+        const rock = new THREE.Mesh(rockGeo, rockMat);
+        rock.position.set(x, 0.32, z);
+        rock.rotation.set(randRange(seedX, seedZ, 9, 0, 1), randRange(seedX, seedZ, 10, 0, Math.PI * 2), randRange(seedX, seedZ, 11, 0, 1));
+        rock.scale.setScalar(randRange(seedX, seedZ, 12, 0.45, 1.25));
+        rock.castShadow = true;
+        rock.receiveShadow = true;
+        group.add(rock);
+      }
+
+      scene.add(group);
+      chunks.set(key, group);
+    }
+
+    function updateChunks() {
+      const pcx = Math.floor(camera.position.x / chunkSize);
+      const pcz = Math.floor(camera.position.z / chunkSize);
+
+      for (let x = pcx - chunkRadius; x <= pcx + chunkRadius; x++) {
+        for (let z = pcz - chunkRadius; z <= pcz + chunkRadius; z++) {
+          makeChunk(x, z);
+        }
+      }
+
+      for (const [key, group] of chunks) {
+        const [cx, cz] = key.split(",").map(Number);
+        if (Math.abs(cx - pcx) > chunkRadius + 1 || Math.abs(cz - pcz) > chunkRadius + 1) {
+          scene.remove(group);
+          group.traverse(obj => {
+            if (obj.geometry && obj.geometry !== groundGeo && obj.geometry !== trunkGeo && obj.geometry !== crownGeo && obj.geometry !== rockGeo) {
+              obj.geometry.dispose();
+            }
+          });
+          chunks.delete(key);
+        }
+      }
+    }
+
+    const moveState = { x: 0, y: 0 };
+    const lookState = { x: 0, y: 0 };
+    const keys = new Set();
+    let yaw = 0;
+    let pitch = 0;
+    let lastTime = performance.now();
+    let started = false;
+
+    const movePad = document.getElementById("movePad");
+    const moveKnob = document.getElementById("moveKnob");
+    const lookPad = document.getElementById("lookPad");
+    const lookKnob = document.getElementById("lookKnob");
+    const coords = document.getElementById("coords");
+    const hint = document.getElementById("hint");
+    const startOverlay = document.getElementById("startOverlay");
+    const startBtn = document.getElementById("startBtn");
+
+    function bindPad(pad, knob, state, invertY = false) {
+      let activeId = null;
+      const max = 48;
+
+      function setFromEvent(e) {
+        const rect = pad.getBoundingClientRect();
+        const touch = [...e.changedTouches, ...e.touches].find(t => t.identifier === activeId) || e.touches[0];
+        if (!touch) return;
+
+        const cx = rect.left + rect.width / 2;
+        const cy = rect.top + rect.height / 2;
+        let dx = touch.clientX - cx;
+        let dy = touch.clientY - cy;
+        const dist = Math.hypot(dx, dy);
+        if (dist > max) {
+          dx = dx / dist * max;
+          dy = dy / dist * max;
+        }
+
+        knob.style.transform = `translate(${dx}px, ${dy}px)`;
+        state.x = dx / max;
+        state.y = (invertY ? -dy : dy) / max;
+      }
+
+      pad.addEventListener("touchstart", e => {
+        e.preventDefault();
+        if (activeId === null) activeId = e.changedTouches[0].identifier;
+        setFromEvent(e);
+      }, { passive: false });
+
+      pad.addEventListener("touchmove", e => {
+        e.preventDefault();
+        if (activeId !== null) setFromEvent(e);
+      }, { passive: false });
+
+      function end(e) {
+        const ended = [...e.changedTouches].some(t => t.identifier === activeId);
+        if (!ended) return;
+        activeId = null;
+        state.x = 0;
+        state.y = 0;
+        knob.style.transform = "translate(0px, 0px)";
+      }
+
+      pad.addEventListener("touchend", end, { passive: false });
+      pad.addEventListener("touchcancel", end, { passive: false });
+    }
+
+    bindPad(movePad, moveKnob, moveState, false);
+    bindPad(lookPad, lookKnob, lookState, false);
+
+    window.addEventListener("keydown", e => keys.add(e.code));
+    window.addEventListener("keyup", e => keys.delete(e.code));
+
+    startBtn.addEventListener("click", () => {
+      started = true;
+      startOverlay.style.display = "none";
+      setTimeout(() => { hint.style.opacity = "0"; }, 4500);
+    });
+
+    function resize() {
+      camera.aspect = window.innerWidth / window.innerHeight;
+      camera.updateProjectionMatrix();
+      renderer.setSize(window.innerWidth, window.innerHeight);
+    }
+
+    window.addEventListener("resize", resize);
+    window.addEventListener("orientationchange", () => setTimeout(resize, 120));
+
+    function animate(now) {
+      requestAnimationFrame(animate);
+      const dt = Math.min((now - lastTime) / 1000, 0.05);
+      lastTime = now;
+
+      if (started) {
+        let forwardInput = -moveState.y;
+        let strafeInput = moveState.x;
+
+        if (keys.has("KeyW") || keys.has("ArrowUp")) forwardInput += 1;
+        if (keys.has("KeyS") || keys.has("ArrowDown")) forwardInput -= 1;
+        if (keys.has("KeyA") || keys.has("ArrowLeft")) strafeInput -= 1;
+        if (keys.has("KeyD") || keys.has("ArrowRight")) strafeInput += 1;
+
+        forwardInput = THREE.MathUtils.clamp(forwardInput, -1, 1);
+        strafeInput = THREE.MathUtils.clamp(strafeInput, -1, 1);
+
+        yaw -= lookState.x * dt * 2.4;
+        pitch -= lookState.y * dt * 1.7;
+        pitch = THREE.MathUtils.clamp(pitch, -0.78, 0.72);
+
+        const speed = 12.0;
+        const sin = Math.sin(yaw);
+        const cos = Math.cos(yaw);
+
+        // Direction check:
+        // forward uses camera-facing direction.
+        // strafe uses the right-vector, so pushing right moves right on screen.
+        const dx = (sin * forwardInput + cos * strafeInput) * speed * dt;
+        const dz = (cos * forwardInput - sin * strafeInput) * speed * dt;
+
+        camera.position.x += dx;
+        camera.position.z += dz;
+        camera.position.y = 2.25 + Math.sin(now * 0.006) * 0.035 * Math.abs(forwardInput);
+        camera.rotation.set(pitch, yaw, 0, "YXZ");
+      }
+
+      sun.target.position.copy(camera.position);
+      sun.target.updateMatrixWorld();
+      updateChunks();
+      coords.innerHTML = `x: ${camera.position.x.toFixed(1)}<br>z: ${camera.position.z.toFixed(1)}`;
+      renderer.render(scene, camera);
+    }
+
+    updateChunks();
+    requestAnimationFrame(animate);
+  </script>
+</body>
+</html>
