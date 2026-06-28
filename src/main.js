@@ -1,6 +1,6 @@
 import * as THREE from "https://unpkg.com/three@0.160.0/build/three.module.js";
+import { loadModel, cloneModel } from "./assets/loader.js";
 
-const MOBILE = innerWidth < 900 || /Android|iPhone|iPad/i.test(navigator.userAgent);
 const scene = new THREE.Scene();
 scene.background = new THREE.Color(0x91b8d9);
 scene.fog = new THREE.FogExp2(0x91b8d9, 0.008);
@@ -27,15 +27,19 @@ const sky = new THREE.Mesh(
   new THREE.ShaderMaterial({
     side: THREE.BackSide,
     depthWrite: false,
-    uniforms: {
-      top: { value: new THREE.Color(0x7fb2df) },
-      bottom: { value: new THREE.Color(0xdce9ef) }
-    },
+    uniforms: { top: { value: new THREE.Color(0x7fb2df) }, bottom: { value: new THREE.Color(0xdce9ef) } },
     vertexShader: `varying vec3 v;void main(){v=normalize(position);gl_Position=projectionMatrix*modelViewMatrix*vec4(position,1.0);}`,
     fragmentShader: `varying vec3 v;uniform vec3 top;uniform vec3 bottom;void main(){float h=smoothstep(-.18,.82,v.y);gl_FragColor=vec4(mix(bottom,top,h),1.0);}`
   })
 );
 scene.add(sky);
+
+const pineModel = await loadModel("assets/models/trees/pine_tall.gltf");
+if (pineModel) {
+  pineModel.traverse(obj => {
+    obj.frustumCulled = true;
+  });
+}
 
 const chunkSize = 76;
 const chunkRadius = 2;
@@ -48,20 +52,14 @@ const terrainMat = new THREE.MeshStandardMaterial({ vertexColors: true, roughnes
 const pathMat = new THREE.MeshStandardMaterial({ color: 0x77644b, roughness: 1 });
 const waterMat = new THREE.MeshStandardMaterial({ color: 0x477f94, roughness: 0.45, transparent: true, opacity: 0.62 });
 const trunkMat = new THREE.MeshStandardMaterial({ color: 0x5a3a22, roughness: 0.95 });
-const barkDark = new THREE.MeshStandardMaterial({ color: 0x342315, roughness: 1 });
 const rockMat = new THREE.MeshStandardMaterial({ color: 0x787b76, roughness: 1 });
 const grassMat = new THREE.MeshStandardMaterial({ color: 0x2f5f27, roughness: 1 });
-const pineMats = [0x1d3f2a, 0x244f31, 0x193822].map(c => new THREE.MeshStandardMaterial({ color: c, roughness: 0.98 }));
-const leafMat = new THREE.MeshStandardMaterial({ color: 0x31542a, roughness: 0.95 });
-const leafLightMat = new THREE.MeshStandardMaterial({ color: 0x3d6932, roughness: 0.95 });
+const fallbackNeedle = new THREE.MeshStandardMaterial({ color: 0x183b25, roughness: 0.98 });
 
 const trunkGeo = new THREE.CylinderGeometry(0.32, 0.68, 9.2, 7);
-const smallTrunkGeo = new THREE.CylinderGeometry(0.25, 0.52, 7.2, 7);
 const pineLowGeo = new THREE.ConeGeometry(3.35, 7.4, 9);
 const pineMidGeo = new THREE.ConeGeometry(2.5, 6.2, 9);
 const pineTopGeo = new THREE.ConeGeometry(1.5, 4.1, 8);
-const leafBlobGeo = new THREE.SphereGeometry(1, 9, 7);
-const branchGeo = new THREE.CylinderGeometry(0.045, 0.11, 2.25, 5);
 const rockGeo = new THREE.DodecahedronGeometry(0.9, 0);
 const grassGeo = new THREE.ConeGeometry(0.045, 0.62, 5);
 const cloudGeo = new THREE.SphereGeometry(1, 10, 7);
@@ -159,34 +157,30 @@ function tooClose(x, z, spots, d) {
   }
   return false;
 }
-
-function makeLeafyTree(x, z, sx, sz) {
-  const group = new THREE.Group();
+function fallbackPine(x, z, sx, sz) {
+  const g = new THREE.Group();
   const y = heightAt(x, z);
-  const s = rnd(sx, sz, 1, 0.95, 1.45);
-  const rot = rnd(sx, sz, 3, 0, Math.PI * 2);
-  group.position.set(x, y, z);
-  group.rotation.y = rot;
-  group.scale.setScalar(s);
-
-  const trunk = new THREE.Mesh(smallTrunkGeo, trunkMat);
-  trunk.position.y = 3.6;
-  group.add(trunk);
-
-  for (let i = 0; i < 5; i++) {
-    const branch = new THREE.Mesh(branchGeo, barkDark);
-    branch.position.set(rnd(sx, sz, 20 + i, -0.45, 0.45), 5.3 + i * 0.38, rnd(sx, sz, 40 + i, -0.45, 0.45));
-    branch.rotation.set(Math.PI / 2 + rnd(sx, sz, 60 + i, -0.32, 0.32), rnd(sx, sz, 80 + i, 0, Math.PI * 2), 0);
-    group.add(branch);
+  const s = rnd(sx, sz, 1, 0.95, 1.55);
+  const r = rnd(sx, sz, 3, 0, Math.PI * 2);
+  g.position.set(x, y, z);
+  g.rotation.y = r;
+  g.scale.setScalar(s);
+  const t = new THREE.Mesh(trunkGeo, trunkMat); t.position.y = 4.6; g.add(t);
+  const a = new THREE.Mesh(pineLowGeo, fallbackNeedle); a.position.y = 7.8; g.add(a);
+  const b = new THREE.Mesh(pineMidGeo, fallbackNeedle); b.position.y = 10.5; g.add(b);
+  const c = new THREE.Mesh(pineTopGeo, fallbackNeedle); c.position.y = 12.95; g.add(c);
+  return g;
+}
+function addTree(group, x, z, sx, sz) {
+  if (pineModel) {
+    const model = cloneModel(pineModel);
+    model.position.set(x, heightAt(x, z), z);
+    model.rotation.y = rnd(sx, sz, 3, 0, Math.PI * 2);
+    model.scale.setScalar(rnd(sx, sz, 1, 0.95, 1.55));
+    group.add(model);
+  } else {
+    group.add(fallbackPine(x, z, sx, sz));
   }
-
-  for (let i = 0; i < 6; i++) {
-    const blob = new THREE.Mesh(leafBlobGeo, i % 2 ? leafMat : leafLightMat);
-    blob.position.set(rnd(sx, sz, 100 + i, -2.0, 2.0), 7.6 + rnd(sx, sz, 120 + i, -0.9, 1.15), rnd(sx, sz, 140 + i, -2.0, 2.0));
-    blob.scale.set(rnd(sx, sz, 160 + i, 2.2, 3.4), rnd(sx, sz, 180 + i, 1.0, 1.7), rnd(sx, sz, 200 + i, 2.0, 3.2));
-    group.add(blob);
-  }
-  return group;
 }
 
 function makeChunk(cx, cz) {
@@ -212,26 +206,10 @@ function makeChunk(cx, cz) {
     const sz = cz * 1000 - tries * 53;
     const x = cx * chunkSize + rnd(sx, sz, 1, 5, chunkSize - 5);
     const z = cz * chunkSize + rnd(sx, sz, 2, 5, chunkSize - 5);
-    if (pathBlend(x, z) > 0.2 || waterBlend(x, z) > 0.15 || tooClose(x, z, spots, 13.5)) continue;
-    spots.push({ x, z, sx, sz, pine: rnd(sx, sz, 3, 0, 1) > 0.28 });
+    if (pathBlend(x, z) > 0.2 || waterBlend(x, z) > 0.15 || tooClose(x, z, spots, 14)) continue;
+    spots.push({ x, z, sx, sz });
   }
-
-  const pineSpots = spots.filter(p => p.pine);
-  const leafySpots = spots.filter(p => !p.pine);
-  const trunks = new THREE.InstancedMesh(trunkGeo, trunkMat, pineSpots.length);
-  const low = new THREE.InstancedMesh(pineLowGeo, pineMats[0], pineSpots.length);
-  const mid = new THREE.InstancedMesh(pineMidGeo, pineMats[1], pineSpots.length);
-  const top = new THREE.InstancedMesh(pineTopGeo, pineMats[2], pineSpots.length);
-  pineSpots.forEach((p, i) => {
-    const y = heightAt(p.x, p.z), s = rnd(p.sx, p.sz, 1, 0.95, 1.6), r = rnd(p.sx, p.sz, 3, 0, Math.PI * 2);
-    place(trunks, i, p.x, y + 4.6, p.z, s, r);
-    place(low, i, p.x, y + 7.8, p.z, s, r, 1 + rnd(p.sx, p.sz, 5, -0.12, 0.12), 1, 1 + rnd(p.sx, p.sz, 6, -0.12, 0.12));
-    place(mid, i, p.x, y + 10.5, p.z, s, r);
-    place(top, i, p.x, y + 12.95, p.z, s, r);
-  });
-  [trunks, low, mid, top].forEach(m => { m.instanceMatrix.needsUpdate = true; group.add(m); });
-
-  leafySpots.forEach(p => group.add(makeLeafyTree(p.x, p.z, p.sx, p.sz)));
+  spots.forEach(p => addTree(group, p.x, p.z, p.sx, p.sz));
 
   const rocks = new THREE.InstancedMesh(rockGeo, rockMat, 5);
   for (let i = 0; i < 5; i++) {
@@ -256,7 +234,6 @@ function makeChunk(cx, cz) {
   scene.add(group);
   chunks.set(key, group);
 }
-
 function enqueueChunks() {
   const pcx = Math.floor(camera.position.x / chunkSize), pcz = Math.floor(camera.position.z / chunkSize);
   for (let x = pcx - chunkRadius; x <= pcx + chunkRadius; x++) for (let z = pcz - chunkRadius; z <= pcz + chunkRadius; z++) {
