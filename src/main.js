@@ -1,6 +1,7 @@
 import * as THREE from "https://unpkg.com/three@0.160.0/build/three.module.js";
 
-const BUILD = "v17 direct main label";
+const BUILD = "1-N 18";
+const NEXT_VERSION = "v0.0.1";
 const hudTitle = document.getElementById("title");
 const hint = document.getElementById("hint");
 const coords = document.getElementById("coords");
@@ -8,11 +9,10 @@ const startOverlay = document.getElementById("startOverlay");
 const startBtn = document.getElementById("startBtn");
 const joystick = document.getElementById("joystick");
 const stick = document.getElementById("stick");
-const look = document.getElementById("look");
 
-if (hudTitle) hudTitle.textContent = "STRAWBERRY FOREST — " + BUILD;
-if (hint) hint.textContent = "Build v17 loaded. Direct main.js label changed.";
-if (startBtn) startBtn.textContent = "Start — " + BUILD;
+if (hudTitle) hudTitle.textContent = "STRAWBERRY FOREST — Update " + BUILD;
+if (hint) hint.textContent = "Update " + BUILD + " loaded. Terrain texture pass. Next public version: " + NEXT_VERSION + ".";
+if (startBtn) startBtn.textContent = "Start";
 
 window.addEventListener("error", event => {
   if (hint) hint.textContent = "Runtime error: " + event.message;
@@ -23,32 +23,64 @@ if (startBtn) {
   startBtn.onclick = () => {
     started = true;
     startOverlay.style.display = "none";
-    if (hint) setTimeout(() => { hint.style.opacity = "0"; }, 4500);
+    if (hint) setTimeout(() => { hint.style.opacity = "0"; }, 4200);
   };
 }
 
 const scene = new THREE.Scene();
-scene.background = new THREE.Color(0x91b8d9);
-scene.fog = new THREE.FogExp2(0x91b8d9, 0.0075);
+scene.background = new THREE.Color(0x86b5dc);
+scene.fog = new THREE.FogExp2(0x86b5dc, 0.0068);
 
-const camera = new THREE.PerspectiveCamera(72, innerWidth / innerHeight, 0.08, 900);
+const camera = new THREE.PerspectiveCamera(72, innerWidth / innerHeight, 0.08, 950);
 camera.position.set(0, 4, 10);
+camera.rotation.order = "YXZ";
 
 const renderer = new THREE.WebGLRenderer({ antialias: false, powerPreference: "high-performance" });
 renderer.setPixelRatio(1);
 renderer.setSize(innerWidth, innerHeight);
 renderer.shadowMap.enabled = false;
 renderer.toneMapping = THREE.ACESFilmicToneMapping;
-renderer.toneMappingExposure = 1.14;
+renderer.toneMappingExposure = 1.12;
 document.body.appendChild(renderer.domElement);
 
-scene.add(new THREE.HemisphereLight(0xd8ebff, 0x2d432c, 1.55));
-const sun = new THREE.DirectionalLight(0xffdfa3, 2.55);
+scene.add(new THREE.HemisphereLight(0xdcefff, 0x2d432c, 1.5));
+const sun = new THREE.DirectionalLight(0xffdda7, 2.55);
 sun.position.set(-95, 135, 75);
 scene.add(sun);
 scene.add(sun.target);
 
-const terrainMat = new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.97 });
+function makeStripeTexture(base, mid, dark) {
+  const c = document.createElement("canvas");
+  c.width = 128;
+  c.height = 128;
+  const g = c.getContext("2d");
+  g.fillStyle = base;
+  g.fillRect(0, 0, 128, 128);
+  for (let y = 0; y < 128; y += 7) {
+    g.fillStyle = y % 21 === 0 ? dark : mid;
+    g.globalAlpha = 0.22 + ((y * 13) % 17) / 100;
+    g.fillRect(0, y, 128, 2 + (y % 5));
+  }
+  for (let i = 0; i < 260; i++) {
+    const x = Math.random() * 128;
+    const y = Math.random() * 128;
+    g.globalAlpha = 0.08 + Math.random() * 0.18;
+    g.fillStyle = Math.random() > 0.5 ? dark : mid;
+    g.fillRect(x, y, 1 + Math.random() * 2, 1 + Math.random() * 2);
+  }
+  const tex = new THREE.CanvasTexture(c);
+  tex.wrapS = tex.wrapT = THREE.RepeatWrapping;
+  tex.repeat.set(10, 10);
+  tex.magFilter = THREE.NearestFilter;
+  tex.minFilter = THREE.NearestMipMapNearestFilter;
+  return tex;
+}
+
+const terrainTexture = makeStripeTexture("#486f35", "#66814a", "#263e28");
+const mountainTexture = makeStripeTexture("#66706c", "#8a948f", "#3d4746");
+
+const terrainMat = new THREE.MeshStandardMaterial({ map: terrainTexture, vertexColors: true, roughness: 0.98 });
+const mountainMat = new THREE.MeshStandardMaterial({ map: mountainTexture, vertexColors: true, roughness: 1 });
 const waterMat = new THREE.MeshStandardMaterial({ color: 0x3f7d93, roughness: 0.5, transparent: true, opacity: 0.62 });
 const trunkMat = new THREE.MeshStandardMaterial({ color: 0x53331e, roughness: 1 });
 const rockMat = new THREE.MeshStandardMaterial({ color: 0x777a73, roughness: 1 });
@@ -63,7 +95,7 @@ const rockGeo = new THREE.DodecahedronGeometry(1, 0);
 
 const chunkSize = 86;
 const chunkRadius = 2;
-const seg = 16;
+const seg = 18;
 const chunks = new Map();
 const temp = new THREE.Object3D();
 
@@ -86,15 +118,23 @@ function waterBlend(x, z) {
   const v = nse(x * 0.012 + 220, z * 0.012 - 70);
   return v > 0.825 ? THREE.MathUtils.clamp((v - 0.825) / 0.08, 0, 1) : 0;
 }
+function ridge(x, z) {
+  const r1 = 1 - Math.abs(nse(x * 0.006 + 11, z * 0.006 - 42) * 2 - 1);
+  const r2 = 1 - Math.abs(nse(x * 0.014 - 81, z * 0.014 + 9) * 2 - 1);
+  return Math.pow(THREE.MathUtils.clamp(r1 * 0.75 + r2 * 0.45, 0, 1), 2.15);
+}
 function heightAt(x, z) {
-  let y = (nse(x * 0.011, z * 0.011) - 0.5) * 18 + (nse(x * 0.04 + 81, z * 0.04 - 23) - 0.5) * 5.5;
+  let y = (nse(x * 0.011, z * 0.011) - 0.5) * 15 + (nse(x * 0.04 + 81, z * 0.04 - 23) - 0.5) * 5.5;
+  const far = THREE.MathUtils.clamp((Math.hypot(x + 115, z - 250) - 80) / 230, 0, 1);
+  y += ridge(x + 60, z - 90) * 38 * far;
   y = THREE.MathUtils.lerp(y, 0.35, pathBlend(x, z));
   if (waterBlend(x, z) > 0.28) y = Math.min(y, -1.2);
   return y;
 }
 function colorAt(x, z, y) {
   const c = new THREE.Color(0x496f34);
-  if (y > 4) c.set(0x526b40);
+  if (y > 10) c.set(0x68726b);
+  else if (y > 5) c.set(0x526b40);
   if (y < -0.7) c.set(0x425c34);
   c.lerp(new THREE.Color(0x607a43), nse(x * 0.18, z * 0.18) * 0.25);
   c.lerp(new THREE.Color(0x80684a), pathBlend(x, z) * 0.95);
@@ -105,17 +145,19 @@ function makeTerrain(cx, cz) {
   geo.rotateX(-Math.PI / 2);
   const p = geo.attributes.position;
   const colors = [];
+  let high = 0;
   for (let i = 0; i < p.count; i++) {
     const wx = cx * chunkSize + chunkSize / 2 + p.getX(i);
     const wz = cz * chunkSize + chunkSize / 2 + p.getZ(i);
     const y = heightAt(wx, wz);
+    high += y > 8 ? 1 : 0;
     p.setY(i, y);
     const c = colorAt(wx, wz, y);
     colors.push(c.r, c.g, c.b);
   }
   geo.setAttribute("color", new THREE.Float32BufferAttribute(colors, 3));
   geo.computeVertexNormals();
-  const mesh = new THREE.Mesh(geo, terrainMat);
+  const mesh = new THREE.Mesh(geo, high > p.count * 0.22 ? mountainMat : terrainMat);
   mesh.position.set(cx * chunkSize + chunkSize / 2, 0, cz * chunkSize + chunkSize / 2);
   return mesh;
 }
@@ -144,10 +186,13 @@ function makeChunk(cx, cz) {
   }
   group.add(new THREE.Mesh(pathGeo, pathMat));
 
-  const water = new THREE.Mesh(new THREE.PlaneGeometry(chunkSize, chunkSize), waterMat);
-  water.rotation.x = -Math.PI / 2;
-  water.position.set(cx * chunkSize + chunkSize / 2, -1.05, cz * chunkSize + chunkSize / 2);
-  group.add(water);
+  const wb = waterBlend(cx * chunkSize + chunkSize / 2, cz * chunkSize + chunkSize / 2);
+  if (wb > 0.01) {
+    const water = new THREE.Mesh(new THREE.PlaneGeometry(chunkSize, chunkSize), waterMat);
+    water.rotation.x = -Math.PI / 2;
+    water.position.set(cx * chunkSize + chunkSize / 2, -1.05, cz * chunkSize + chunkSize / 2);
+    group.add(water);
+  }
 
   const count = 34;
   const trunks = new THREE.InstancedMesh(trunkGeo, trunkMat, count);
@@ -158,8 +203,8 @@ function makeChunk(cx, cz) {
   for (let i = 0; i < count; i++) {
     const x = cx * chunkSize + rnd(cx, cz, i * 5 + 1, 4, chunkSize - 4);
     const z = cz * chunkSize + rnd(cx, cz, i * 5 + 2, 4, chunkSize - 4);
-    if (pathBlend(x, z) > 0.25 || waterBlend(x, z) > 0.2 || Math.hypot(x, z) < 14) continue;
     const y = heightAt(x, z);
+    if (pathBlend(x, z) > 0.25 || waterBlend(x, z) > 0.2 || y > 9 || Math.hypot(x, z) < 14) continue;
     const s = rnd(cx, cz, i * 5 + 3, 0.65, 1.45);
     const r = rnd(cx, cz, i * 5 + 4, 0, Math.PI * 2);
     place(trunks, ti, x, y + 4 * s, z, s, r);
@@ -192,6 +237,7 @@ function updateChunks() {
     const [x, z] = key.split(",").map(Number);
     if (Math.abs(x - cx) > chunkRadius + 1 || Math.abs(z - cz) > chunkRadius + 1) {
       scene.remove(group);
+      group.traverse(o => { if (o.geometry) o.geometry.dispose?.(); });
       chunks.delete(key);
     }
   }
@@ -243,7 +289,6 @@ function frame(now) {
   }
   const y = heightAt(player.x, player.z) + 4.5;
   camera.position.set(player.x, y, player.z);
-  camera.rotation.order = "YXZ";
   camera.rotation.y = player.yaw;
   camera.rotation.x = player.pitch;
   sun.position.set(player.x - 95, y + 135, player.z + 75);
