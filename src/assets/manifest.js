@@ -1,7 +1,7 @@
 export const ASSETS = {
   models: {
     trees: {
-      pineTall: null,
+      pineTall: "assets/models/trees/pine_tall.gltf",
       pineYoung: null,
       broadleafTall: null,
       broadleafYoung: null,
@@ -30,10 +30,10 @@ export const ASSETS = {
       basicCar: null,
       truck: null
     },
-    creatures: {
+    characters: {
       deer: null,
       wolf: null,
-      zombie: null
+      infected: null
     },
     dimensions: {
       backroomsWallSet: null,
@@ -71,7 +71,7 @@ export const ASSETS = {
     ambience: {},
     footsteps: {},
     vehicles: {},
-    creatures: {},
+    characters: {},
     music: {}
   }
 };
@@ -99,18 +99,18 @@ export const WORLD_REGIONS = {
   },
   modernCity: {
     enabled: false,
-    description: "Cars, roads, traffic, apartments, police, gangs, businesses, and GTA-like stories."
+    description: "Cars, roads, traffic, apartments, police, gangs, businesses, and city stories."
   },
   outbreakZone: {
     enabled: false,
-    description: "Quarantined cities, infected neighborhoods, zombie FPS systems, barricades, and survivors."
+    description: "Quarantined cities, empty streets, barricades, and survivors."
   },
   cosmicHorror: {
     enabled: false,
-    description: "Reality anomalies, cults, impossible structures, perception effects, and hidden events."
+    description: "Reality anomalies, cults, impossible structures, and hidden events."
   },
   backrooms: {
     enabled: false,
-    description: "Liminal procedural interior dimension connected by glitches, portals, and rare world events."
+    description: "Liminal procedural interior dimension connected by portals and rare world events."
   }
 };
