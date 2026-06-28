@@ -1,6 +1,6 @@
 import * as THREE from "https://unpkg.com/three@0.160.0/build/three.module.js";
 
-const BUILD = "v14 controls cleanup";
+const BUILD = "v15 first graphics landmark pass";
 const hudTitle = document.getElementById("title");
 const hint = document.getElementById("hint");
 const coords = document.getElementById("coords");
@@ -11,7 +11,7 @@ const stick = document.getElementById("stick");
 const look = document.getElementById("look");
 
 if (hudTitle) hudTitle.textContent = "STRAWBERRY FOREST — " + BUILD;
-if (hint) hint.textContent = "Build v14 loaded. Debug marker removed. Horizontal look flipped.";
+if (hint) hint.textContent = "Build v15 loaded. Graphics pass: cabin landmark, logs, better snags, richer forest floor.";
 if (startBtn) startBtn.textContent = "Start — " + BUILD;
 
 window.addEventListener("error", event => {
@@ -29,13 +29,13 @@ if (startBtn) {
 
 fetch("assets/models/trees/pine_tall.gltf", { cache: "no-store" })
   .then(r => {
-    if (hint && r.ok) hint.textContent = "Build v14 loaded. Local tree asset found. Stable renderer running.";
+    if (hint && r.ok) hint.textContent = "Build v15 loaded. Local tree asset found. Landmark graphics pass running.";
   })
   .catch(() => {});
 
 const scene = new THREE.Scene();
 scene.background = new THREE.Color(0x91b8d9);
-scene.fog = new THREE.FogExp2(0x91b8d9, 0.0072);
+scene.fog = new THREE.FogExp2(0x91b8d9, 0.0075);
 
 const camera = new THREE.PerspectiveCamera(72, innerWidth / innerHeight, 0.08, 900);
 camera.position.set(0, 4, 10);
@@ -45,11 +45,11 @@ renderer.setPixelRatio(1);
 renderer.setSize(innerWidth, innerHeight);
 renderer.shadowMap.enabled = false;
 renderer.toneMapping = THREE.ACESFilmicToneMapping;
-renderer.toneMappingExposure = 1.12;
+renderer.toneMappingExposure = 1.14;
 document.body.appendChild(renderer.domElement);
 
-scene.add(new THREE.HemisphereLight(0xd8ebff, 0x32452e, 1.55));
-const sun = new THREE.DirectionalLight(0xffdfa3, 2.45);
+scene.add(new THREE.HemisphereLight(0xd8ebff, 0x2d432c, 1.55));
+const sun = new THREE.DirectionalLight(0xffdfa3, 2.55);
 sun.position.set(-95, 135, 75);
 scene.add(sun);
 scene.add(sun.target);
@@ -76,23 +76,35 @@ const chunks = new Map();
 const queue = [];
 const temp = new THREE.Object3D();
 
-const terrainMat = new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.96 });
-const pathMat = new THREE.MeshStandardMaterial({ color: 0x776246, roughness: 1 });
+const terrainMat = new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.97 });
+const pathMat = new THREE.MeshStandardMaterial({ color: 0x806a4d, roughness: 1 });
 const waterMat = new THREE.MeshStandardMaterial({ color: 0x3f7d93, roughness: 0.5, transparent: true, opacity: 0.62 });
 const trunkMat = new THREE.MeshStandardMaterial({ color: 0x53331e, roughness: 1 });
-const snagMat = new THREE.MeshStandardMaterial({ color: 0x2d2116, roughness: 1 });
+const snagMat = new THREE.MeshStandardMaterial({ color: 0x382716, roughness: 1 });
 const rockMat = new THREE.MeshStandardMaterial({ color: 0x777a73, roughness: 1 });
 const grassMat = new THREE.MeshStandardMaterial({ color: 0x2f5f27, roughness: 1 });
+const forestFloorMat = new THREE.MeshStandardMaterial({ color: 0x3b4d2b, roughness: 1, transparent: true, opacity: 0.76 });
+const cabinMat = new THREE.MeshStandardMaterial({ color: 0x6a4527, roughness: 0.95 });
+const cabinDarkMat = new THREE.MeshStandardMaterial({ color: 0x2d1f16, roughness: 1 });
+const roofMat = new THREE.MeshStandardMaterial({ color: 0x2d3430, roughness: 0.9 });
+const warmMat = new THREE.MeshStandardMaterial({ color: 0xffb15f, emissive: 0xff7a20, emissiveIntensity: 0.7, roughness: 0.6 });
 const needleMats = [0x17351f, 0x1e4528, 0x0f2c1a, 0x264d2e].map(c => new THREE.MeshStandardMaterial({ color: c, roughness: 1 }));
 
 const trunkGeo = new THREE.CylinderGeometry(0.36, 0.78, 11.0, 7);
 const pineLowGeo = new THREE.ConeGeometry(4.15, 8.2, 9);
 const pineMidGeo = new THREE.ConeGeometry(3.05, 6.9, 9);
 const pineTopGeo = new THREE.ConeGeometry(1.75, 4.8, 8);
-const snagGeo = new THREE.CylinderGeometry(0.18, 0.55, 8, 6);
+const snagGeo = new THREE.CylinderGeometry(0.13, 0.42, 5.8, 6);
 const rockGeo = new THREE.DodecahedronGeometry(1, 0);
 const grassGeo = new THREE.ConeGeometry(0.05, 0.8, 5);
+const floorPatchGeo = new THREE.CircleGeometry(2.2, 9);
 const cloudGeo = new THREE.SphereGeometry(1, 9, 6);
+const cabinBodyGeo = new THREE.BoxGeometry(8.5, 5.2, 6.2);
+const roofGeo = new THREE.ConeGeometry(6.3, 3.5, 4);
+const doorGeo = new THREE.BoxGeometry(1.5, 2.7, 0.12);
+const windowGeo = new THREE.BoxGeometry(1.25, 1.0, 0.14);
+const chimneyGeo = new THREE.BoxGeometry(0.9, 3.6, 0.9);
+const logGeo = new THREE.CylinderGeometry(0.32, 0.38, 4.6, 7);
 
 function hash2(x, z) {
   let n = (Math.floor(x) * 374761393 + Math.floor(z) * 668265263) | 0;
@@ -127,7 +139,8 @@ function colorAt(x, z, y) {
   if (y > 4) c.set(0x526b40);
   if (y < -0.7) c.set(0x425c34);
   c.lerp(new THREE.Color(0x607a43), nse(x * 0.18, z * 0.18) * 0.25);
-  c.lerp(new THREE.Color(0x796246), pathBlend(x, z) * 0.95);
+  c.lerp(new THREE.Color(0x354b2b), nse(x * 0.45 + 90, z * 0.45 - 10) * 0.12);
+  c.lerp(new THREE.Color(0x80684a), pathBlend(x, z) * 0.95);
   return c;
 }
 function makeTerrain(cx, cz) {
@@ -186,6 +199,47 @@ function tooClose(x, z, spots, d) {
   }
   return false;
 }
+function addCabin(group, x, z) {
+  const y = heightAt(x, z);
+  const cabin = new THREE.Group();
+  cabin.position.set(x, y + 0.15, z);
+  cabin.rotation.y = -0.55;
+
+  const body = new THREE.Mesh(cabinBodyGeo, cabinMat);
+  body.position.y = 2.6;
+  cabin.add(body);
+
+  const roof = new THREE.Mesh(roofGeo, roofMat);
+  roof.position.y = 6.2;
+  roof.rotation.y = Math.PI / 4;
+  roof.scale.set(1.12, 1, 0.88);
+  cabin.add(roof);
+
+  const door = new THREE.Mesh(doorGeo, cabinDarkMat);
+  door.position.set(0, 1.5, -3.17);
+  cabin.add(door);
+
+  const w1 = new THREE.Mesh(windowGeo, warmMat);
+  w1.position.set(-2.6, 3.2, -3.18);
+  cabin.add(w1);
+
+  const w2 = new THREE.Mesh(windowGeo, warmMat);
+  w2.position.set(2.7, 3.2, -3.18);
+  cabin.add(w2);
+
+  const chimney = new THREE.Mesh(chimneyGeo, cabinDarkMat);
+  chimney.position.set(2.4, 7.3, 0.6);
+  cabin.add(chimney);
+
+  for (let i = 0; i < 5; i++) {
+    const log = new THREE.Mesh(logGeo, trunkMat);
+    log.position.set(-5.8, 0.6 + i * 0.42, 2.5);
+    log.rotation.set(0, 0, Math.PI / 2);
+    cabin.add(log);
+  }
+
+  group.add(cabin);
+}
 function makeChunk(cx, cz) {
   const key = cx + "," + cz;
   if (chunks.has(key)) return;
@@ -203,13 +257,14 @@ function makeChunk(cx, cz) {
 
   const spots = [];
   let tries = 0;
-  while (spots.length < 22 && tries < 180) {
+  while (spots.length < 23 && tries < 190) {
     tries++;
     const sx = cx * 1000 + tries * 37;
     const sz = cz * 1000 - tries * 53;
     const x = cx * chunkSize + rnd(sx, sz, 1, 5, chunkSize - 5);
     const z = cz * chunkSize + rnd(sx, sz, 2, 5, chunkSize - 5);
-    if (pathBlend(x, z) > 0.19 || waterBlend(x, z) > 0.15 || tooClose(x, z, spots, 14)) continue;
+    if (pathBlend(x, z) > 0.19 || waterBlend(x, z) > 0.15 || tooClose(x, z, spots, 13.5)) continue;
+    if (cx === 0 && cz === 0 && Math.hypot(x - 18, z - 18) < 17) continue;
     spots.push({ x, z, sx, sz });
   }
 
@@ -217,25 +272,25 @@ function makeChunk(cx, cz) {
   const low = new THREE.InstancedMesh(pineLowGeo, needleMats[0], spots.length);
   const mid = new THREE.InstancedMesh(pineMidGeo, needleMats[1], spots.length);
   const top = new THREE.InstancedMesh(pineTopGeo, needleMats[2], spots.length);
-  const snags = new THREE.InstancedMesh(snagGeo, snagMat, Math.max(1, Math.floor(spots.length / 5)));
+  const snags = new THREE.InstancedMesh(snagGeo, snagMat, Math.max(1, Math.floor(spots.length / 7)));
   let snagI = 0;
 
   spots.forEach((p, i) => {
     const y = heightAt(p.x, p.z);
-    const s = rnd(p.sx, p.sz, 1, 0.9, 1.75);
+    const s = rnd(p.sx, p.sz, 1, 0.85, 1.65);
     const r = rnd(p.sx, p.sz, 3, 0, Math.PI * 2);
     place(trunks, i, p.x, y + 5.5, p.z, s, r, rnd(p.sx, p.sz, 4, 0.82, 1.15), 1, rnd(p.sx, p.sz, 5, 0.82, 1.15));
     place(low, i, p.x, y + 9.0, p.z, s, r, rnd(p.sx, p.sz, 6, 0.85, 1.22), rnd(p.sx, p.sz, 7, 0.9, 1.18), rnd(p.sx, p.sz, 8, 0.85, 1.22));
     place(mid, i, p.x, y + 11.7, p.z, s, r + 0.4, rnd(p.sx, p.sz, 9, 0.85, 1.18), 1, rnd(p.sx, p.sz, 10, 0.85, 1.18));
     place(top, i, p.x, y + 14.1, p.z, s, r + 0.8);
-    if (snagI < snags.count && rnd(p.sx, p.sz, 11, 0, 1) > 0.82) {
-      place(snags, snagI++, p.x + rnd(p.sx, p.sz, 12, -2.5, 2.5), y + 4.0, p.z + rnd(p.sx, p.sz, 13, -2.5, 2.5), rnd(p.sx, p.sz, 14, 0.7, 1.4), r);
+    if (snagI < snags.count && rnd(p.sx, p.sz, 11, 0, 1) > 0.88) {
+      place(snags, snagI++, p.x + rnd(p.sx, p.sz, 12, -2.0, 2.0), y + 2.9, p.z + rnd(p.sx, p.sz, 13, -2.0, 2.0), rnd(p.sx, p.sz, 14, 0.55, 1.05), r, 0.75, 1, 0.75);
     }
   });
   [trunks, low, mid, top, snags].forEach(m => { m.instanceMatrix.needsUpdate = true; group.add(m); });
 
-  const rocks = new THREE.InstancedMesh(rockGeo, rockMat, 6);
-  for (let i = 0; i < 6; i++) {
+  const rocks = new THREE.InstancedMesh(rockGeo, rockMat, 7);
+  for (let i = 0; i < 7; i++) {
     const sx = cx * 700 + i * 97, sz = cz * 700 - i * 29;
     const x = cx * chunkSize + rnd(sx, sz, 7, 3, chunkSize - 3);
     const z = cz * chunkSize + rnd(sx, sz, 8, 3, chunkSize - 3);
@@ -244,8 +299,8 @@ function makeChunk(cx, cz) {
   rocks.instanceMatrix.needsUpdate = true;
   group.add(rocks);
 
-  const grass = new THREE.InstancedMesh(grassGeo, grassMat, 18);
-  for (let i = 0; i < 18; i++) {
+  const grass = new THREE.InstancedMesh(grassGeo, grassMat, 24);
+  for (let i = 0; i < 24; i++) {
     const sx = cx * 501 + i * 19, sz = cz * 501 - i * 23;
     const x = cx * chunkSize + rnd(sx, sz, 1, 1, chunkSize - 1);
     const z = cz * chunkSize + rnd(sx, sz, 2, 1, chunkSize - 1);
@@ -253,6 +308,23 @@ function makeChunk(cx, cz) {
   }
   grass.instanceMatrix.needsUpdate = true;
   group.add(grass);
+
+  const patches = new THREE.InstancedMesh(floorPatchGeo, forestFloorMat, 7);
+  for (let i = 0; i < 7; i++) {
+    const sx = cx * 331 + i * 41, sz = cz * 331 - i * 31;
+    const x = cx * chunkSize + rnd(sx, sz, 1, 4, chunkSize - 4);
+    const z = cz * chunkSize + rnd(sx, sz, 2, 4, chunkSize - 4);
+    temp.position.set(x, heightAt(x, z) + 0.055, z);
+    temp.rotation.set(-Math.PI / 2, 0, rnd(sx, sz, 3, 0, Math.PI * 2));
+    const sc = rnd(sx, sz, 4, 1.0, 2.7);
+    temp.scale.set(sc, sc * rnd(sx, sz, 5, 0.55, 1.25), sc);
+    temp.updateMatrix();
+    patches.setMatrixAt(i, temp.matrix);
+  }
+  patches.instanceMatrix.needsUpdate = true;
+  group.add(patches);
+
+  if (cx === 0 && cz === 0) addCabin(group, 18, 18);
 
   scene.add(group);
   chunks.set(key, group);
