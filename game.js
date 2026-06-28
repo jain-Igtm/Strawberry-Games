@@ -84,5 +84,46 @@ function update(){
 
     camera.x = player.x;
     camera.y = player.y;
+// =====================================================
+// Draw
+// =====================================================
+
+function draw(){
+
+    // Grass
+
+    ctx.fillStyle="#4e7f39";
+    ctx.fillRect(0,0,screenWidth,screenHeight);
+
+    // Player
+
+    ctx.beginPath();
+    ctx.arc(
+        screenWidth/2,
+        screenHeight/2,
+        player.radius,
+        0,
+        Math.PI*2
+    );
+
+    ctx.fillStyle=player.color;
+    ctx.fill();
 
 }
+
+}
+// =====================================================
+// Main Loop
+// =====================================================
+
+function gameLoop(){
+
+    update();
+
+    draw();
+
+    requestAnimationFrame(gameLoop);
+
+}
+
+gameLoop();
