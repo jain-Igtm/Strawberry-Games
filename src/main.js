@@ -1,6 +1,6 @@
 import * as THREE from "https://unpkg.com/three@0.160.0/build/three.module.js";
 
-const BUILD = "v16 inverted horizontal look";
+const BUILD = "v17 direct main label";
 const hudTitle = document.getElementById("title");
 const hint = document.getElementById("hint");
 const coords = document.getElementById("coords");
@@ -11,7 +11,7 @@ const stick = document.getElementById("stick");
 const look = document.getElementById("look");
 
 if (hudTitle) hudTitle.textContent = "STRAWBERRY FOREST — " + BUILD;
-if (hint) hint.textContent = "Build v16 loaded. Graphics pass kept. Horizontal look inverted again.";
+if (hint) hint.textContent = "Build v17 loaded. Direct main.js label changed.";
 if (startBtn) startBtn.textContent = "Start — " + BUILD;
 
 window.addEventListener("error", event => {
@@ -26,12 +26,6 @@ if (startBtn) {
     if (hint) setTimeout(() => { hint.style.opacity = "0"; }, 4500);
   };
 }
-
-fetch("assets/models/trees/pine_tall.gltf", { cache: "no-store" })
-  .then(r => {
-    if (hint && r.ok) hint.textContent = "Build v16 loaded. Local tree asset found. Landmark graphics pass running.";
-  })
-  .catch(() => {});
 
 const scene = new THREE.Scene();
 scene.background = new THREE.Color(0x91b8d9);
@@ -54,57 +48,24 @@ sun.position.set(-95, 135, 75);
 scene.add(sun);
 scene.add(sun.target);
 
-const sky = new THREE.Mesh(
-  new THREE.SphereGeometry(520, 16, 8),
-  new THREE.ShaderMaterial({
-    side: THREE.BackSide,
-    depthWrite: false,
-    uniforms: {
-      top: { value: new THREE.Color(0x77aada) },
-      bottom: { value: new THREE.Color(0xd8e8ef) }
-    },
-    vertexShader: `varying vec3 v;void main(){v=normalize(position);gl_Position=projectionMatrix*modelViewMatrix*vec4(position,1.0);}`,
-    fragmentShader: `varying vec3 v;uniform vec3 top;uniform vec3 bottom;void main(){float h=smoothstep(-.2,.85,v.y);gl_FragColor=vec4(mix(bottom,top,h),1.0);}`
-  })
-);
-scene.add(sky);
+const terrainMat = new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.97 });
+const waterMat = new THREE.MeshStandardMaterial({ color: 0x3f7d93, roughness: 0.5, transparent: true, opacity: 0.62 });
+const trunkMat = new THREE.MeshStandardMaterial({ color: 0x53331e, roughness: 1 });
+const rockMat = new THREE.MeshStandardMaterial({ color: 0x777a73, roughness: 1 });
+const leafMats = [0x17351f, 0x1e4528, 0x0f2c1a, 0x264d2e].map(c => new THREE.MeshStandardMaterial({ color: c, roughness: 1, flatShading: true }));
+const pathMat = new THREE.MeshStandardMaterial({ color: 0x806a4d, roughness: 1 });
+
+const trunkGeo = new THREE.CylinderGeometry(0.28, 0.62, 8.0, 7);
+const pineLowGeo = new THREE.ConeGeometry(3.2, 6.4, 9);
+const pineMidGeo = new THREE.ConeGeometry(2.35, 5.2, 9);
+const pineTopGeo = new THREE.ConeGeometry(1.35, 3.7, 8);
+const rockGeo = new THREE.DodecahedronGeometry(1, 0);
 
 const chunkSize = 86;
 const chunkRadius = 2;
-const seg = 14;
+const seg = 16;
 const chunks = new Map();
-const queue = [];
 const temp = new THREE.Object3D();
-
-const terrainMat = new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.97 });
-const pathMat = new THREE.MeshStandardMaterial({ color: 0x806a4d, roughness: 1 });
-const waterMat = new THREE.MeshStandardMaterial({ color: 0x3f7d93, roughness: 0.5, transparent: true, opacity: 0.62 });
-const trunkMat = new THREE.MeshStandardMaterial({ color: 0x53331e, roughness: 1 });
-const snagMat = new THREE.MeshStandardMaterial({ color: 0x382716, roughness: 1 });
-const rockMat = new THREE.MeshStandardMaterial({ color: 0x777a73, roughness: 1 });
-const grassMat = new THREE.MeshStandardMaterial({ color: 0x2f5f27, roughness: 1 });
-const forestFloorMat = new THREE.MeshStandardMaterial({ color: 0x3b4d2b, roughness: 1, transparent: true, opacity: 0.76 });
-const cabinMat = new THREE.MeshStandardMaterial({ color: 0x6a4527, roughness: 0.95 });
-const cabinDarkMat = new THREE.MeshStandardMaterial({ color: 0x2d1f16, roughness: 1 });
-const roofMat = new THREE.MeshStandardMaterial({ color: 0x2d3430, roughness: 0.9 });
-const warmMat = new THREE.MeshStandardMaterial({ color: 0xffb15f, emissive: 0xff7a20, emissiveIntensity: 0.7, roughness: 0.6 });
-const needleMats = [0x17351f, 0x1e4528, 0x0f2c1a, 0x264d2e].map(c => new THREE.MeshStandardMaterial({ color: c, roughness: 1 }));
-
-const trunkGeo = new THREE.CylinderGeometry(0.36, 0.78, 11.0, 7);
-const pineLowGeo = new THREE.ConeGeometry(4.15, 8.2, 9);
-const pineMidGeo = new THREE.ConeGeometry(3.05, 6.9, 9);
-const pineTopGeo = new THREE.ConeGeometry(1.75, 4.8, 8);
-const snagGeo = new THREE.CylinderGeometry(0.13, 0.42, 5.8, 6);
-const rockGeo = new THREE.DodecahedronGeometry(1, 0);
-const grassGeo = new THREE.ConeGeometry(0.05, 0.8, 5);
-const floorPatchGeo = new THREE.CircleGeometry(2.2, 9);
-const cloudGeo = new THREE.SphereGeometry(1, 9, 6);
-const cabinBodyGeo = new THREE.BoxGeometry(8.5, 5.2, 6.2);
-const roofGeo = new THREE.ConeGeometry(6.3, 3.5, 4);
-const doorGeo = new THREE.BoxGeometry(1.5, 2.7, 0.12);
-const windowGeo = new THREE.BoxGeometry(1.25, 1.0, 0.14);
-const chimneyGeo = new THREE.BoxGeometry(0.9, 3.6, 0.9);
-const logGeo = new THREE.CylinderGeometry(0.32, 0.38, 4.6, 7);
 
 function hash2(x, z) {
   let n = (Math.floor(x) * 374761393 + Math.floor(z) * 668265263) | 0;
@@ -125,11 +86,8 @@ function waterBlend(x, z) {
   const v = nse(x * 0.012 + 220, z * 0.012 - 70);
   return v > 0.825 ? THREE.MathUtils.clamp((v - 0.825) / 0.08, 0, 1) : 0;
 }
-function baseHeight(x, z) {
-  return (nse(x * 0.011, z * 0.011) - 0.5) * 18 + (nse(x * 0.04 + 81, z * 0.04 - 23) - 0.5) * 5.5 + (nse(x * 0.1, z * 0.1) - 0.5) * 1.6;
-}
 function heightAt(x, z) {
-  let y = baseHeight(x, z);
+  let y = (nse(x * 0.011, z * 0.011) - 0.5) * 18 + (nse(x * 0.04 + 81, z * 0.04 - 23) - 0.5) * 5.5;
   y = THREE.MathUtils.lerp(y, 0.35, pathBlend(x, z));
   if (waterBlend(x, z) > 0.28) y = Math.min(y, -1.2);
   return y;
@@ -139,7 +97,6 @@ function colorAt(x, z, y) {
   if (y > 4) c.set(0x526b40);
   if (y < -0.7) c.set(0x425c34);
   c.lerp(new THREE.Color(0x607a43), nse(x * 0.18, z * 0.18) * 0.25);
-  c.lerp(new THREE.Color(0x354b2b), nse(x * 0.45 + 90, z * 0.45 - 10) * 0.12);
   c.lerp(new THREE.Color(0x80684a), pathBlend(x, z) * 0.95);
   return c;
 }
@@ -162,29 +119,6 @@ function makeTerrain(cx, cz) {
   mesh.position.set(cx * chunkSize + chunkSize / 2, 0, cz * chunkSize + chunkSize / 2);
   return mesh;
 }
-function makePath(cx, cz) {
-  const geo = new THREE.PlaneGeometry(chunkSize, 7.6, 16, 1);
-  geo.rotateX(-Math.PI / 2);
-  const p = geo.attributes.position;
-  for (let i = 0; i < p.count; i++) {
-    const wx = cx * chunkSize + chunkSize / 2 + p.getX(i);
-    const lat = p.getZ(i);
-    const wz = pathZ(wx) + lat;
-    p.setZ(i, wz - (cz * chunkSize + chunkSize / 2));
-    p.setY(i, heightAt(wx, wz) + 0.045);
-  }
-  geo.computeVertexNormals();
-  const mesh = new THREE.Mesh(geo, pathMat);
-  mesh.position.set(cx * chunkSize + chunkSize / 2, 0, cz * chunkSize + chunkSize / 2);
-  return mesh;
-}
-function makeWater(cx, cz) {
-  const geo = new THREE.PlaneGeometry(chunkSize, chunkSize, 1, 1);
-  geo.rotateX(-Math.PI / 2);
-  const mesh = new THREE.Mesh(geo, waterMat);
-  mesh.position.set(cx * chunkSize + chunkSize / 2, -1.05, cz * chunkSize + chunkSize / 2);
-  return mesh;
-}
 function place(mesh, i, x, y, z, scale, ry = 0, sx = 1, sy = 1, sz = 1) {
   temp.position.set(x, y, z);
   temp.rotation.set(0, ry, 0);
@@ -192,266 +126,132 @@ function place(mesh, i, x, y, z, scale, ry = 0, sx = 1, sy = 1, sz = 1) {
   temp.updateMatrix();
   mesh.setMatrixAt(i, temp.matrix);
 }
-function tooClose(x, z, spots, d) {
-  for (const p of spots) {
-    const dx = x - p.x, dz = z - p.z;
-    if (dx * dx + dz * dz < d * d) return true;
-  }
-  return false;
-}
-function addCabin(group, x, z) {
-  const y = heightAt(x, z);
-  const cabin = new THREE.Group();
-  cabin.position.set(x, y + 0.15, z);
-  cabin.rotation.y = -0.55;
-
-  const body = new THREE.Mesh(cabinBodyGeo, cabinMat);
-  body.position.y = 2.6;
-  cabin.add(body);
-
-  const roof = new THREE.Mesh(roofGeo, roofMat);
-  roof.position.y = 6.2;
-  roof.rotation.y = Math.PI / 4;
-  roof.scale.set(1.12, 1, 0.88);
-  cabin.add(roof);
-
-  const door = new THREE.Mesh(doorGeo, cabinDarkMat);
-  door.position.set(0, 1.5, -3.17);
-  cabin.add(door);
-
-  const w1 = new THREE.Mesh(windowGeo, warmMat);
-  w1.position.set(-2.6, 3.2, -3.18);
-  cabin.add(w1);
-
-  const w2 = new THREE.Mesh(windowGeo, warmMat);
-  w2.position.set(2.7, 3.2, -3.18);
-  cabin.add(w2);
-
-  const chimney = new THREE.Mesh(chimneyGeo, cabinDarkMat);
-  chimney.position.set(2.4, 7.3, 0.6);
-  cabin.add(chimney);
-
-  for (let i = 0; i < 5; i++) {
-    const log = new THREE.Mesh(logGeo, trunkMat);
-    log.position.set(-5.8, 0.6 + i * 0.42, 2.5);
-    log.rotation.set(0, 0, Math.PI / 2);
-    cabin.add(log);
-  }
-
-  group.add(cabin);
-}
 function makeChunk(cx, cz) {
   const key = cx + "," + cz;
   if (chunks.has(key)) return;
   const group = new THREE.Group();
   group.add(makeTerrain(cx, cz));
-  group.add(makePath(cx, cz));
 
-  let hasWater = false;
-  for (let i = 0; i < 3; i++) {
-    const x = cx * chunkSize + rnd(cx * 41, cz * 41, i, 0, chunkSize);
-    const z = cz * chunkSize + rnd(cx * 43, cz * 43, i, 0, chunkSize);
-    if (waterBlend(x, z) > 0.2) hasWater = true;
+  const pathGeo = new THREE.PlaneGeometry(chunkSize, 7.6, 16, 1);
+  pathGeo.rotateX(-Math.PI / 2);
+  const pp = pathGeo.attributes.position;
+  for (let i = 0; i < pp.count; i++) {
+    const wx = cx * chunkSize + chunkSize / 2 + pp.getX(i);
+    const lat = pp.getZ(i);
+    const wz = pathZ(wx) + lat;
+    pp.setZ(i, wz - (cz * chunkSize + chunkSize / 2));
+    pp.setY(i, heightAt(wx, wz) + 0.045);
   }
-  if (hasWater) group.add(makeWater(cx, cz));
+  group.add(new THREE.Mesh(pathGeo, pathMat));
 
-  const spots = [];
-  let tries = 0;
-  while (spots.length < 23 && tries < 190) {
-    tries++;
-    const sx = cx * 1000 + tries * 37;
-    const sz = cz * 1000 - tries * 53;
-    const x = cx * chunkSize + rnd(sx, sz, 1, 5, chunkSize - 5);
-    const z = cz * chunkSize + rnd(sx, sz, 2, 5, chunkSize - 5);
-    if (pathBlend(x, z) > 0.19 || waterBlend(x, z) > 0.15 || tooClose(x, z, spots, 13.5)) continue;
-    if (cx === 0 && cz === 0 && Math.hypot(x - 18, z - 18) < 17) continue;
-    spots.push({ x, z, sx, sz });
+  const water = new THREE.Mesh(new THREE.PlaneGeometry(chunkSize, chunkSize), waterMat);
+  water.rotation.x = -Math.PI / 2;
+  water.position.set(cx * chunkSize + chunkSize / 2, -1.05, cz * chunkSize + chunkSize / 2);
+  group.add(water);
+
+  const count = 34;
+  const trunks = new THREE.InstancedMesh(trunkGeo, trunkMat, count);
+  const lows = new THREE.InstancedMesh(pineLowGeo, leafMats[Math.abs(cx + cz) % leafMats.length], count);
+  const mids = new THREE.InstancedMesh(pineMidGeo, leafMats[Math.abs(cx * 2 + cz) % leafMats.length], count);
+  const tops = new THREE.InstancedMesh(pineTopGeo, leafMats[Math.abs(cx + cz * 3) % leafMats.length], count);
+  let ti = 0;
+  for (let i = 0; i < count; i++) {
+    const x = cx * chunkSize + rnd(cx, cz, i * 5 + 1, 4, chunkSize - 4);
+    const z = cz * chunkSize + rnd(cx, cz, i * 5 + 2, 4, chunkSize - 4);
+    if (pathBlend(x, z) > 0.25 || waterBlend(x, z) > 0.2 || Math.hypot(x, z) < 14) continue;
+    const y = heightAt(x, z);
+    const s = rnd(cx, cz, i * 5 + 3, 0.65, 1.45);
+    const r = rnd(cx, cz, i * 5 + 4, 0, Math.PI * 2);
+    place(trunks, ti, x, y + 4 * s, z, s, r);
+    place(lows, ti, x, y + 8.2 * s, z, s, r);
+    place(mids, ti, x, y + 11.0 * s, z, s, r + 0.4);
+    place(tops, ti, x, y + 13.0 * s, z, s, r + 0.8);
+    ti++;
   }
+  trunks.count = lows.count = mids.count = tops.count = ti;
+  group.add(trunks, lows, mids, tops);
 
-  const trunks = new THREE.InstancedMesh(trunkGeo, trunkMat, spots.length);
-  const low = new THREE.InstancedMesh(pineLowGeo, needleMats[0], spots.length);
-  const mid = new THREE.InstancedMesh(pineMidGeo, needleMats[1], spots.length);
-  const top = new THREE.InstancedMesh(pineTopGeo, needleMats[2], spots.length);
-  const snags = new THREE.InstancedMesh(snagGeo, snagMat, Math.max(1, Math.floor(spots.length / 7)));
-  let snagI = 0;
-
-  spots.forEach((p, i) => {
-    const y = heightAt(p.x, p.z);
-    const s = rnd(p.sx, p.sz, 1, 0.85, 1.65);
-    const r = rnd(p.sx, p.sz, 3, 0, Math.PI * 2);
-    place(trunks, i, p.x, y + 5.5, p.z, s, r, rnd(p.sx, p.sz, 4, 0.82, 1.15), 1, rnd(p.sx, p.sz, 5, 0.82, 1.15));
-    place(low, i, p.x, y + 9.0, p.z, s, r, rnd(p.sx, p.sz, 6, 0.85, 1.22), rnd(p.sx, p.sz, 7, 0.9, 1.18), rnd(p.sx, p.sz, 8, 0.85, 1.22));
-    place(mid, i, p.x, y + 11.7, p.z, s, r + 0.4, rnd(p.sx, p.sz, 9, 0.85, 1.18), 1, rnd(p.sx, p.sz, 10, 0.85, 1.18));
-    place(top, i, p.x, y + 14.1, p.z, s, r + 0.8);
-    if (snagI < snags.count && rnd(p.sx, p.sz, 11, 0, 1) > 0.88) {
-      place(snags, snagI++, p.x + rnd(p.sx, p.sz, 12, -2.0, 2.0), y + 2.9, p.z + rnd(p.sx, p.sz, 13, -2.0, 2.0), rnd(p.sx, p.sz, 14, 0.55, 1.05), r, 0.75, 1, 0.75);
-    }
-  });
-  [trunks, low, mid, top, snags].forEach(m => { m.instanceMatrix.needsUpdate = true; group.add(m); });
-
-  const rocks = new THREE.InstancedMesh(rockGeo, rockMat, 7);
-  for (let i = 0; i < 7; i++) {
-    const sx = cx * 700 + i * 97, sz = cz * 700 - i * 29;
-    const x = cx * chunkSize + rnd(sx, sz, 7, 3, chunkSize - 3);
-    const z = cz * chunkSize + rnd(sx, sz, 8, 3, chunkSize - 3);
-    place(rocks, i, x, heightAt(x, z) + 0.35, z, rnd(sx, sz, 12, 0.7, 1.9), rnd(sx, sz, 10, 0, Math.PI * 2), 1, rnd(sx, sz, 13, 0.3, 0.8), 1);
+  const rocks = new THREE.InstancedMesh(rockGeo, rockMat, 18);
+  for (let i = 0; i < 18; i++) {
+    const x = cx * chunkSize + rnd(cx, cz, i * 7 + 21, 3, chunkSize - 3);
+    const z = cz * chunkSize + rnd(cx, cz, i * 7 + 22, 3, chunkSize - 3);
+    const y = heightAt(x, z);
+    const s = rnd(cx, cz, i * 7 + 23, 0.18, 0.75);
+    place(rocks, i, x, y + s * 0.35, z, s, rnd(cx, cz, i * 7 + 24, 0, 6.28), 1.4, 0.6, 1.0);
   }
-  rocks.instanceMatrix.needsUpdate = true;
   group.add(rocks);
-
-  const grass = new THREE.InstancedMesh(grassGeo, grassMat, 24);
-  for (let i = 0; i < 24; i++) {
-    const sx = cx * 501 + i * 19, sz = cz * 501 - i * 23;
-    const x = cx * chunkSize + rnd(sx, sz, 1, 1, chunkSize - 1);
-    const z = cz * chunkSize + rnd(sx, sz, 2, 1, chunkSize - 1);
-    place(grass, i, x, heightAt(x, z) + 0.36, z, rnd(sx, sz, 3, 0.8, 1.5), rnd(sx, sz, 4, 0, Math.PI * 2));
-  }
-  grass.instanceMatrix.needsUpdate = true;
-  group.add(grass);
-
-  const patches = new THREE.InstancedMesh(floorPatchGeo, forestFloorMat, 7);
-  for (let i = 0; i < 7; i++) {
-    const sx = cx * 331 + i * 41, sz = cz * 331 - i * 31;
-    const x = cx * chunkSize + rnd(sx, sz, 1, 4, chunkSize - 4);
-    const z = cz * chunkSize + rnd(sx, sz, 2, 4, chunkSize - 4);
-    temp.position.set(x, heightAt(x, z) + 0.055, z);
-    temp.rotation.set(-Math.PI / 2, 0, rnd(sx, sz, 3, 0, Math.PI * 2));
-    const sc = rnd(sx, sz, 4, 1.0, 2.7);
-    temp.scale.set(sc, sc * rnd(sx, sz, 5, 0.55, 1.25), sc);
-    temp.updateMatrix();
-    patches.setMatrixAt(i, temp.matrix);
-  }
-  patches.instanceMatrix.needsUpdate = true;
-  group.add(patches);
-
-  if (cx === 0 && cz === 0) addCabin(group, 18, 18);
 
   scene.add(group);
   chunks.set(key, group);
 }
-function enqueueChunks() {
-  const pcx = Math.floor(camera.position.x / chunkSize), pcz = Math.floor(camera.position.z / chunkSize);
-  for (let x = pcx - chunkRadius; x <= pcx + chunkRadius; x++) for (let z = pcz - chunkRadius; z <= pcz + chunkRadius; z++) {
-    const k = x + "," + z;
-    if (!chunks.has(k) && !queue.some(q => q[0] === x && q[1] === z)) queue.push([x, z]);
-  }
-  queue.sort((a, b) => (a[0] - pcx) ** 2 + (a[1] - pcz) ** 2 - ((b[0] - pcx) ** 2 + (b[1] - pcz) ** 2));
-  for (const [key, g] of chunks) {
-    const [cx, cz] = key.split(",").map(Number);
-    if (Math.abs(cx - pcx) > chunkRadius + 1 || Math.abs(cz - pcz) > chunkRadius + 1) { scene.remove(g); chunks.delete(key); }
-  }
-}
-function processQueue() { if (queue.length) { const q = queue.shift(); makeChunk(q[0], q[1]); } }
-function makeMountains() {
-  const mat = new THREE.MeshStandardMaterial({ color: 0x69746f, roughness: 1 });
-  const snow = new THREE.MeshStandardMaterial({ color: 0xdde3de, roughness: 0.85 });
-  const g = new THREE.Group();
-  for (let i = 0; i < 26; i++) {
-    const a = i / 26 * Math.PI * 2, d = 330 + rnd(i, 9, 1, -25, 80), x = Math.sin(a) * d, z = Math.cos(a) * d;
-    const peak = new THREE.Mesh(new THREE.ConeGeometry(rnd(i, 2, 3, 26, 70), rnd(i, 3, 4, 55, 130), 5), mat);
-    peak.position.set(x, rnd(i, 4, 5, -10, 8), z);
-    peak.rotation.y = rnd(i, 6, 7, 0, Math.PI * 2);
-    peak.scale.z = rnd(i, 8, 9, 0.65, 1.5);
-    g.add(peak);
-    if (i % 2 === 0) {
-      const cap = new THREE.Mesh(new THREE.ConeGeometry(rnd(i, 12, 13, 8, 20), rnd(i, 14, 15, 10, 23), 5), snow);
-      cap.position.set(x, peak.position.y + rnd(i, 16, 17, 30, 58), z);
-      cap.rotation.y = peak.rotation.y;
-      cap.scale.z = peak.scale.z;
-      g.add(cap);
+function updateChunks() {
+  const cx = Math.floor(player.x / chunkSize);
+  const cz = Math.floor(player.z / chunkSize);
+  for (let x = cx - chunkRadius; x <= cx + chunkRadius; x++) for (let z = cz - chunkRadius; z <= cz + chunkRadius; z++) makeChunk(x, z);
+  for (const [key, group] of chunks) {
+    const [x, z] = key.split(",").map(Number);
+    if (Math.abs(x - cx) > chunkRadius + 1 || Math.abs(z - cz) > chunkRadius + 1) {
+      scene.remove(group);
+      chunks.delete(key);
     }
   }
-  scene.add(g);
 }
-function makeClouds() {
-  const mat = new THREE.MeshStandardMaterial({ color: 0xffffff, roughness: 1, transparent: true, opacity: 0.48, depthWrite: false });
-  const g = new THREE.Group();
-  for (let c = 0; c < 8; c++) {
-    const cg = new THREE.Group();
-    cg.position.set(rnd(c, 1, 2, -240, 240), rnd(c, 5, 6, 85, 135), rnd(c, 3, 4, -240, 240));
-    for (let i = 0; i < 4; i++) {
-      const p = new THREE.Mesh(cloudGeo, mat);
-      p.position.set(rnd(c * 7, i, 1, -8, 8), rnd(c * 7, i, 2, -2, 2), rnd(c * 7, i, 3, -3, 3));
-      p.scale.set(rnd(c * 9, i, 4, 7, 17), rnd(c * 9, i, 5, 2, 5), rnd(c * 9, i, 6, 4, 10));
-      cg.add(p);
-    }
-    g.add(cg);
-  }
-  scene.add(g);
-}
-makeMountains();
-makeClouds();
 
-const move = { x: 0, y: 0 };
-let joyActive = false, joyTouchId = null, lookActive = false, lookTouchId = null, lx = 0, ly = 0, yaw = 0, pitch = -0.1, last = performance.now(), lastChunkCheck = 0;
-const keys = new Set();
-
-joystick.addEventListener("touchstart", e => { joyActive = true; joyTouchId = e.changedTouches[0].identifier; e.preventDefault(); }, { passive: false });
-joystick.addEventListener("touchmove", e => {
-  if (!joyActive) return;
-  let t = null;
-  for (let i = 0; i < e.touches.length; i++) if (e.touches[i].identifier === joyTouchId) { t = e.touches[i]; break; }
-  if (!t) return;
+const player = { x: 9, z: -3, yaw: 0, pitch: -0.05 };
+let joyX = 0, joyY = 0, activeJoy = null, activeLook = null, lx = 0, ly = 0;
+function moveStick(t) {
   const r = joystick.getBoundingClientRect();
-  let x = t.clientX - r.left - 65, y = t.clientY - r.top - 65, d = Math.hypot(x, y);
-  if (d > 45) { x *= 45 / d; y *= 45 / d; }
-  stick.style.left = 45 + x + "px";
-  stick.style.top = 45 + y + "px";
-  move.x = x / 45;
-  move.y = y / 45;
+  const cx = r.left + r.width / 2, cy = r.top + r.height / 2;
+  const dx = t.clientX - cx, dy = t.clientY - cy;
+  const len = Math.hypot(dx, dy), max = r.width * 0.34;
+  const m = Math.min(max, len), nx = len ? dx / len : 0, ny = len ? dy / len : 0;
+  joyX = nx * m / max; joyY = ny * m / max;
+  stick.style.transform = `translate(${nx * m}px,${ny * m}px)`;
+}
+function resetStick() { joyX = joyY = 0; activeJoy = null; stick.style.transform = "translate(0,0)"; }
+addEventListener("touchstart", e => {
   e.preventDefault();
-}, { passive: false });
-function resetJoy() { joyActive = false; joyTouchId = null; move.x = 0; move.y = 0; stick.style.left = "45px"; stick.style.top = "45px"; }
-joystick.addEventListener("touchend", e => { for (let i = 0; i < e.changedTouches.length; i++) if (e.changedTouches[i].identifier === joyTouchId) resetJoy(); });
-joystick.addEventListener("touchcancel", resetJoy);
-look.addEventListener("touchstart", e => { if (e.target === joystick || joystick.contains(e.target)) return; lookActive = true; lookTouchId = e.changedTouches[0].identifier; lx = e.changedTouches[0].clientX; ly = e.changedTouches[0].clientY; });
-look.addEventListener("touchmove", e => {
-  if (!lookActive) return;
-  let t = null;
-  for (let i = 0; i < e.touches.length; i++) if (e.touches[i].identifier === lookTouchId) { t = e.touches[i]; break; }
-  if (!t) return;
-  const nx = t.clientX, ny = t.clientY;
-  yaw += (nx - lx) * 0.005;
-  pitch += (ny - ly) * 0.005;
-  pitch = Math.max(-1.25, Math.min(1.05, pitch));
-  lx = nx;
-  ly = ny;
-});
-function resetLook() { lookActive = false; lookTouchId = null; }
-look.addEventListener("touchend", resetLook);
-look.addEventListener("touchcancel", resetLook);
-window.addEventListener("keydown", e => keys.add(e.code));
-window.addEventListener("keyup", e => keys.delete(e.code));
-function resize() { camera.aspect = innerWidth / innerHeight; camera.updateProjectionMatrix(); renderer.setSize(innerWidth, innerHeight); }
-addEventListener("resize", resize);
-addEventListener("orientationchange", () => setTimeout(resize, 120));
-
-function animate(now) {
-  requestAnimationFrame(animate);
-  const dt = Math.min((now - last) / 1000, 0.05);
-  last = now;
-  if (started) {
-    let f = -move.y, s = move.x;
-    if (keys.has("KeyW") || keys.has("ArrowUp")) f += 1;
-    if (keys.has("KeyS") || keys.has("ArrowDown")) f -= 1;
-    if (keys.has("KeyA") || keys.has("ArrowLeft")) s -= 1;
-    if (keys.has("KeyD") || keys.has("ArrowRight")) s += 1;
-    f = THREE.MathUtils.clamp(f, -1, 1);
-    s = THREE.MathUtils.clamp(s, -1, 1);
-    const speed = 14.5, sn = Math.sin(yaw), cs = Math.cos(yaw);
-    camera.position.x += (-sn * f + cs * s) * speed * dt;
-    camera.position.z += (-cs * f - sn * s) * speed * dt;
-    const gy = heightAt(camera.position.x, camera.position.z);
-    camera.position.y = gy + 3.15 + Math.sin(now * 0.007) * 0.035 * Math.abs(f);
-    camera.rotation.set(pitch, yaw, 0, "YXZ");
+  for (const t of e.changedTouches) {
+    if (t.clientX < innerWidth * 0.44 && activeJoy === null) { activeJoy = t.identifier; moveStick(t); }
+    else if (activeLook === null) { activeLook = t.identifier; lx = t.clientX; ly = t.clientY; }
   }
-  if (now - lastChunkCheck > 240) { enqueueChunks(); lastChunkCheck = now; }
-  processQueue();
-  sun.target.position.copy(camera.position);
-  sun.target.updateMatrixWorld();
-  if (coords) coords.innerHTML = `x: ${camera.position.x.toFixed(1)}<br>z: ${camera.position.z.toFixed(1)}`;
+}, { passive: false });
+addEventListener("touchmove", e => {
+  e.preventDefault();
+  for (const t of e.changedTouches) {
+    if (t.identifier === activeJoy) moveStick(t);
+    if (t.identifier === activeLook) {
+      const dx = t.clientX - lx, dy = t.clientY - ly; lx = t.clientX; ly = t.clientY;
+      player.yaw += dx * 0.0037;
+      player.pitch = THREE.MathUtils.clamp(player.pitch - dy * 0.003, -1.05, 0.65);
+    }
+  }
+}, { passive: false });
+addEventListener("touchend", e => { for (const t of e.changedTouches) { if (t.identifier === activeJoy) resetStick(); if (t.identifier === activeLook) activeLook = null; } });
+addEventListener("touchcancel", resetStick);
+
+let last = performance.now();
+function frame(now) {
+  requestAnimationFrame(frame);
+  const dt = Math.min(0.05, (now - last) / 1000); last = now;
+  if (started) {
+    const speed = 18;
+    const f = -joyY, s = joyX;
+    const sn = Math.sin(player.yaw), cs = Math.cos(player.yaw);
+    player.x += (s * cs + f * sn) * speed * dt;
+    player.z += (s * -sn + f * cs) * speed * dt;
+  }
+  const y = heightAt(player.x, player.z) + 4.5;
+  camera.position.set(player.x, y, player.z);
+  camera.rotation.order = "YXZ";
+  camera.rotation.y = player.yaw;
+  camera.rotation.x = player.pitch;
+  sun.position.set(player.x - 95, y + 135, player.z + 75);
+  sun.target.position.set(player.x, y, player.z);
+  updateChunks();
+  if (coords) coords.innerHTML = `x: ${player.x.toFixed(1)}<br>z: ${player.z.toFixed(1)}`;
   renderer.render(scene, camera);
 }
-enqueueChunks();
-for (let i = 0; i < 6; i++) processQueue();
-requestAnimationFrame(animate);
+addEventListener("resize", () => { camera.aspect = innerWidth / innerHeight; camera.updateProjectionMatrix(); renderer.setSize(innerWidth, innerHeight); });
+updateChunks();
+frame(performance.now());
