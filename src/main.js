@@ -1,6 +1,6 @@
 import * as THREE from "https://unpkg.com/three@0.160.0/build/three.module.js";
 
-const BUILD = "v12 stable asset-ready forest";
+const BUILD = "v14 controls cleanup";
 const hudTitle = document.getElementById("title");
 const hint = document.getElementById("hint");
 const coords = document.getElementById("coords");
@@ -11,7 +11,7 @@ const stick = document.getElementById("stick");
 const look = document.getElementById("look");
 
 if (hudTitle) hudTitle.textContent = "STRAWBERRY FOREST — " + BUILD;
-if (hint) hint.textContent = "Build v12 loaded. Start is wired before assets. If you see this, the fresh engine is running.";
+if (hint) hint.textContent = "Build v14 loaded. Debug marker removed. Horizontal look flipped.";
 if (startBtn) startBtn.textContent = "Start — " + BUILD;
 
 window.addEventListener("error", event => {
@@ -29,7 +29,7 @@ if (startBtn) {
 
 fetch("assets/models/trees/pine_tall.gltf", { cache: "no-store" })
   .then(r => {
-    if (hint && r.ok) hint.textContent = "Build v12 loaded. Local tree asset found. Using stable renderer while GLTF placement is hardened.";
+    if (hint && r.ok) hint.textContent = "Build v14 loaded. Local tree asset found. Stable renderer running.";
   })
   .catch(() => {});
 
@@ -93,8 +93,6 @@ const snagGeo = new THREE.CylinderGeometry(0.18, 0.55, 8, 6);
 const rockGeo = new THREE.DodecahedronGeometry(1, 0);
 const grassGeo = new THREE.ConeGeometry(0.05, 0.8, 5);
 const cloudGeo = new THREE.SphereGeometry(1, 9, 6);
-const markerGeo = new THREE.BoxGeometry(2.2, 2.2, 2.2);
-const markerMat = new THREE.MeshStandardMaterial({ color: 0xf2557b, roughness: 0.5 });
 
 function hash2(x, z) {
   let n = (Math.floor(x) * 374761393 + Math.floor(z) * 668265263) | 0;
@@ -256,12 +254,6 @@ function makeChunk(cx, cz) {
   grass.instanceMatrix.needsUpdate = true;
   group.add(grass);
 
-  if (cx === 0 && cz === 0) {
-    const marker = new THREE.Mesh(markerGeo, markerMat);
-    marker.position.set(8, heightAt(8, 8) + 2, 8);
-    group.add(marker);
-  }
-
   scene.add(group);
   chunks.set(key, group);
 }
@@ -347,7 +339,7 @@ look.addEventListener("touchmove", e => {
   for (let i = 0; i < e.touches.length; i++) if (e.touches[i].identifier === lookTouchId) { t = e.touches[i]; break; }
   if (!t) return;
   const nx = t.clientX, ny = t.clientY;
-  yaw += (nx - lx) * 0.005;
+  yaw -= (nx - lx) * 0.005;
   pitch += (ny - ly) * 0.005;
   pitch = Math.max(-1.25, Math.min(1.05, pitch));
   lx = nx;
