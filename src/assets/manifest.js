@@ -1,28 +1,116 @@
 export const ASSETS = {
-  treeModels: {
-    pineTall: null,
-    broadleafTall: null,
-    deadTree: null
+  models: {
+    trees: {
+      pineTall: null,
+      pineYoung: null,
+      broadleafTall: null,
+      broadleafYoung: null,
+      deadTree: null,
+      fallenLog: null,
+      stump: null
+    },
+    rocks: {
+      smallRock: null,
+      largeRock: null,
+      cliff: null,
+      boulder: null
+    },
+    plants: {
+      grassClump: null,
+      fern: null,
+      bush: null,
+      wildflower: null
+    },
+    buildings: {
+      cabin: null,
+      ruin: null,
+      cityBlock: null
+    },
+    vehicles: {
+      basicCar: null,
+      truck: null
+    },
+    creatures: {
+      deer: null,
+      wolf: null,
+      zombie: null
+    },
+    dimensions: {
+      backroomsWallSet: null,
+      backroomsLight: null,
+      portalFrame: null
+    }
   },
-  rockModels: {
-    smallRock: null,
-    largeRock: null
+  textures: {
+    ground: {
+      grass: null,
+      forestFloor: null,
+      dirt: null,
+      mud: null,
+      rock: null,
+      gravel: null
+    },
+    trees: {
+      pineBark: null,
+      oakBark: null,
+      pineNeedles: null,
+      broadleafLeaves: null
+    },
+    structures: {
+      concrete: null,
+      brick: null,
+      asphalt: null,
+      wallpaper: null
+    },
+    sky: {
+      clouds: null,
+      stars: null
+    }
   },
-  groundTextures: {
-    grass: null,
-    dirt: null,
-    rock: null
-  },
-  treeTextures: {
-    bark: null,
-    leaves: null,
-    needles: null
+  audio: {
+    ambience: {},
+    footsteps: {},
+    vehicles: {},
+    creatures: {},
+    music: {}
   }
 };
 
-export const SETTINGS = {
+export const REALISM_TARGETS = {
   useExternalModelsWhenAvailable: true,
   useProceduralFallbacks: true,
+  mobileTriangleBudgetNearChunk: 45000,
+  mobileMaxLoadedChunks: 25,
   farForestUsesBillboards: true,
-  terrainUsesTextureBlending: true
+  terrainUsesTextureBlending: true,
+  preferGLB: true,
+  preferInstancing: true,
+  streamChunksGradually: true
+};
+
+export const WORLD_REGIONS = {
+  wilderness: {
+    enabled: true,
+    description: "Forests, mountains, lakes, rivers, caves, cabins, trails, and ruins."
+  },
+  fantasy: {
+    enabled: false,
+    description: "Magic, ruins, quests, spells, artifacts, dungeons, and non-modern settlements."
+  },
+  modernCity: {
+    enabled: false,
+    description: "Cars, roads, traffic, apartments, police, gangs, businesses, and GTA-like stories."
+  },
+  outbreakZone: {
+    enabled: false,
+    description: "Quarantined cities, infected neighborhoods, zombie FPS systems, barricades, and survivors."
+  },
+  cosmicHorror: {
+    enabled: false,
+    description: "Reality anomalies, cults, impossible structures, perception effects, and hidden events."
+  },
+  backrooms: {
+    enabled: false,
+    description: "Liminal procedural interior dimension connected by glitches, portals, and rare world events."
+  }
 };
