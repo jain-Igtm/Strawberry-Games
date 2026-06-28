@@ -1,11 +1,43 @@
 import * as THREE from "https://unpkg.com/three@0.160.0/build/three.module.js";
-import { loadModel, cloneModel } from "./assets/loader.js";
+
+const BUILD = "v12 stable asset-ready forest";
+const hudTitle = document.getElementById("title");
+const hint = document.getElementById("hint");
+const coords = document.getElementById("coords");
+const startOverlay = document.getElementById("startOverlay");
+const startBtn = document.getElementById("startBtn");
+const joystick = document.getElementById("joystick");
+const stick = document.getElementById("stick");
+const look = document.getElementById("look");
+
+if (hudTitle) hudTitle.textContent = "STRAWBERRY FOREST — " + BUILD;
+if (hint) hint.textContent = "Build v12 loaded. Start is wired before assets. If you see this, the fresh engine is running.";
+if (startBtn) startBtn.textContent = "Start — " + BUILD;
+
+window.addEventListener("error", event => {
+  if (hint) hint.textContent = "Runtime error: " + event.message;
+});
+
+let started = false;
+if (startBtn) {
+  startBtn.onclick = () => {
+    started = true;
+    startOverlay.style.display = "none";
+    if (hint) setTimeout(() => { hint.style.opacity = "0"; }, 4500);
+  };
+}
+
+fetch("assets/models/trees/pine_tall.gltf", { cache: "no-store" })
+  .then(r => {
+    if (hint && r.ok) hint.textContent = "Build v12 loaded. Local tree asset found. Using stable renderer while GLTF placement is hardened.";
+  })
+  .catch(() => {});
 
 const scene = new THREE.Scene();
 scene.background = new THREE.Color(0x91b8d9);
-scene.fog = new THREE.FogExp2(0x91b8d9, 0.008);
+scene.fog = new THREE.FogExp2(0x91b8d9, 0.0072);
 
-const camera = new THREE.PerspectiveCamera(72, innerWidth / innerHeight, 0.08, 820);
+const camera = new THREE.PerspectiveCamera(72, innerWidth / innerHeight, 0.08, 900);
 camera.position.set(0, 4, 10);
 
 const renderer = new THREE.WebGLRenderer({ antialias: false, powerPreference: "high-performance" });
@@ -13,55 +45,56 @@ renderer.setPixelRatio(1);
 renderer.setSize(innerWidth, innerHeight);
 renderer.shadowMap.enabled = false;
 renderer.toneMapping = THREE.ACESFilmicToneMapping;
-renderer.toneMappingExposure = 1.08;
+renderer.toneMappingExposure = 1.12;
 document.body.appendChild(renderer.domElement);
 
-scene.add(new THREE.HemisphereLight(0xcfe7ff, 0x33442e, 1.45));
-const sun = new THREE.DirectionalLight(0xffe0a3, 2.35);
+scene.add(new THREE.HemisphereLight(0xd8ebff, 0x32452e, 1.55));
+const sun = new THREE.DirectionalLight(0xffdfa3, 2.45);
 sun.position.set(-95, 135, 75);
 scene.add(sun);
 scene.add(sun.target);
 
 const sky = new THREE.Mesh(
-  new THREE.SphereGeometry(500, 16, 8),
+  new THREE.SphereGeometry(520, 16, 8),
   new THREE.ShaderMaterial({
     side: THREE.BackSide,
     depthWrite: false,
-    uniforms: { top: { value: new THREE.Color(0x7fb2df) }, bottom: { value: new THREE.Color(0xdce9ef) } },
+    uniforms: {
+      top: { value: new THREE.Color(0x77aada) },
+      bottom: { value: new THREE.Color(0xd8e8ef) }
+    },
     vertexShader: `varying vec3 v;void main(){v=normalize(position);gl_Position=projectionMatrix*modelViewMatrix*vec4(position,1.0);}`,
-    fragmentShader: `varying vec3 v;uniform vec3 top;uniform vec3 bottom;void main(){float h=smoothstep(-.18,.82,v.y);gl_FragColor=vec4(mix(bottom,top,h),1.0);}`
+    fragmentShader: `varying vec3 v;uniform vec3 top;uniform vec3 bottom;void main(){float h=smoothstep(-.2,.85,v.y);gl_FragColor=vec4(mix(bottom,top,h),1.0);}`
   })
 );
 scene.add(sky);
 
-let pineModel = null;
-loadModel("assets/models/trees/pine_tall.gltf").then(model => {
-  pineModel = model;
-  if (pineModel) pineModel.traverse(obj => { obj.frustumCulled = true; });
-});
-
-const chunkSize = 76;
+const chunkSize = 86;
 const chunkRadius = 2;
-const seg = 12;
+const seg = 14;
 const chunks = new Map();
 const queue = [];
 const temp = new THREE.Object3D();
 
 const terrainMat = new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.96 });
-const pathMat = new THREE.MeshStandardMaterial({ color: 0x77644b, roughness: 1 });
-const waterMat = new THREE.MeshStandardMaterial({ color: 0x477f94, roughness: 0.45, transparent: true, opacity: 0.62 });
-const trunkMat = new THREE.MeshStandardMaterial({ color: 0x5a3a22, roughness: 0.95 });
-const rockMat = new THREE.MeshStandardMaterial({ color: 0x787b76, roughness: 1 });
+const pathMat = new THREE.MeshStandardMaterial({ color: 0x776246, roughness: 1 });
+const waterMat = new THREE.MeshStandardMaterial({ color: 0x3f7d93, roughness: 0.5, transparent: true, opacity: 0.62 });
+const trunkMat = new THREE.MeshStandardMaterial({ color: 0x53331e, roughness: 1 });
+const snagMat = new THREE.MeshStandardMaterial({ color: 0x2d2116, roughness: 1 });
+const rockMat = new THREE.MeshStandardMaterial({ color: 0x777a73, roughness: 1 });
 const grassMat = new THREE.MeshStandardMaterial({ color: 0x2f5f27, roughness: 1 });
-const fallbackNeedle = new THREE.MeshStandardMaterial({ color: 0x183b25, roughness: 0.98 });
+const needleMats = [0x17351f, 0x1e4528, 0x0f2c1a, 0x264d2e].map(c => new THREE.MeshStandardMaterial({ color: c, roughness: 1 }));
 
-const trunkGeo = new THREE.CylinderGeometry(0.32, 0.68, 9.2, 7);
-const pineLowGeo = new THREE.ConeGeometry(3.35, 7.4, 9);
-const pineMidGeo = new THREE.ConeGeometry(2.5, 6.2, 9);
-const pineTopGeo = new THREE.ConeGeometry(1.5, 4.1, 8);
-const rockGeo = new THREE.DodecahedronGeometry(0.9, 0);
-const grassGeo = new THREE.ConeGeometry(0.045, 0.62, 5);
-const cloudGeo = new THREE.SphereGeometry(1, 10, 7);
+const trunkGeo = new THREE.CylinderGeometry(0.36, 0.78, 11.0, 7);
+const pineLowGeo = new THREE.ConeGeometry(4.15, 8.2, 9);
+const pineMidGeo = new THREE.ConeGeometry(3.05, 6.9, 9);
+const pineTopGeo = new THREE.ConeGeometry(1.75, 4.8, 8);
+const snagGeo = new THREE.CylinderGeometry(0.18, 0.55, 8, 6);
+const rockGeo = new THREE.DodecahedronGeometry(1, 0);
+const grassGeo = new THREE.ConeGeometry(0.05, 0.8, 5);
+const cloudGeo = new THREE.SphereGeometry(1, 9, 6);
+const markerGeo = new THREE.BoxGeometry(2.2, 2.2, 2.2);
+const markerMat = new THREE.MeshStandardMaterial({ color: 0xf2557b, roughness: 0.5 });
 
 function hash2(x, z) {
   let n = (Math.floor(x) * 374761393 + Math.floor(z) * 668265263) | 0;
@@ -76,14 +109,14 @@ function nse(x, z) {
   const u = sm(xf), v = sm(zf);
   return THREE.MathUtils.lerp(THREE.MathUtils.lerp(a, b, u), THREE.MathUtils.lerp(c, d, u), v);
 }
-function pathZ(x) { return Math.sin(x * 0.018) * 18 + Math.sin(x * 0.006 + 1.3) * 32; }
+function pathZ(x) { return Math.sin(x * 0.016) * 20 + Math.sin(x * 0.005 + 1.3) * 35; }
 function pathBlend(x, z) { return THREE.MathUtils.clamp(1 - Math.abs(z - pathZ(x)) / 10, 0, 1); }
 function waterBlend(x, z) {
   const v = nse(x * 0.012 + 220, z * 0.012 - 70);
-  return v > 0.82 ? THREE.MathUtils.clamp((v - 0.82) / 0.08, 0, 1) : 0;
+  return v > 0.825 ? THREE.MathUtils.clamp((v - 0.825) / 0.08, 0, 1) : 0;
 }
 function baseHeight(x, z) {
-  return (nse(x * 0.012, z * 0.012) - 0.5) * 18 + (nse(x * 0.04 + 81, z * 0.04 - 23) - 0.5) * 5.5 + (nse(x * 0.11, z * 0.11) - 0.5) * 1.5;
+  return (nse(x * 0.011, z * 0.011) - 0.5) * 18 + (nse(x * 0.04 + 81, z * 0.04 - 23) - 0.5) * 5.5 + (nse(x * 0.1, z * 0.1) - 0.5) * 1.6;
 }
 function heightAt(x, z) {
   let y = baseHeight(x, z);
@@ -92,14 +125,13 @@ function heightAt(x, z) {
   return y;
 }
 function colorAt(x, z, y) {
-  let c = new THREE.Color(0x496f34);
+  const c = new THREE.Color(0x496f34);
   if (y > 4) c.set(0x526b40);
   if (y < -0.7) c.set(0x425c34);
-  c.lerp(new THREE.Color(0x5d7741), nse(x * 0.18, z * 0.18) * 0.22);
-  c.lerp(new THREE.Color(0x7b6447), pathBlend(x, z) * 0.95);
+  c.lerp(new THREE.Color(0x607a43), nse(x * 0.18, z * 0.18) * 0.25);
+  c.lerp(new THREE.Color(0x796246), pathBlend(x, z) * 0.95);
   return c;
 }
-
 function makeTerrain(cx, cz) {
   const geo = new THREE.PlaneGeometry(chunkSize, chunkSize, seg, seg);
   geo.rotateX(-Math.PI / 2);
@@ -120,7 +152,7 @@ function makeTerrain(cx, cz) {
   return mesh;
 }
 function makePath(cx, cz) {
-  const geo = new THREE.PlaneGeometry(chunkSize, 7.4, 14, 1);
+  const geo = new THREE.PlaneGeometry(chunkSize, 7.6, 16, 1);
   geo.rotateX(-Math.PI / 2);
   const p = geo.attributes.position;
   for (let i = 0; i < p.count; i++) {
@@ -156,32 +188,6 @@ function tooClose(x, z, spots, d) {
   }
   return false;
 }
-function fallbackPine(x, z, sx, sz) {
-  const g = new THREE.Group();
-  const y = heightAt(x, z);
-  const s = rnd(sx, sz, 1, 0.95, 1.55);
-  const r = rnd(sx, sz, 3, 0, Math.PI * 2);
-  g.position.set(x, y, z);
-  g.rotation.y = r;
-  g.scale.setScalar(s);
-  const t = new THREE.Mesh(trunkGeo, trunkMat); t.position.y = 4.6; g.add(t);
-  const a = new THREE.Mesh(pineLowGeo, fallbackNeedle); a.position.y = 7.8; g.add(a);
-  const b = new THREE.Mesh(pineMidGeo, fallbackNeedle); b.position.y = 10.5; g.add(b);
-  const c = new THREE.Mesh(pineTopGeo, fallbackNeedle); c.position.y = 12.95; g.add(c);
-  return g;
-}
-function addTree(group, x, z, sx, sz) {
-  if (pineModel) {
-    const model = cloneModel(pineModel);
-    model.position.set(x, heightAt(x, z), z);
-    model.rotation.y = rnd(sx, sz, 3, 0, Math.PI * 2);
-    model.scale.setScalar(rnd(sx, sz, 1, 0.95, 1.55));
-    group.add(model);
-  } else {
-    group.add(fallbackPine(x, z, sx, sz));
-  }
-}
-
 function makeChunk(cx, cz) {
   const key = cx + "," + cz;
   if (chunks.has(key)) return;
@@ -199,36 +205,62 @@ function makeChunk(cx, cz) {
 
   const spots = [];
   let tries = 0;
-  while (spots.length < 18 && tries < 160) {
+  while (spots.length < 22 && tries < 180) {
     tries++;
     const sx = cx * 1000 + tries * 37;
     const sz = cz * 1000 - tries * 53;
     const x = cx * chunkSize + rnd(sx, sz, 1, 5, chunkSize - 5);
     const z = cz * chunkSize + rnd(sx, sz, 2, 5, chunkSize - 5);
-    if (pathBlend(x, z) > 0.2 || waterBlend(x, z) > 0.15 || tooClose(x, z, spots, 14)) continue;
+    if (pathBlend(x, z) > 0.19 || waterBlend(x, z) > 0.15 || tooClose(x, z, spots, 14)) continue;
     spots.push({ x, z, sx, sz });
   }
-  spots.forEach(p => addTree(group, p.x, p.z, p.sx, p.sz));
 
-  const rocks = new THREE.InstancedMesh(rockGeo, rockMat, 5);
-  for (let i = 0; i < 5; i++) {
+  const trunks = new THREE.InstancedMesh(trunkGeo, trunkMat, spots.length);
+  const low = new THREE.InstancedMesh(pineLowGeo, needleMats[0], spots.length);
+  const mid = new THREE.InstancedMesh(pineMidGeo, needleMats[1], spots.length);
+  const top = new THREE.InstancedMesh(pineTopGeo, needleMats[2], spots.length);
+  const snags = new THREE.InstancedMesh(snagGeo, snagMat, Math.max(1, Math.floor(spots.length / 5)));
+  let snagI = 0;
+
+  spots.forEach((p, i) => {
+    const y = heightAt(p.x, p.z);
+    const s = rnd(p.sx, p.sz, 1, 0.9, 1.75);
+    const r = rnd(p.sx, p.sz, 3, 0, Math.PI * 2);
+    place(trunks, i, p.x, y + 5.5, p.z, s, r, rnd(p.sx, p.sz, 4, 0.82, 1.15), 1, rnd(p.sx, p.sz, 5, 0.82, 1.15));
+    place(low, i, p.x, y + 9.0, p.z, s, r, rnd(p.sx, p.sz, 6, 0.85, 1.22), rnd(p.sx, p.sz, 7, 0.9, 1.18), rnd(p.sx, p.sz, 8, 0.85, 1.22));
+    place(mid, i, p.x, y + 11.7, p.z, s, r + 0.4, rnd(p.sx, p.sz, 9, 0.85, 1.18), 1, rnd(p.sx, p.sz, 10, 0.85, 1.18));
+    place(top, i, p.x, y + 14.1, p.z, s, r + 0.8);
+    if (snagI < snags.count && rnd(p.sx, p.sz, 11, 0, 1) > 0.82) {
+      place(snags, snagI++, p.x + rnd(p.sx, p.sz, 12, -2.5, 2.5), y + 4.0, p.z + rnd(p.sx, p.sz, 13, -2.5, 2.5), rnd(p.sx, p.sz, 14, 0.7, 1.4), r);
+    }
+  });
+  [trunks, low, mid, top, snags].forEach(m => { m.instanceMatrix.needsUpdate = true; group.add(m); });
+
+  const rocks = new THREE.InstancedMesh(rockGeo, rockMat, 6);
+  for (let i = 0; i < 6; i++) {
     const sx = cx * 700 + i * 97, sz = cz * 700 - i * 29;
     const x = cx * chunkSize + rnd(sx, sz, 7, 3, chunkSize - 3);
     const z = cz * chunkSize + rnd(sx, sz, 8, 3, chunkSize - 3);
-    place(rocks, i, x, heightAt(x, z) + 0.35, z, rnd(sx, sz, 12, 0.7, 1.8), rnd(sx, sz, 10, 0, Math.PI * 2), 1, rnd(sx, sz, 13, 0.3, 0.8), 1);
+    place(rocks, i, x, heightAt(x, z) + 0.35, z, rnd(sx, sz, 12, 0.7, 1.9), rnd(sx, sz, 10, 0, Math.PI * 2), 1, rnd(sx, sz, 13, 0.3, 0.8), 1);
   }
   rocks.instanceMatrix.needsUpdate = true;
   group.add(rocks);
 
-  const grass = new THREE.InstancedMesh(grassGeo, grassMat, 14);
-  for (let i = 0; i < 14; i++) {
+  const grass = new THREE.InstancedMesh(grassGeo, grassMat, 18);
+  for (let i = 0; i < 18; i++) {
     const sx = cx * 501 + i * 19, sz = cz * 501 - i * 23;
     const x = cx * chunkSize + rnd(sx, sz, 1, 1, chunkSize - 1);
     const z = cz * chunkSize + rnd(sx, sz, 2, 1, chunkSize - 1);
-    place(grass, i, x, heightAt(x, z) + 0.28, z, rnd(sx, sz, 3, 0.8, 1.3), rnd(sx, sz, 4, 0, Math.PI * 2));
+    place(grass, i, x, heightAt(x, z) + 0.36, z, rnd(sx, sz, 3, 0.8, 1.5), rnd(sx, sz, 4, 0, Math.PI * 2));
   }
   grass.instanceMatrix.needsUpdate = true;
   group.add(grass);
+
+  if (cx === 0 && cz === 0) {
+    const marker = new THREE.Mesh(markerGeo, markerMat);
+    marker.position.set(8, heightAt(8, 8) + 2, 8);
+    group.add(marker);
+  }
 
   scene.add(group);
   chunks.set(key, group);
@@ -246,21 +278,20 @@ function enqueueChunks() {
   }
 }
 function processQueue() { if (queue.length) { const q = queue.shift(); makeChunk(q[0], q[1]); } }
-
 function makeMountains() {
   const mat = new THREE.MeshStandardMaterial({ color: 0x69746f, roughness: 1 });
   const snow = new THREE.MeshStandardMaterial({ color: 0xdde3de, roughness: 0.85 });
   const g = new THREE.Group();
-  for (let i = 0; i < 24; i++) {
-    const a = i / 24 * Math.PI * 2, d = 320 + rnd(i, 9, 1, -20, 70), x = Math.sin(a) * d, z = Math.cos(a) * d;
-    const peak = new THREE.Mesh(new THREE.ConeGeometry(rnd(i, 2, 3, 24, 62), rnd(i, 3, 4, 45, 115), 5), mat);
-    peak.position.set(x, rnd(i, 4, 5, -8, 8), z);
+  for (let i = 0; i < 26; i++) {
+    const a = i / 26 * Math.PI * 2, d = 330 + rnd(i, 9, 1, -25, 80), x = Math.sin(a) * d, z = Math.cos(a) * d;
+    const peak = new THREE.Mesh(new THREE.ConeGeometry(rnd(i, 2, 3, 26, 70), rnd(i, 3, 4, 55, 130), 5), mat);
+    peak.position.set(x, rnd(i, 4, 5, -10, 8), z);
     peak.rotation.y = rnd(i, 6, 7, 0, Math.PI * 2);
     peak.scale.z = rnd(i, 8, 9, 0.65, 1.5);
     g.add(peak);
     if (i % 2 === 0) {
-      const cap = new THREE.Mesh(new THREE.ConeGeometry(rnd(i, 12, 13, 7, 18), rnd(i, 14, 15, 8, 20), 5), snow);
-      cap.position.set(x, peak.position.y + rnd(i, 16, 17, 22, 52), z);
+      const cap = new THREE.Mesh(new THREE.ConeGeometry(rnd(i, 12, 13, 8, 20), rnd(i, 14, 15, 10, 23), 5), snow);
+      cap.position.set(x, peak.position.y + rnd(i, 16, 17, 30, 58), z);
       cap.rotation.y = peak.rotation.y;
       cap.scale.z = peak.scale.z;
       g.add(cap);
@@ -273,7 +304,7 @@ function makeClouds() {
   const g = new THREE.Group();
   for (let c = 0; c < 8; c++) {
     const cg = new THREE.Group();
-    cg.position.set(rnd(c, 1, 2, -220, 220), rnd(c, 5, 6, 80, 130), rnd(c, 3, 4, -220, 220));
+    cg.position.set(rnd(c, 1, 2, -240, 240), rnd(c, 5, 6, 85, 135), rnd(c, 3, 4, -240, 240));
     for (let i = 0; i < 4; i++) {
       const p = new THREE.Mesh(cloudGeo, mat);
       p.position.set(rnd(c * 7, i, 1, -8, 8), rnd(c * 7, i, 2, -2, 2), rnd(c * 7, i, 3, -3, 3));
@@ -287,9 +318,8 @@ function makeClouds() {
 makeMountains();
 makeClouds();
 
-const joystick = document.getElementById("joystick"), stick = document.getElementById("stick"), look = document.getElementById("look"), coords = document.getElementById("coords"), hint = document.getElementById("hint"), startOverlay = document.getElementById("startOverlay"), startBtn = document.getElementById("startBtn");
 const move = { x: 0, y: 0 };
-let joyActive = false, joyTouchId = null, lookActive = false, lookTouchId = null, lx = 0, ly = 0, yaw = 0, pitch = -0.1, last = performance.now(), started = false, lastChunkCheck = 0;
+let joyActive = false, joyTouchId = null, lookActive = false, lookTouchId = null, lx = 0, ly = 0, yaw = 0, pitch = -0.1, last = performance.now(), lastChunkCheck = 0;
 const keys = new Set();
 
 joystick.addEventListener("touchstart", e => { joyActive = true; joyTouchId = e.changedTouches[0].identifier; e.preventDefault(); }, { passive: false });
@@ -328,7 +358,6 @@ look.addEventListener("touchend", resetLook);
 look.addEventListener("touchcancel", resetLook);
 window.addEventListener("keydown", e => keys.add(e.code));
 window.addEventListener("keyup", e => keys.delete(e.code));
-startBtn.addEventListener("click", () => { started = true; startOverlay.style.display = "none"; setTimeout(() => hint.style.opacity = "0", 4500); });
 function resize() { camera.aspect = innerWidth / innerHeight; camera.updateProjectionMatrix(); renderer.setSize(innerWidth, innerHeight); }
 addEventListener("resize", resize);
 addEventListener("orientationchange", () => setTimeout(resize, 120));
@@ -352,11 +381,11 @@ function animate(now) {
     camera.position.y = gy + 3.15 + Math.sin(now * 0.007) * 0.035 * Math.abs(f);
     camera.rotation.set(pitch, yaw, 0, "YXZ");
   }
-  if (now - lastChunkCheck > 260) { enqueueChunks(); lastChunkCheck = now; }
+  if (now - lastChunkCheck > 240) { enqueueChunks(); lastChunkCheck = now; }
   processQueue();
   sun.target.position.copy(camera.position);
   sun.target.updateMatrixWorld();
-  coords.innerHTML = `x: ${camera.position.x.toFixed(1)}<br>z: ${camera.position.z.toFixed(1)}`;
+  if (coords) coords.innerHTML = `x: ${camera.position.x.toFixed(1)}<br>z: ${camera.position.z.toFixed(1)}`;
   renderer.render(scene, camera);
 }
 enqueueChunks();
