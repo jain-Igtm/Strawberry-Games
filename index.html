@@ -4,28 +4,31 @@
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no" />
 <title>Strawberry Forest</title>
-<link rel="stylesheet" href="style.css?v=20" />
+<link rel="stylesheet" href="style.css?v=21" />
 </head>
 <body>
 <div id="hud"><div><div id="title">STRAWBERRY FOREST</div><div>Joystick: move / strafe<br>Drag screen: look around</div></div><div id="coords">x: 0<br>z: 0</div></div>
 <div id="centerDot"></div>
 <div id="joystick"><div id="stick"></div></div>
-<div id="hint">Loading update 20...</div>
+<div id="hint">Loading update 21...</div>
 <div id="startOverlay"><div id="startCard"><h1>Strawberry Forest</h1><p>Chunked terrain, mobile controls, textured ridges, paths, water, rocks, and procedural forest cover.</p><button id="startBtn">Start</button></div></div>
+<script type="module" src="src/main.js?v=21"></script>
 <script>
 (function(){
-  var btn = document.getElementById("startBtn");
-  if (!btn) return;
-  btn.addEventListener("touchstart", function(e){
-    e.preventDefault();
-    e.stopPropagation();
-    setTimeout(function(){ btn.click(); }, 0);
-  }, { passive:false });
-  btn.addEventListener("pointerdown", function(e){
-    e.stopPropagation();
-  });
+  function go(){
+    var btn=document.getElementById("startBtn");
+    var overlay=document.getElementById("startOverlay");
+    var title=document.getElementById("title");
+    var hint=document.getElementById("hint");
+    if(title) title.textContent="STRAWBERRY FOREST";
+    if(hint) hint.textContent="Update 21 loaded.";
+    if(btn && btn.onclick) btn.onclick();
+    if(overlay) overlay.style.display="none";
+  }
+  setTimeout(go,300);
+  setTimeout(go,900);
+  setTimeout(go,1800);
 })();
 </script>
-<script type="module" src="src/main.js?v=20"></script>
 </body>
 </html>
