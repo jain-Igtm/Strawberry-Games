@@ -1,0 +1,55 @@
+name: Build Native Android APK From Branch
+
+on:
+  push:
+    branches: [ main ]
+  workflow_dispatch:
+
+jobs:
+  build-native-android-apk:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+
+    steps:
+      - name: Check out native Android branch
+        uses: actions/checkout@v4
+        with:
+          ref: native-android-world
+
+      - name: Set up Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: Set up Android SDK
+        uses: android-actions/setup-android@v3
+
+      - name: Install Android SDK packages
+        run: |
+          yes | sdkmanager --licenses >/dev/null || true
+          sdkmanager "platforms;android-35" "build-tools;35.0.0"
+
+      - name: Decode native project bundle
+        run: |
+          mkdir -p build-native
+          base64 -d native-app/StrawberryWorldNativeSingle.zip.b64 > build-native/native.zip
+          cd build-native
+          unzip native.zip
+
+      - name: Set up Gradle
+        uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '8.10.2'
+
+      - name: Build debug APK
+        run: |
+          cd build-native/StrawberryWorldNativeSingle
+          gradle :app:assembleDebug --stacktrace
+
+      - name: Upload debug APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: strawberry-world-debug-apk
+          path: build-native/StrawberryWorldNativeSingle/app/build/outputs/apk/debug/app-debug.apk
