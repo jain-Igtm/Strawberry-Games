@@ -1,0 +1,103 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no" />
+<title>Open-Air Deck Bedroom</title>
+<style>
+  *{box-sizing:border-box}html,body{margin:0;width:100%;height:100%;overflow:hidden;background:#8ea6ad;font-family:system-ui,sans-serif;color:#fff}canvas{display:block}
+  #hud{position:fixed;inset:0;pointer-events:none;z-index:5;text-shadow:0 1px 5px #000}
+  #title{position:absolute;top:18px;left:18px;font-weight:800;letter-spacing:.12em;font-size:13px}
+  #hint{position:absolute;top:40px;left:18px;font-size:12px;opacity:.8;max-width:250px}
+  #dot{position:absolute;left:50%;top:50%;width:5px;height:5px;border-radius:50%;background:#fff;transform:translate(-50%,-50%);opacity:.7}
+  #start{position:fixed;inset:0;display:grid;place-items:center;background:linear-gradient(#557078aa,#1d252bdd);z-index:10;padding:20px}
+  #card{max-width:430px;padding:28px;border:1px solid #ffffff55;background:#172126dd;backdrop-filter:blur(12px);border-radius:18px;box-shadow:0 24px 90px #0008}
+  h1{font-size:28px;margin:0 0 12px}p{line-height:1.5;color:#d8e3e4}button{border:0;border-radius:999px;background:#e7dcc7;color:#241f19;font-weight:800;padding:13px 22px;font-size:15px}
+  #joy{display:none;position:fixed;left:22px;bottom:25px;width:118px;height:118px;border:2px solid #fff5;border-radius:50%;background:#0003;z-index:6;touch-action:none}
+  #nub{position:absolute;left:39px;top:39px;width:38px;height:38px;border-radius:50%;background:#fff8}
+  #look{display:none;position:fixed;right:0;bottom:0;width:56%;height:78%;z-index:4;touch-action:none}
+  @media(pointer:coarse){#joy,#look{display:block}#dot{opacity:.45}}
+</style>
+</head>
+<body>
+<div id="hud"><div id="title">OPEN-AIR DECK BEDROOM</div><div id="hint">WASD + mouse, or joystick + drag. Walk through the open doorway onto the covered sleeping deck.</div><div id="dot"></div></div>
+<div id="joy"><div id="nub"></div></div><div id="look"></div>
+<div id="start"><div id="card"><h1>Your deck bedroom</h1><p>A narrow private interior strip opens into a roofed outdoor room: bed, desk, warm timber, long fading windows, and open air beyond the deck.</p><button id="go">Enter</button></div></div>
+<script type="module">
+import * as THREE from 'https://cdn.jsdelivr.net/npm/three@0.169.0/build/three.module.js';
+
+const scene=new THREE.Scene();scene.background=new THREE.Color(0x91aab1);scene.fog=new THREE.Fog(0x91aab1,32,100);
+const camera=new THREE.PerspectiveCamera(68,innerWidth/innerHeight,.08,150);camera.position.set(-7,1.7,2.5);
+const renderer=new THREE.WebGLRenderer({antialias:true});renderer.setSize(innerWidth,innerHeight);renderer.setPixelRatio(Math.min(devicePixelRatio,1.8));renderer.shadowMap.enabled=true;renderer.shadowMap.type=THREE.PCFSoftShadowMap;renderer.outputColorSpace=THREE.SRGBColorSpace;document.body.prepend(renderer.domElement);
+
+scene.add(new THREE.HemisphereLight(0xd9f1ff,0x505444,2.15));
+const sun=new THREE.DirectionalLight(0xffe4bd,3.3);sun.position.set(-10,18,-8);sun.castShadow=true;sun.shadow.mapSize.set(2048,2048);sun.shadow.camera.left=-24;sun.shadow.camera.right=24;sun.shadow.camera.top=24;sun.shadow.camera.bottom=-24;scene.add(sun);
+
+const mats={wood:new THREE.MeshStandardMaterial({color:0x7b5036,roughness:.72}),woodDark:new THREE.MeshStandardMaterial({color:0x4b3025,roughness:.8}),wall:new THREE.MeshStandardMaterial({color:0xc9c1b3,roughness:.92}),dark:new THREE.MeshStandardMaterial({color:0x252728,roughness:.82}),linen:new THREE.MeshStandardMaterial({color:0xe9e1d5,roughness:1}),blanket:new THREE.MeshStandardMaterial({color:0x66797a,roughness:1}),glass:new THREE.MeshPhysicalMaterial({color:0x93bec8,transmission:.55,transparent:true,opacity:.62,roughness:.2,metalness:0}),green:new THREE.MeshStandardMaterial({color:0x465943,roughness:1}),metal:new THREE.MeshStandardMaterial({color:0x33383a,roughness:.45,metalness:.65})};
+const obstacles=[];
+function box(name,size,pos,mat,collide=true){const m=new THREE.Mesh(new THREE.BoxGeometry(...size),mat);m.name=name;m.position.set(...pos);m.castShadow=true;m.receiveShadow=true;scene.add(m);if(collide)obstacles.push(new THREE.Box3().setFromObject(m));return m}
+function cyl(r,h,pos,mat){const m=new THREE.Mesh(new THREE.CylinderGeometry(r,r,h,24),mat);m.position.set(...pos);m.castShadow=true;m.receiveShadow=true;scene.add(m);return m}
+
+// deck and surrounding landscape
+box('deck',[18,.35,12],[2,-.18,1],mats.wood,false);
+for(let x=-6.6;x<10.4;x+=.55)box('deck seam',[.035,.025,11.7],[x,.015,1],mats.woodDark,false);
+box('ground',[100,.5,100],[0,-.7,0],new THREE.MeshStandardMaterial({color:0x56634e,roughness:1}),false);
+for(let i=0;i<55;i++){const x=(Math.random()-.5)*80,z=(Math.random()-.5)*80;if(Math.abs(x)<15&&Math.abs(z)<12)continue;const trunk=cyl(.14+Math.random()*.12,2.4+Math.random()*2,[x,1,z],mats.woodDark);const crown=new THREE.Mesh(new THREE.SphereGeometry(1.2+Math.random(),10,8),mats.green);crown.position.set(x,3+Math.random()*1.5,z);scene.add(crown)}
+
+// slim enclosed privacy strip on left
+box('back wall',[1.5,3.5,11.5],[-7.25,1.75,1],mats.wall);
+box('inner wall',[.25,3.5,4.1],[-5.9,1.75,-2.7],mats.wall);
+box('inner wall',[.25,3.5,2.2],[-5.9,1.75,5.7],mats.wall);
+box('door header',[.25,.55,2.9],[-5.9,3.22,2.55],mats.wall);
+box('privacy return',[3.1,3.5,.28],[-4.45,1.75,6.62],mats.wall);
+box('privacy return',[2.0,3.5,.28],[-5.0,1.75,-4.62],mats.wall);
+
+// windows that taper into solid wall toward privacy zones
+const panes=[[-5.76,1.72,-1.35,2.2,1.35],[-5.76,1.72,.05,2.2,1.18],[-5.76,1.72,1.27,2.2,.92],[-5.76,1.72,4.1,2.2,.78],[-5.76,1.72,4.94,2.2,.58]];
+for(const [x,y,z,h,w] of panes)box('window',[.08,h,w],[x,y,z],mats.glass,false);
+
+// roof and exposed structure
+box('roof',[18,.32,12],[2,4.18,1],mats.dark,false);
+for(const x of [-6,-2,2,6,10])box('beam',[.22,.35,12],[x,3.88,1],mats.woodDark,false);
+for(const [x,z] of [[-6,-4.55],[-6,6.55],[10,-4.55],[10,6.55]])box('post',[.28,4.1,.28],[x,2,z],mats.metal);
+
+// bed facing the open side
+box('bed frame',[5,.45,3.35],[3.5,.45,2.45],mats.woodDark);
+box('mattress',[4.72,.5,3.08],[3.5,.91,2.45],mats.linen);
+box('blanket',[2.5,.12,3.0],[4.48,1.23,2.45],mats.blanket,false);
+box('pillow',[1.05,.22,1.25],[1.75,1.29,1.68],mats.linen,false);box('pillow',[1.05,.22,1.25],[1.75,1.29,3.22],mats.linen,false);
+box('headboard',[.32,1.45,3.5],[.98,1.05,2.45],mats.woodDark);
+
+// desk along the outer view
+box('desk top',[3.8,.18,1.35],[5.3,1.25,-2.4],mats.woodDark);
+for(const x of [3.65,6.95])for(const z of [-2.85,-1.95])box('desk leg',[.16,1.2,.16],[x,.61,z],mats.metal);
+box('monitor',[1.7,1.05,.12],[5.3,1.95,-2.55],mats.dark,false);box('monitor stand',[.15,.58,.15],[5.3,1.55,-2.5],mats.metal,false);
+box('chair seat',[1.15,.16,1.05],[5.3,.67,-.9],mats.blanket);box('chair back',[1.15,1.35,.15],[5.3,1.3,-.35],mats.blanket);
+for(const x of [4.85,5.75])for(const z of [-1.25,-.55])box('chair leg',[.1,.68,.1],[x,.34,z],mats.metal);
+
+// storage and details in the slim strip
+box('wardrobe',[1.1,2.8,2.2],[-6.58,1.4,-3.1],mats.woodDark);
+box('low cabinet',[1.05,1.1,2.7],[-6.6,.55,4.85],mats.woodDark);
+for(const [x,z] of [[8.7,4.9],[8.6,-3.2],[-4.7,5.8]]){cyl(.45,.55,[x,.28,z],mats.woodDark);const plant=new THREE.Mesh(new THREE.SphereGeometry(.72,12,9),mats.green);plant.position.set(x,1.0,z);scene.add(plant)}
+for(const [x,z] of [[1.3,-3.8],[5,-3.8],[8.4,-3.8]]){const lamp=new THREE.PointLight(0xffc98b,9,8,2);lamp.position.set(x,3.55,z);scene.add(lamp);cyl(.1,.18,[x,3.72,z],mats.metal)}
+
+// distant water and horizon
+box('water',[100,.15,36],[0,-.28,34],new THREE.MeshStandardMaterial({color:0x557f89,roughness:.35,metalness:.15}),false);
+
+// movement and collision
+const keys={},vel=new THREE.Vector3(),dir=new THREE.Vector3();let yaw=-Math.PI/2,pitch=-.08,locked=false;const radius=.34;
+addEventListener('keydown',e=>keys[e.code]=true);addEventListener('keyup',e=>keys[e.code]=false);
+function aim(){camera.rotation.order='YXZ';camera.rotation.y=yaw;camera.rotation.x=pitch}
+aim();
+document.getElementById('go').onclick=()=>{document.getElementById('start').style.display='none';if(matchMedia('(pointer:fine)').matches)renderer.domElement.requestPointerLock()};
+document.addEventListener('pointerlockchange',()=>locked=document.pointerLockElement===renderer.domElement);
+document.addEventListener('mousemove',e=>{if(!locked)return;yaw-=e.movementX*.0023;pitch-=e.movementY*.0023;pitch=Math.max(-1.35,Math.min(1.35,pitch));aim()});
+renderer.domElement.addEventListener('click',()=>{if(matchMedia('(pointer:fine)').matches&&document.getElementById('start').style.display==='none')renderer.domElement.requestPointerLock()});
+let joyX=0,joyY=0;const joy=document.getElementById('joy'),nub=document.getElementById('nub');function setJoy(e){const r=joy.getBoundingClientRect(),x=e.clientX-(r.left+r.width/2),y=e.clientY-(r.top+r.height/2),m=Math.min(42,Math.hypot(x,y)),a=Math.atan2(y,x);joyX=Math.cos(a)*m/42;joyY=Math.sin(a)*m/42;nub.style.transform=`translate(${joyX*42}px,${joyY*42}px)`}joy.onpointerdown=e=>{joy.setPointerCapture(e.pointerId);setJoy(e)};joy.onpointermove=e=>{if(joy.hasPointerCapture(e.pointerId))setJoy(e)};joy.onpointerup=()=>{joyX=joyY=0;nub.style.transform=''};
+const look=document.getElementById('look');let lx=0,ly=0;look.onpointerdown=e=>{look.setPointerCapture(e.pointerId);lx=e.clientX;ly=e.clientY};look.onpointermove=e=>{if(!look.hasPointerCapture(e.pointerId))return;yaw-=(e.clientX-lx)*.006;pitch-=(e.clientY-ly)*.006;pitch=Math.max(-1.35,Math.min(1.35,pitch));lx=e.clientX;ly=e.clientY;aim()};
+function blocked(p){const player=new THREE.Box3(new THREE.Vector3(p.x-radius,.05,p.z-radius),new THREE.Vector3(p.x+radius,1.9,p.z+radius));return obstacles.some(b=>player.intersectsBox(b))}
+const clock=new THREE.Clock();function loop(){requestAnimationFrame(loop);const dt=Math.min(clock.getDelta(),.04),speed=(keys.ShiftLeft?5.2:3.1);let f=(keys.KeyW?1:0)-(keys.KeyS?1:0)-joyY,r=(keys.KeyD?1:0)-(keys.KeyA?1:0)+joyX;dir.set(r,0,-f);if(dir.lengthSq()>1)dir.normalize();dir.applyAxisAngle(new THREE.Vector3(0,1,0),yaw);vel.lerp(dir.multiplyScalar(speed),1-Math.pow(.001,dt));const next=camera.position.clone();next.x+=vel.x*dt;if(!blocked(next))camera.position.x=next.x;next.copy(camera.position);next.z+=vel.z*dt;if(!blocked(next))camera.position.z=next.z;camera.position.y=1.7;renderer.render(scene,camera)}loop();
+addEventListener('resize',()=>{camera.aspect=innerWidth/innerHeight;camera.updateProjectionMatrix();renderer.setSize(innerWidth,innerHeight)});
+</script>
+</body>
+</html>
