@@ -1,7 +1,7 @@
 import * as THREE from 'https://unpkg.com/three@0.160.0/build/three.module.js';
 
 const $=id=>document.getElementById(id);
-const ui={start:$('startScreen'),startBtn:$('startBtn'),zone:$('zone'),objective:$('objective'),status:$('topRight'),alarm:$('alarm'),prompt:$('prompt'),message:$('message'),damage:$('damage'),joy:$('joystick'),stick:$('stick'),run:$('runBtn'),lamp:$('lampBtn'),use:$('useBtn')};
+const ui={start:$('startScreen'),startBtn:$('startBtn'),zone:$('zone'),objective:$('objective'),status:$('topRight'),alarm:$('alarm'),prompt:$('prompt'),message:$('message'),damage:$('damage'),joy:$('joystick'),stick:$('stick'),lamp:$('lampBtn'),use:$('useBtn')};
 
 const scene=new THREE.Scene();scene.background=new THREE.Color(0x0b0e0c);scene.fog=new THREE.FogExp2(0x131713,.018);
 const camera=new THREE.PerspectiveCamera(72,innerWidth/innerHeight,.06,180);camera.rotation.order='YXZ';
@@ -80,10 +80,10 @@ function buildMachines(){
 
 buildService();buildApartments(0,false);buildApartments(6,true);buildStairwell();const machine=buildMachines();
 
-const player={pos:new THREE.Vector3(0,1.67,-42),yaw:0,pitch:-.03,radius:.34,stamina:1,zone:'service'};
-const game={started:false,power:false,pressure:0,fuses:0,lamp:true,run:false,event:'idle',timer:Infinity,exposure:0,lightMode:'dim',lightTimer:8};
+const player={pos:new THREE.Vector3(0,1.67,-42),yaw:0,pitch:-.03,radius:.34,zone:'service'};
+const game={started:false,power:false,pressure:0,fuses:0,lamp:true,event:'idle',timer:Infinity,exposure:0,lightMode:'dim',lightTimer:8};
 const ray=new THREE.Raycaster(),tempBox=new THREE.Box3();let aimed=null;
-const flashlight=new THREE.SpotLight(0xe9f2e7,4.5,23,.4,.58,1.5);flashlight.position.set(0,0,0);flashlight.target.position.set(0,0,-2);camera.add(flashlight,flashlight.target);scene.add(camera);
+const flashlight=new THREE.SpotLight(0xf4fff2,10.5,38,.48,.48,1.15);flashlight.position.set(0,0,0);flashlight.target.position.set(0,0,-3);camera.add(flashlight,flashlight.target);scene.add(camera);
 
 function floorHeight(x,z){
  if(z>31&&z<41&&x>-2&&x<2){const t=THREE.MathUtils.clamp((x+1.6)/3.4,0,1);return .2+t*5.8;}
@@ -92,9 +92,9 @@ function floorHeight(x,z){
 function blocked(pos){const sphere=new THREE.Sphere(new THREE.Vector3(pos.x,pos.y-.65,pos.z),player.radius);for(const c of colliders){if(!c.enabled||!c.mesh.parent)continue;tempBox.setFromObject(c.mesh);if(tempBox.intersectsSphere(sphere))return true;}return false;}
 function safe(){return safeRooms.some(r=>r.box.containsPoint(player.pos)&&!r.door.open);}
 function say(text,ms=2600){ui.message.textContent=text;ui.message.style.display='block';clearTimeout(say.t);say.t=setTimeout(()=>ui.message.style.display='none',ms);}
-function updateAim(){ray.setFromCamera({x:0,y:0},camera);const hit=ray.intersectObjects(interactables,false).find(h=>h.distance<2.7&&h.object.visible);aimed=hit?.object||null;if(aimed){ui.prompt.textContent=`[ USE ] ${aimed.userData.label}`;ui.prompt.style.display='block';}else ui.prompt.style.display='none';}
+function updateAim(){ray.setFromCamera({x:0,y:0},camera);const hit=ray.intersectObjects(interactables,false).find(h=>h.distance<3.4&&h.object.visible);aimed=hit?.object||null;if(aimed){ui.prompt.textContent=`[ USE ] ${aimed.userData.label}`;ui.prompt.style.display='block';}else ui.prompt.style.display='none';}
 function use(){if(!aimed)return;const {type,data}=aimed.userData;
- if(type==='door'){if(!game.power&&player.zone==='service'){say('DOOR BUS OFFLINE');return;}data.open=!data.open;data.pivot.rotation.y=data.open*(data.side<0?-1.48:1.48);data.col.enabled=!data.open;aimed.userData.label=data.open?'CLOSE DOOR':'OPEN DOOR';}
+ if(type==='door'){data.open=!data.open;data.pivot.rotation.y=data.open*(data.side<0?-1.48:1.48);data.col.enabled=!data.open;aimed.userData.label=data.open?'CLOSE DOOR':'OPEN DOOR';}
  if(type==='fuse'){game.fuses++;aimed.visible=false;say('CERAMIC FUSE ACQUIRED');}
  if(type==='slot'){if(data.installed)return;if(!game.fuses){say('FUSE SLOT EMPTY');return;}game.fuses--;data.installed=true;aimed.material=MAT.yellow;say('CONTROL FUSE INSTALLED');}
  if(type==='breaker'){data.on=!data.on;aimed.material=data.on?MAT.yellow:MAT.rust;const ok=machine.slot.userData.data.installed&&machine.switches[0].userData.data.on&&!machine.switches[1].userData.data.on&&machine.switches[2].userData.data.on;if(ok&&!game.power){game.power=true;say('AUXILIARY GRID ONLINE');}}
@@ -114,12 +114,12 @@ let joyX=0,joyY=0,joyId=null,lookId=null,lx=0,ly=0;const keys={};
 function moveStick(t){const r=ui.joy.getBoundingClientRect(),cx=r.left+r.width/2,cy=r.top+r.height/2,dx=t.clientX-cx,dy=t.clientY-cy,len=Math.hypot(dx,dy),max=r.width*.34,m=Math.min(max,len),nx=len?dx/len:0,ny=len?dy/len:0;joyX=nx*m/max;joyY=ny*m/max;ui.stick.style.transform=`translate(${nx*m}px,${ny*m}px)`;}
 function resetStick(){joyX=joyY=0;joyId=null;ui.stick.style.transform='translate(0,0)';}
 addEventListener('touchstart',e=>{if(!game.started)return;e.preventDefault();for(const t of e.changedTouches){const el=document.elementFromPoint(t.clientX,t.clientY);if(el?.closest('#buttons'))continue;if(t.clientX<innerWidth*.44&&joyId===null){joyId=t.identifier;moveStick(t);}else if(lookId===null){lookId=t.identifier;lx=t.clientX;ly=t.clientY;}}},{passive:false});
-addEventListener('touchmove',e=>{if(!game.started)return;e.preventDefault();for(const t of e.changedTouches){if(t.identifier===joyId)moveStick(t);if(t.identifier===lookId){const dx=t.clientX-lx,dy=t.clientY-ly;lx=t.clientX;ly=t.clientY;player.yaw-=dx*.0037;player.pitch=THREE.MathUtils.clamp(player.pitch+dy*.003,-1.05,.7);}}},{passive:false});
+addEventListener('touchmove',e=>{if(!game.started)return;e.preventDefault();for(const t of e.changedTouches){if(t.identifier===joyId)moveStick(t);if(t.identifier===lookId){const dx=t.clientX-lx,dy=t.clientY-ly;lx=t.clientX;ly=t.clientY;player.yaw+=dx*.0037;player.pitch=THREE.MathUtils.clamp(player.pitch+dy*.003,-1.05,.7);}}},{passive:false});
 addEventListener('touchend',e=>{for(const t of e.changedTouches){if(t.identifier===joyId)resetStick();if(t.identifier===lookId)lookId=null;}});addEventListener('touchcancel',()=>{resetStick();lookId=null;});
-function bindButton(el,down,up){el.addEventListener('touchstart',e=>{e.preventDefault();e.stopPropagation();down();},{passive:false});el.addEventListener('touchend',e=>{e.preventDefault();e.stopPropagation();up?.();},{passive:false});el.addEventListener('click',e=>{e.preventDefault();down();up?.();});}
-bindButton(ui.use,use);bindButton(ui.lamp,toggleLamp);bindButton(ui.run,()=>{game.run=true;ui.run.classList.add('active');},()=>{game.run=false;ui.run.classList.remove('active');});
+function bindButton(el,action){el.addEventListener('pointerdown',e=>{e.preventDefault();e.stopPropagation();action();});}
+bindButton(ui.use,use);bindButton(ui.lamp,toggleLamp);
 addEventListener('keydown',e=>{keys[e.code]=true;if(e.code==='KeyE')use();if(e.code==='KeyF')toggleLamp();});addEventListener('keyup',e=>keys[e.code]=false);
 ui.startBtn.onclick=()=>{game.started=true;ui.start.style.display='none';initAudio();say('FIND THE CERAMIC FUSE');};
 
-let last=performance.now();function frame(now){requestAnimationFrame(frame);const dt=Math.min(.05,(now-last)/1000);last=now;if(game.started){let f=-joyY+(keys.KeyW?1:0)-(keys.KeyS?1:0),s=joyX+(keys.KeyD?1:0)-(keys.KeyA?1:0);const len=Math.hypot(f,s);if(len>1){f/=len;s/=len;}const running=(game.run||keys.ShiftLeft)&&player.stamina>.05;player.stamina=THREE.MathUtils.clamp(player.stamina+(running?-dt*.22:dt*.16),0,1);const speed=3.5*(running?1.55:1),sn=Math.sin(player.yaw),cs=Math.cos(player.yaw),dx=(s*cs-f*sn)*speed*dt,dz=(-s*sn-f*cs)*speed*dt;const nx=player.pos.clone();nx.x+=dx;nx.y=floorHeight(nx.x,nx.z)+1.67;if(!blocked(nx))player.pos.copy(nx);const nz=player.pos.clone();nz.z+=dz;nz.y=floorHeight(nz.x,nz.z)+1.67;if(!blocked(nz))player.pos.copy(nz);camera.position.copy(player.pos);camera.rotation.set(player.pitch,player.yaw,0);updateAim();updateEvent(dt);updateLighting(dt,now);updateHud();}renderer.render(scene,camera);}frame(last);
+let last=performance.now();function frame(now){requestAnimationFrame(frame);const dt=Math.min(.05,(now-last)/1000);last=now;if(game.started){let f=-joyY+(keys.KeyW?1:0)-(keys.KeyS?1:0),s=joyX+(keys.KeyD?1:0)-(keys.KeyA?1:0);const len=Math.hypot(f,s);if(len>1){f/=len;s/=len;}const speed=6.4,sn=Math.sin(player.yaw),cs=Math.cos(player.yaw),dx=(s*cs-f*sn)*speed*dt,dz=(-s*sn-f*cs)*speed*dt;const nx=player.pos.clone();nx.x+=dx;nx.y=floorHeight(nx.x,nx.z)+1.67;if(!blocked(nx))player.pos.copy(nx);const nz=player.pos.clone();nz.z+=dz;nz.y=floorHeight(nz.x,nz.z)+1.67;if(!blocked(nz))player.pos.copy(nz);camera.position.copy(player.pos);camera.rotation.set(player.pitch,player.yaw,0);updateAim();updateEvent(dt);updateLighting(dt,now);updateHud();}renderer.render(scene,camera);}frame(last);
 addEventListener('resize',()=>{camera.aspect=innerWidth/innerHeight;camera.updateProjectionMatrix();renderer.setSize(innerWidth,innerHeight);});
