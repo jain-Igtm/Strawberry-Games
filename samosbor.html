@@ -1,0 +1,43 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
+  <title>SAMOSBOR — Block P-747</title>
+  <link rel="stylesheet" href="samosbor.css?v=2">
+</head>
+<body>
+  <div id="overlay">
+    <main id="card">
+      <div class="eyebrow">RESIDENTIAL COMBINE P-747 · FLOOR 06</div>
+      <h1>SAMOSBOR</h1>
+      <p>The block is empty, but its emergency systems still function. Restore the auxiliary grid, pressurize a shelter door, and listen for the civil alarm.</p>
+      <p class="small">Phone: left pad moves, drag elsewhere to look, hold RUN to sprint. Desktop: WASD, mouse drag, Shift, E, F.</p>
+      <button id="start">ENTER SERVICE CORRIDOR</button>
+    </main>
+  </div>
+
+  <div id="hud">
+    <section id="telemetry" class="panel">
+      <strong>BLOCK P-747</strong>
+      <span id="location">F06 · SECTION A</span>
+      <span id="objective">RESTORE AUXILIARY POWER</span>
+    </section>
+    <section id="systems" class="panel"></section>
+    <div id="alarmBanner"></div>
+    <div id="message"></div>
+    <div id="prompt"></div>
+    <div id="crosshair"></div>
+    <div id="vignette"></div>
+
+    <div id="movePad"><div id="moveStick"></div></div>
+    <div id="actions">
+      <button id="runBtn">RUN</button>
+      <button id="lampBtn">LAMP</button>
+      <button id="useBtn">USE</button>
+    </div>
+  </div>
+
+  <script type="module" src="src/samosbor.js?v=2"></script>
+</body>
+</html>
