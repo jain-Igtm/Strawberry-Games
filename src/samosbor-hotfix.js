@@ -18,9 +18,15 @@ if (locationLabel) {
 
 if (lampButton) {
   let lampOn = true;
+  let lastToggle = 0;
+
   const triggerLamp = event => {
+    const now = performance.now();
+    if (now - lastToggle < 300) return;
+    lastToggle = now;
     event.preventDefault();
     event.stopPropagation();
+
     window.dispatchEvent(new KeyboardEvent('keydown', {
       code: 'KeyF',
       key: 'f',
@@ -31,12 +37,13 @@ if (lampButton) {
       key: 'f',
       bubbles: true
     }));
+
     lampOn = !lampOn;
     lampButton.textContent = lampOn ? 'LAMP' : 'LAMP OFF';
     lampButton.classList.toggle('lamp-off', !lampOn);
   };
 
   lampButton.onpointerdown = null;
+  lampButton.addEventListener('pointerup', triggerLamp, { passive: false });
   lampButton.addEventListener('click', triggerLamp);
-  lampButton.addEventListener('touchend', triggerLamp, { passive: false });
 }
