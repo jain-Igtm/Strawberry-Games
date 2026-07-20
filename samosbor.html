@@ -53,7 +53,7 @@
         status.textContent = 'Loading the first sector…';
 
         try {
-          const engine = await import(`./src/samosbor-v22.js?v=22&attempt=${attempt}`);
+          const engine = await import(`./src/samosbor-v23.js?v=23&attempt=${attempt}`);
           if (typeof engine.startGame !== 'function') throw new Error('Samosbor engine has no start function.');
           engine.startGame();
         } catch (error) {
