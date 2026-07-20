@@ -1,4 +1,5 @@
-const response = await fetch('./samosbor.js?v=18', { cache: 'no-store' });
+const engineUrl = new URL('./samosbor.js?v=18', import.meta.url);
+const response = await fetch(engineUrl, { cache: 'no-store' });
 if (!response.ok) throw new Error(`Could not load Samosbor engine: ${response.status}`);
 let source = await response.text();
 
