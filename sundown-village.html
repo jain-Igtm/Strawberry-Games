@@ -1,0 +1,377 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no" />
+<title>Sundown Village - Strawberry Games</title>
+<style>
+  html, body { margin:0; height:100%; overflow:hidden; background:#030504; touch-action:none; font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; color:#edf3e8; }
+  canvas { display:block; width:100vw; height:100vh; background:#050705; }
+  #hud { position:fixed; top:0; left:0; right:0; display:flex; justify-content:space-between; gap:10px; padding:10px; box-sizing:border-box; pointer-events:none; text-shadow:0 2px 6px #000; font-size:12px; line-height:1.35; z-index:4; }
+  #title { font-weight:900; letter-spacing:.16em; font-size:13px; color:#fff6cf; }
+  #stats { text-align:right; }
+  #hint { position:fixed; left:50%; bottom:118px; transform:translateX(-50%); width:min(520px, calc(100vw - 34px)); text-align:center; color:#fff5d2; font-size:12px; line-height:1.35; text-shadow:0 2px 7px #000; pointer-events:none; z-index:4; }
+  #centerDot { position:fixed; left:50%; top:50%; width:7px; height:7px; margin-left:-3.5px; margin-top:-3.5px; border-radius:50%; border:1px solid rgba(255,255,255,.75); box-shadow:0 0 8px rgba(255,235,177,.85); z-index:3; pointer-events:none; }
+  #joystick { position:fixed; left:22px; bottom:22px; width:92px; height:92px; border-radius:50%; background:rgba(255,255,255,.08); border:1px solid rgba(255,255,255,.20); box-shadow:inset 0 0 20px rgba(0,0,0,.7); z-index:5; touch-action:none; }
+  #stick { position:absolute; left:31px; top:31px; width:30px; height:30px; border-radius:50%; background:rgba(255,245,205,.7); box-shadow:0 0 14px rgba(255,230,170,.55); }
+  #fireBtn { position:fixed; right:22px; bottom:25px; width:90px; height:90px; border-radius:50%; border:1px solid rgba(255,238,190,.8); background:rgba(102,34,24,.72); color:#fff4d4; font-weight:900; letter-spacing:.12em; z-index:5; box-shadow:0 0 20px rgba(255,158,96,.25), inset 0 0 22px rgba(0,0,0,.55); }
+  #startOverlay { position:fixed; inset:0; display:flex; align-items:center; justify-content:center; background:radial-gradient(circle at 50% 60%, rgba(60,42,26,.32), rgba(0,0,0,.94) 66%); z-index:10; padding:18px; box-sizing:border-box; }
+  #startCard { width:min(560px, 100%); border:1px solid rgba(255,230,170,.42); background:linear-gradient(180deg, rgba(31,24,17,.94), rgba(10,8,6,.96)); box-shadow:0 0 70px rgba(0,0,0,.95); padding:20px; box-sizing:border-box; }
+  #startCard h1 { margin:0 0 10px; color:#fff0ba; letter-spacing:.12em; font-size:24px; }
+  #startCard p { margin:0 0 14px; color:#d6cfbd; line-height:1.5; font-size:13px; }
+  #startBtn { width:100%; padding:13px; border:1px solid rgba(255,230,170,.65); background:#56321f; color:#fff1bf; font-weight:900; letter-spacing:.13em; }
+  #damage { position:fixed; inset:0; background:radial-gradient(circle, rgba(255,0,0,0) 45%, rgba(160,0,0,.48) 100%); opacity:0; pointer-events:none; z-index:6; transition:opacity .08s linear; }
+</style>
+</head>
+<body>
+<canvas id="game"></canvas>
+<div id="hud">
+  <div><div id="title">SUNDOWN VILLAGE</div><div>Left stick: move<br>Drag: look<br>Fire: shoot</div></div>
+  <div id="stats">Round 1<br>Health 100<br>Zombies 0</div>
+</div>
+<div id="centerDot"></div>
+<div id="hint">Western Airbnb town layout: mercantile row left, cabins right, church at the oval end, black woods around everything.</div>
+<div id="joystick"><div id="stick"></div></div>
+<button id="fireBtn">FIRE</button>
+<div id="damage"></div>
+<div id="startOverlay"><div id="startCard">
+  <h1>SUNDOWN VILLAGE</h1>
+  <p>A first playable zombie map inspired by the Western-town Airbnb: a grassy flat, porch-lined storefronts, matching cabins, a red shed, a barn, and the little church at the end of the oval.</p>
+  <p>The lights are safe-looking. The trees are not.</p>
+  <button id="startBtn">START</button>
+</div></div>
+<script>
+(() => {
+  const canvas = document.getElementById('game');
+  const ctx = canvas.getContext('2d', { alpha:false });
+  const stats = document.getElementById('stats');
+  const hint = document.getElementById('hint');
+  const damage = document.getElementById('damage');
+  const startOverlay = document.getElementById('startOverlay');
+  const startBtn = document.getElementById('startBtn');
+  const fireBtn = document.getElementById('fireBtn');
+  const joy = document.getElementById('joystick');
+  const stick = document.getElementById('stick');
+
+  let W = 1, H = 1, DPR = 1;
+  function resize(){
+    DPR = Math.min(2, window.devicePixelRatio || 1);
+    W = Math.floor(innerWidth * DPR); H = Math.floor(innerHeight * DPR);
+    canvas.width = W; canvas.height = H;
+  }
+  addEventListener('resize', resize); resize();
+
+  const player = { x:0, z:18, a:-Math.PI/2, hp:100, ammo:999, kills:0, lastHit:0 };
+  let round = 1, playing = false, last = performance.now(), shake = 0, flash = 0;
+  const keys = Object.create(null);
+  const buildings = [];
+  const props = [];
+  const lights = [];
+  const zombies = [];
+  const bullets = [];
+
+  const clamp = (v,a,b)=>Math.max(a,Math.min(b,v));
+  const dist2 = (ax,az,bx,bz)=>{ const dx=ax-bx, dz=az-bz; return dx*dx+dz*dz; };
+  const normAng = a => Math.atan2(Math.sin(a), Math.cos(a));
+  const rand = (a,b)=>a+Math.random()*(b-a);
+
+  function addBuilding(x,z,w,d,h,name,color,lit=true){ buildings.push({x,z,w,d,h,name,color,lit}); }
+  function addProp(x,z,r,h,type,color){ props.push({x,z,r,h,type,color}); }
+  function addLight(x,z,power,warm=1){ lights.push({x,z,power,warm}); }
+
+  function makeMap(){
+    buildings.length=0; props.length=0; lights.length=0;
+    // Left mercantile row, from the first photo.
+    addBuilding(-15, 4, 9, 7, 5.2, 'COWBOY TOWN', '#3a3026');
+    addBuilding(-15,-5, 9, 8, 5.4, 'MERCANTILE', '#423526');
+    addBuilding(-15,-15, 9, 8, 5.0, 'FARMER MARKET', '#4a3825');
+    addBuilding(-15,-25, 9, 7, 4.8, 'POST OFFICE', '#312923');
+
+    // Right-side repeated cabins along the flat.
+    addBuilding(15, 3, 8, 8, 5.0, 'CABIN 1', '#493225');
+    addBuilding(15,-7, 8, 8, 5.2, 'SALOON', '#4d3321');
+    addBuilding(15,-17, 8, 8, 5.0, 'BLACKSMITH', '#382b22');
+    addBuilding(15,-27, 8, 7, 4.8, 'STABLE', '#31261e');
+
+    // Oval end: church, barn, red shed.
+    addBuilding(0,-44, 7, 9, 6.5, 'CHURCH', '#39403b');
+    addBuilding(-13,-45, 10, 9, 5.5, 'BARN', '#5a3b24');
+    addBuilding(13,-44, 8, 8, 5.1, 'RED SHED', '#653028');
+
+    // fences and porch rails.
+    for(let z=9; z>-31; z-=4){ addProp(-8.6,z,.22,1.1,'post','#9a7b55'); addProp(8.6,z,.22,1.1,'post','#9a7b55'); }
+    for(let x=-18; x<=18; x+=4){ addProp(x,-35,.22,1.1,'post','#9a7b55'); }
+    addProp(0,-24,1.5,.9,'firepit','#4d3320');
+    addProp(-4,-10,1.1,1.5,'barrel','#7d5a36');
+    addProp(6,-18,1.1,1.5,'barrel','#7d5a36');
+    addProp(-6,-31,1.6,1.0,'bench','#6b4b31');
+    addProp(6,-34,1.6,1.0,'bench','#6b4b31');
+    addProp(13,-39,1.0,1.0,'wagonwheel','#b98b54');
+    addProp(-13,-39,1.0,1.0,'wagonwheel','#b98b54');
+
+    // string lights / porch lamps.
+    for(let z=8; z>-31; z-=5){ addLight(-10,z,8); addLight(10,z,8); }
+    addLight(0,-39,16); addLight(-10,-39,12); addLight(11,-39,11); addLight(0,-48,10); addLight(0,-22,5,.8);
+  }
+  makeMap();
+
+  function spawnZombie(){
+    const sides = [
+      () => ({x:rand(-24,-18),z:rand(-36,10)}),
+      () => ({x:rand(18,24),z:rand(-36,10)}),
+      () => ({x:rand(-23,23),z:rand(-58,-50)}),
+      () => ({x:rand(-22,22),z:rand(18,24)})
+    ];
+    const p = sides[Math.floor(Math.random()*sides.length)]();
+    zombies.push({x:p.x,z:p.z,hp:2+Math.floor(round*.45), speed:1.2+Math.random()*.35+round*.055, phase:Math.random()*6, hit:0});
+  }
+  function startRound(){
+    const n = 6 + round*3;
+    for(let i=0;i<n;i++) setTimeout(spawnZombie, i*420);
+  }
+
+  function collides(x,z,r=.55){
+    if(x < -26 || x > 26 || z < -61 || z > 24) return true;
+    for(const b of buildings){
+      const nx = clamp(x, b.x-b.w/2, b.x+b.w/2);
+      const nz = clamp(z, b.z-b.d/2, b.z+b.d/2);
+      if(dist2(x,z,nx,nz) < r*r) return true;
+    }
+    for(const p of props){
+      if(dist2(x,z,p.x,p.z) < (r+p.r*.55)*(r+p.r*.55)) return true;
+    }
+    return false;
+  }
+  function moveEnt(e, dx, dz, r=.55){
+    const nx=e.x+dx, nz=e.z+dz;
+    if(!collides(nx,e.z,r)) e.x=nx;
+    if(!collides(e.x,nz,r)) e.z=nz;
+  }
+
+  addEventListener('keydown', e=>keys[e.key.toLowerCase()]=true);
+  addEventListener('keyup', e=>keys[e.key.toLowerCase()]=false);
+
+  let joyVec = {x:0,y:0}, joyId = null;
+  joy.addEventListener('pointerdown', e=>{ joyId=e.pointerId; joy.setPointerCapture(joyId); updateJoy(e); });
+  joy.addEventListener('pointermove', e=>{ if(e.pointerId===joyId) updateJoy(e); });
+  joy.addEventListener('pointerup', endJoy); joy.addEventListener('pointercancel', endJoy);
+  function updateJoy(e){
+    const r = joy.getBoundingClientRect();
+    const cx = r.left+r.width/2, cy = r.top+r.height/2;
+    const dx = e.clientX-cx, dy = e.clientY-cy; const m = Math.hypot(dx,dy); const lim=34;
+    const k = m>lim ? lim/m : 1;
+    joyVec.x = clamp(dx/lim,-1,1); joyVec.y = clamp(dy/lim,-1,1);
+    stick.style.left = (31+dx*k)+'px'; stick.style.top = (31+dy*k)+'px';
+  }
+  function endJoy(e){ if(e.pointerId!==joyId) return; joyId=null; joyVec.x=joyVec.y=0; stick.style.left='31px'; stick.style.top='31px'; }
+
+  let lookId = null, lastX = 0;
+  canvas.addEventListener('pointerdown', e=>{ if(e.clientX < innerWidth*.35 || e.clientX > innerWidth*.72) return; lookId=e.pointerId; lastX=e.clientX; canvas.setPointerCapture(lookId); });
+  canvas.addEventListener('pointermove', e=>{ if(e.pointerId!==lookId) return; player.a += (e.clientX-lastX)*0.006; lastX=e.clientX; });
+  canvas.addEventListener('pointerup', e=>{ if(e.pointerId===lookId) lookId=null; });
+  canvas.addEventListener('pointercancel', e=>{ if(e.pointerId===lookId) lookId=null; });
+
+  startBtn.onclick = () => { playing=true; startOverlay.style.display='none'; startRound(); };
+  fireBtn.onclick = shoot;
+  addEventListener('click', e=>{ if(e.target===fireBtn || e.target===startBtn) return; if(playing && innerWidth>720) shoot(); });
+
+  function shoot(){
+    if(!playing || player.hp<=0) return;
+    flash = 1; shake = Math.max(shake, 5);
+    bullets.push({x:player.x, z:player.z, a:player.a, life:.28});
+    let best=null, bestScore=999;
+    for(const z of zombies){
+      const dx=z.x-player.x, dz=z.z-player.z; const d=Math.hypot(dx,dz);
+      const ang=normAng(Math.atan2(dx,dz)-player.a);
+      if(Math.abs(ang)<0.105 && d<36 && d<bestScore){ best=z; bestScore=d; }
+    }
+    if(best){ best.hp--; best.hit=.25; if(best.hp<=0){ player.kills++; zombies.splice(zombies.indexOf(best),1); } }
+  }
+
+  function update(dt){
+    if(!playing) return;
+    if(player.hp<=0) return;
+    let f=0, s=0;
+    if(keys.w || keys.arrowup) f+=1; if(keys.s || keys.arrowdown) f-=1;
+    if(keys.a) s-=1; if(keys.d) s+=1;
+    f += -joyVec.y; s += joyVec.x;
+    if(keys.arrowleft) player.a-=dt*2.4; if(keys.arrowright) player.a+=dt*2.4;
+    const mag = Math.hypot(f,s); if(mag>1){ f/=mag; s/=mag; }
+    const sp = 5.1;
+    const dx = (Math.sin(player.a)*f + Math.sin(player.a+Math.PI/2)*s)*sp*dt;
+    const dz = (Math.cos(player.a)*f + Math.cos(player.a+Math.PI/2)*s)*sp*dt;
+    moveEnt(player, dx, dz, .55);
+
+    for(const z of zombies){
+      z.phase += dt*5; z.hit = Math.max(0,z.hit-dt);
+      const dxp = player.x-z.x, dzp = player.z-z.z; const d = Math.hypot(dxp,dzp) || 1;
+      const step = z.speed*dt;
+      moveEnt(z, dxp/d*step, dzp/d*step, .52);
+      if(d<1.05 && performance.now()-player.lastHit>650){
+        player.hp = Math.max(0, player.hp-10); player.lastHit=performance.now(); damage.style.opacity=.75; shake=10;
+        setTimeout(()=>damage.style.opacity=0,100);
+      }
+    }
+    for(const b of bullets) b.life-=dt;
+    for(let i=bullets.length-1;i>=0;i--) if(bullets[i].life<=0) bullets.splice(i,1);
+    if(zombies.length===0 && playing){ round++; hint.textContent = round%2 ? 'The church light flickers. More shapes move behind the porches.' : 'Use the open grass to train them, but do not back into the tree line.'; startRound(); }
+    flash = Math.max(0, flash-dt*5); shake = Math.max(0, shake-dt*18);
+  }
+
+  function lightAt(x,z){
+    let v = .08;
+    for(const l of lights){
+      const d = Math.hypot(x-l.x,z-l.z);
+      v += Math.max(0, 1-d/l.power)*.65;
+    }
+    return clamp(v,0,1);
+  }
+
+  function project(x,z,y=0){
+    const dx=x-player.x, dz=z-player.z;
+    const ca=Math.cos(player.a), sa=Math.sin(player.a);
+    const rx = ca*dx - sa*dz;
+    const rz = sa*dx + ca*dz;
+    if(rz<=.2) return null;
+    const scale = (H*.72)/rz;
+    return {x:W/2 + rx*scale, y:H*.58 - y*scale, rz, scale};
+  }
+
+  function drawGround(){
+    const g=ctx.createLinearGradient(0,0,0,H);
+    g.addColorStop(0,'#020303'); g.addColorStop(.48,'#060806'); g.addColorStop(1,'#0e130c');
+    ctx.fillStyle=g; ctx.fillRect(0,0,W,H);
+    // tree canopy darkness
+    ctx.fillStyle='rgba(0,0,0,.55)'; ctx.fillRect(0,0,W,H*.33);
+    // perspective grass lines
+    ctx.strokeStyle='rgba(105,121,79,.13)'; ctx.lineWidth=1*DPR;
+    for(let i=-18;i<=18;i+=3){
+      const a=project(i,24,0), b=project(i,-61,0); if(a&&b){ ctx.beginPath(); ctx.moveTo(a.x,a.y); ctx.lineTo(b.x,b.y); ctx.stroke(); }
+    }
+    for(let z=20; z>-62; z-=5){
+      const a=project(-24,z,0), b=project(24,z,0); if(a&&b){ ctx.beginPath(); ctx.moveTo(a.x,a.y); ctx.lineTo(b.x,b.y); ctx.stroke(); }
+    }
+  }
+
+  function drawBox(b){
+    const corners = [
+      [b.x-b.w/2,b.z-b.d/2], [b.x+b.w/2,b.z-b.d/2], [b.x+b.w/2,b.z+b.d/2], [b.x-b.w/2,b.z+b.d/2]
+    ];
+    const pts = corners.map(c=>project(c[0],c[1],0));
+    const tops = corners.map(c=>project(c[0],c[1],b.h));
+    if(pts.some(p=>!p) || tops.some(p=>!p)) return;
+    const light = lightAt(b.x,b.z);
+    const col = shade(b.color, .55+light*.7);
+    ctx.fillStyle=col; ctx.strokeStyle='rgba(12,8,5,.8)'; ctx.lineWidth=1.5*DPR;
+    // front-ish face sorted by center distance handled elsewhere
+    pathPoly([pts[0],pts[1],tops[1],tops[0]]); ctx.fill(); ctx.stroke();
+    pathPoly([pts[1],pts[2],tops[2],tops[1]]); ctx.fillStyle=shade(b.color,.48+light*.65); ctx.fill(); ctx.stroke();
+    pathPoly([pts[2],pts[3],tops[3],tops[2]]); ctx.fillStyle=shade(b.color,.42+light*.6); ctx.fill(); ctx.stroke();
+    pathPoly([pts[3],pts[0],tops[0],tops[3]]); ctx.fillStyle=shade(b.color,.5+light*.62); ctx.fill(); ctx.stroke();
+    // roof
+    ctx.fillStyle=shade('#201810',.6+light*.4); pathPoly([tops[0],tops[1],tops[2],tops[3]]); ctx.fill(); ctx.stroke();
+    // sign and windows on center-facing side
+    const p = project(b.x,b.z+b.d/2+.04,b.h*.66);
+    if(p){
+      ctx.save(); ctx.globalAlpha=clamp(1-p.rz/58,.18,1);
+      ctx.fillStyle='rgba(33,21,12,.82)'; ctx.fillRect(p.x-36*DPR/p.rz*8,p.y-10*DPR/p.rz*8,72*DPR/p.rz*8,18*DPR/p.rz*8);
+      ctx.fillStyle='#d1b173'; ctx.font=Math.max(7*DPR, 52*DPR/p.rz)+'px ui-monospace'; ctx.textAlign='center'; ctx.fillText(b.name,p.x,p.y+4*DPR);
+      ctx.restore();
+    }
+    if(b.lit){
+      for(const off of [-b.w*.24,b.w*.24]){
+        const w=project(b.x+off,b.z+b.d/2+.06,b.h*.34); if(!w) continue;
+        const ww=clamp(w.scale*.7,5*DPR,38*DPR), wh=clamp(w.scale*.9,8*DPR,48*DPR);
+        const grad=ctx.createRadialGradient(w.x,w.y,0,w.x,w.y,ww*2.6);
+        grad.addColorStop(0,'rgba(255,226,155,.35)'); grad.addColorStop(1,'rgba(255,226,155,0)'); ctx.fillStyle=grad; ctx.fillRect(w.x-ww*3,w.y-wh*3,ww*6,wh*6);
+        ctx.fillStyle='rgba(255,220,150,.72)'; ctx.fillRect(w.x-ww/2,w.y-wh/2,ww,wh);
+        ctx.strokeStyle='rgba(36,24,15,.8)'; ctx.strokeRect(w.x-ww/2,w.y-wh/2,ww,wh);
+      }
+    }
+  }
+
+  function shade(hex, f){
+    const n=parseInt(hex.slice(1),16), r=(n>>16)&255,g=(n>>8)&255,b=n&255;
+    return `rgb(${clamp(r*f,0,255)|0},${clamp(g*f,0,255)|0},${clamp(b*f,0,255)|0})`;
+  }
+  function pathPoly(arr){ ctx.beginPath(); ctx.moveTo(arr[0].x,arr[0].y); for(let i=1;i<arr.length;i++)ctx.lineTo(arr[i].x,arr[i].y); ctx.closePath(); }
+
+  function drawProp(p){
+    const q=project(p.x,p.z,0); if(!q) return;
+    const l=lightAt(p.x,p.z); const h=clamp(q.scale*p.h,4*DPR,80*DPR), w=clamp(q.scale*p.r*2,3*DPR,50*DPR);
+    ctx.fillStyle=shade(p.color,.55+l*.65); ctx.strokeStyle='rgba(0,0,0,.6)';
+    if(p.type==='post') ctx.fillRect(q.x-w*.25,q.y-h,w*.5,h);
+    else if(p.type==='firepit') { ctx.beginPath(); ctx.ellipse(q.x,q.y,w,h*.32,0,0,Math.PI*2); ctx.fill(); if(Math.random()<.65){ ctx.fillStyle='rgba(255,127,53,.25)'; ctx.beginPath(); ctx.arc(q.x,q.y-h*.35,w*.8,0,Math.PI*2); ctx.fill(); } }
+    else { ctx.fillRect(q.x-w/2,q.y-h,w,h); ctx.strokeRect(q.x-w/2,q.y-h,w,h); }
+  }
+
+  function drawZombie(z){
+    const q=project(z.x,z.z,0); if(!q) return;
+    const d=q.rz; const size=clamp(q.scale*.78,8*DPR,110*DPR);
+    const l=lightAt(z.x,z.z); ctx.save(); ctx.globalAlpha=clamp(1-d/65,.25,1);
+    const bob=Math.sin(z.phase)*size*.06;
+    ctx.fillStyle=z.hit>0?'#ffe2ad':shade('#6d725f',.35+l*.9);
+    ctx.beginPath(); ctx.ellipse(q.x,q.y-size*1.15+bob,size*.34,size*.42,0,0,Math.PI*2); ctx.fill();
+    ctx.fillStyle=z.hit>0?'#ffd097':shade('#4e5547',.35+l*.75);
+    ctx.fillRect(q.x-size*.34,q.y-size*1.0+bob,size*.68,size*.85);
+    ctx.strokeStyle='rgba(9,7,5,.75)'; ctx.lineWidth=2*DPR; ctx.beginPath();
+    ctx.moveTo(q.x-size*.25,q.y-size*.15); ctx.lineTo(q.x-size*.42,q.y+size*.28);
+    ctx.moveTo(q.x+size*.25,q.y-size*.15); ctx.lineTo(q.x+size*.42,q.y+size*.28);
+    ctx.moveTo(q.x-size*.34,q.y-size*.72); ctx.lineTo(q.x-size*.7,q.y-size*.45);
+    ctx.moveTo(q.x+size*.34,q.y-size*.72); ctx.lineTo(q.x+size*.68,q.y-size*.5);
+    ctx.stroke();
+    ctx.restore();
+  }
+
+  function drawLights(){
+    ctx.globalCompositeOperation='lighter';
+    for(const l of lights){
+      const p=project(l.x,l.z,2.4); if(!p) continue;
+      const r=clamp(p.scale*l.power*.7,18*DPR,170*DPR);
+      const grad=ctx.createRadialGradient(p.x,p.y,0,p.x,p.y,r);
+      grad.addColorStop(0,'rgba(255,229,168,.34)'); grad.addColorStop(.35,'rgba(255,196,110,.12)'); grad.addColorStop(1,'rgba(255,196,110,0)');
+      ctx.fillStyle=grad; ctx.fillRect(p.x-r,p.y-r,r*2,r*2);
+      ctx.fillStyle='rgba(255,246,197,.75)'; ctx.beginPath(); ctx.arc(p.x,p.y,Math.max(1.5*DPR, p.scale*.08),0,Math.PI*2); ctx.fill();
+    }
+    ctx.globalCompositeOperation='source-over';
+  }
+
+  function drawGun(){
+    const y=H*.72 + Math.sin(performance.now()/130)*2*DPR + flash*18*DPR;
+    ctx.fillStyle='#17110d'; ctx.fillRect(W*.55,y,W*.22,H*.25);
+    ctx.fillStyle='#5a3a24'; ctx.fillRect(W*.61,y+H*.05,W*.13,H*.06);
+    ctx.fillStyle=flash>0?'rgba(255,214,125,.85)':'#211813'; ctx.fillRect(W*.49,y+H*.02,W*.15,H*.035);
+    if(flash>0){ const g=ctx.createRadialGradient(W*.49,y+H*.035,0,W*.49,y+H*.035,80*DPR); g.addColorStop(0,'rgba(255,240,170,.8)'); g.addColorStop(1,'rgba(255,146,50,0)'); ctx.fillStyle=g; ctx.fillRect(W*.49-80*DPR,y+H*.035-80*DPR,160*DPR,160*DPR); }
+  }
+
+  function render(){
+    ctx.save();
+    if(shake>0) ctx.translate(rand(-shake,shake)*DPR, rand(-shake,shake)*DPR);
+    drawGround();
+    const things=[];
+    for(const b of buildings) things.push({kind:'b', o:b, d:dist2(player.x,player.z,b.x,b.z)});
+    for(const p of props) things.push({kind:'p', o:p, d:dist2(player.x,player.z,p.x,p.z)});
+    for(const z of zombies) things.push({kind:'z', o:z, d:dist2(player.x,player.z,z.x,z.z)});
+    things.sort((a,b)=>b.d-a.d);
+    drawLights();
+    for(const t of things){ if(t.kind==='b') drawBox(t.o); else if(t.kind==='p') drawProp(t.o); else drawZombie(t.o); }
+    // dark vignette and trees
+    const vg=ctx.createRadialGradient(W/2,H*.55,H*.2,W/2,H*.55,H*.72);
+    vg.addColorStop(0,'rgba(0,0,0,0)'); vg.addColorStop(.55,'rgba(0,0,0,.26)'); vg.addColorStop(1,'rgba(0,0,0,.88)');
+    ctx.fillStyle=vg; ctx.fillRect(0,0,W,H);
+    drawGun();
+    ctx.restore();
+  }
+
+  function loop(now){
+    const dt = Math.min(.033,(now-last)/1000); last=now;
+    update(dt); render();
+    stats.innerHTML = `Round ${round}<br>Health ${player.hp}<br>Zombies ${zombies.length}<br>Kills ${player.kills}`;
+    if(player.hp<=0){ hint.textContent='You died in Sundown Village. Reload to try again.'; }
+    requestAnimationFrame(loop);
+  }
+  requestAnimationFrame(loop);
+})();
+</script>
+</body>
+</html>
