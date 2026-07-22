@@ -5,7 +5,10 @@
 <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no" />
 <title>Strawberry Roads</title>
 <link rel="stylesheet" href="style.css?v=24" />
-<style>#samosborLink{display:block;margin-top:12px;padding:12px;border:1px solid #87958a;background:#18201b;color:#eef3ee;text-decoration:none;font:700 13px ui-monospace,monospace;letter-spacing:.12em;text-align:center}</style>
+<style>
+.gameLink{display:block;margin-top:12px;padding:12px;border:1px solid #87958a;background:#18201b;color:#eef3ee;text-decoration:none;font:700 13px ui-monospace,monospace;letter-spacing:.12em;text-align:center}
+#sundownLink{border-color:#c59b61;background:#221811;color:#fff0bd}
+</style>
 </head>
 <body>
 <div id="hud"><div><div id="title">STRAWBERRY ROADS</div><div>Joystick: drive / steer<br>Drag screen: look</div></div><div id="coords">x: 0<br>z: 0<br>hits: 0</div></div>
@@ -13,7 +16,7 @@
 <div id="joystick"><div id="stick"></div></div>
 <button id="fireBtn">FIRE</button>
 <div id="hint">Loading update 24...</div>
-<div id="startOverlay"><div id="startCard"><h1>Strawberry Roads</h1><p>Infinite road world. Drive the car, use the blasters, and clear alien creatures from the road network.</p><button id="startBtn">Start</button><a id="samosborLink" href="samosbor.html?v=24">ENTER SAMOSBOR BLOCK P-747</a></div></div>
+<div id="startOverlay"><div id="startCard"><h1>Strawberry Roads</h1><p>Infinite road world. Drive the car, use the blasters, and clear alien creatures from the road network.</p><button id="startBtn">Start</button><a class="gameLink" href="samosbor.html?v=24">ENTER SAMOSBOR BLOCK P-747</a><a id="sundownLink" class="gameLink" href="sundown-village.html?v=1">ENTER SUNDOWN VILLAGE</a></div></div>
 <script type="module" src="src/v24.js?v=24"></script>
 </body>
 </html>
