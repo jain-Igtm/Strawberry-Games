@@ -494,17 +494,17 @@
   function buildVillage() {
     makeGround();
 
-    makeWesternBuilding({ x: -15, z: 18, width: 9.4, depth: 7.0, height: 5.1, facing: -Math.PI / 2, label: 'COWBOY TOWN', wall: 'dark', falseFront: true, porch: true });
-    makeWesternBuilding({ x: -15, z: 7, width: 9.8, depth: 7.2, height: 4.7, facing: -Math.PI / 2, label: 'MERCANTILE', wall: 'timber', falseFront: true, porch: true });
-    makeWesternBuilding({ x: -15, z: -4, width: 8.8, depth: 7.0, height: 4.5, facing: -Math.PI / 2, label: "FARMER'S MARKET", wall: 'timber', falseFront: true, porch: true });
-    makeWesternBuilding({ x: -15, z: -15, width: 8.0, depth: 6.6, height: 4.25, facing: -Math.PI / 2, label: 'POST OFFICE', wall: 'dark', falseFront: true, porch: true });
-    makeWesternBuilding({ x: -15, z: -25, width: 8.2, depth: 7.0, height: 4.3, facing: -Math.PI / 2, label: 'TRADING POST', wall: 'timber', falseFront: true, porch: true });
+    makeWesternBuilding({ x: -15, z: 18, width: 9.4, depth: 7.0, height: 5.1, facing: Math.PI / 2, label: 'COWBOY TOWN', wall: 'dark', falseFront: true, porch: true });
+    makeWesternBuilding({ x: -15, z: 7, width: 9.8, depth: 7.2, height: 4.7, facing: Math.PI / 2, label: 'MERCANTILE', wall: 'timber', falseFront: true, porch: true });
+    makeWesternBuilding({ x: -15, z: -4, width: 8.8, depth: 7.0, height: 4.5, facing: Math.PI / 2, label: "FARMER'S MARKET", wall: 'timber', falseFront: true, porch: true });
+    makeWesternBuilding({ x: -15, z: -15, width: 8.0, depth: 6.6, height: 4.25, facing: Math.PI / 2, label: 'POST OFFICE', wall: 'dark', falseFront: true, porch: true });
+    makeWesternBuilding({ x: -15, z: -25, width: 8.2, depth: 7.0, height: 4.3, facing: Math.PI / 2, label: 'TRADING POST', wall: 'timber', falseFront: true, porch: true });
 
-    makeWesternBuilding({ x: 15, z: 18, width: 8.5, depth: 7.0, height: 4.4, facing: Math.PI / 2, label: 'CABIN 1', wall: 'dark', falseFront: false, porch: true });
-    makeWesternBuilding({ x: 15, z: 7, width: 9.2, depth: 7.2, height: 4.7, facing: Math.PI / 2, label: 'SALOON', wall: 'timber', falseFront: true, porch: true });
-    makeWesternBuilding({ x: 15, z: -4, width: 8.6, depth: 7.0, height: 4.4, facing: Math.PI / 2, label: 'BLACKSMITH', wall: 'dark', falseFront: true, porch: true });
-    makeWesternBuilding({ x: 15, z: -15, width: 8.0, depth: 6.8, height: 4.25, facing: Math.PI / 2, label: 'CABIN 2', wall: 'timber', falseFront: false, porch: true });
-    makeWesternBuilding({ x: 15, z: -25, width: 8.5, depth: 7.2, height: 4.35, facing: Math.PI / 2, label: 'STABLE', wall: 'dark', falseFront: true, porch: true });
+    makeWesternBuilding({ x: 15, z: 18, width: 8.5, depth: 7.0, height: 4.4, facing: -Math.PI / 2, label: 'CABIN 1', wall: 'dark', falseFront: false, porch: true });
+    makeWesternBuilding({ x: 15, z: 7, width: 9.2, depth: 7.2, height: 4.7, facing: -Math.PI / 2, label: 'SALOON', wall: 'timber', falseFront: true, porch: true });
+    makeWesternBuilding({ x: 15, z: -4, width: 8.6, depth: 7.0, height: 4.4, facing: -Math.PI / 2, label: 'BLACKSMITH', wall: 'dark', falseFront: true, porch: true });
+    makeWesternBuilding({ x: 15, z: -15, width: 8.0, depth: 6.8, height: 4.25, facing: -Math.PI / 2, label: 'CABIN 2', wall: 'timber', falseFront: false, porch: true });
+    makeWesternBuilding({ x: 15, z: -25, width: 8.5, depth: 7.2, height: 4.35, facing: -Math.PI / 2, label: 'STABLE', wall: 'dark', falseFront: true, porch: true });
 
     makeBarn(-13.2, -47.5);
     makeChurch(0, -52.5);
