@@ -7,17 +7,39 @@
       content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover"
     />
     <meta name="theme-color" content="#080a0a" />
-    <title>Gravenmere</title>
+    <title>World Explorer</title>
+    <style>
+      #world {
+        filter: brightness(1.38) contrast(0.88) saturate(1.04);
+      }
+
+      #app::after {
+        position: fixed;
+        z-index: 2;
+        inset: 0;
+        content: "";
+        pointer-events: none;
+        background: rgba(155, 178, 168, 0.045);
+        mix-blend-mode: screen;
+      }
+
+      #lantern-quick {
+        z-index: 12;
+        width: 56px;
+        height: 56px;
+        touch-action: none;
+      }
+    </style>
   </head>
   <body>
     <main id="app">
-      <canvas id="world" aria-label="Gravenmere game world"></canvas>
+      <canvas id="world" aria-label="World Explorer game world"></canvas>
 
       <section id="start-screen" class="screen screen--visible">
         <div class="start-vignette"></div>
         <div class="start-copy">
           <span class="eyebrow">THE ROADS END AT GRAVENMERE</span>
-          <h1>GRAVENMERE</h1>
+          <h1>WORLD<br />EXPLORER</h1>
           <p>
             Search the open grounds and inner ruins. Recover the three ward seals,
             uncover hidden paths with Revelare, and learn where the observatory points.
@@ -40,7 +62,7 @@
       <div id="rotate-message" aria-hidden="true">
         <div class="rotate-glyph">↻</div>
         <strong>TURN YOUR PHONE SIDEWAYS</strong>
-        <span>Gravenmere is built for landscape.</span>
+        <span>World Explorer is built for landscape.</span>
       </div>
 
       <div id="hud" aria-hidden="true">
@@ -94,6 +116,7 @@
           class="quick-slot"
           aria-label="Equip or stow lantern"
           aria-pressed="false"
+          onpointerdown="event.preventDefault(); event.stopPropagation(); this.click()"
         >
           <span class="lantern-glyph"><i></i></span>
           <small>LANTERN</small>
