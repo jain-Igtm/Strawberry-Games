@@ -41,7 +41,6 @@ jobs:
         with:
           distribution: temurin
           java-version: 21
-          cache: gradle
 
       - name: Restore stable personal signing identity
         uses: actions/cache@v4
