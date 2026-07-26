@@ -1,4 +1,4 @@
-export class SchoolAudio {
+export class GravenmereAudio {
   private context: AudioContext | null = null
   private master: GainNode | null = null
   private ambience: GainNode | null = null

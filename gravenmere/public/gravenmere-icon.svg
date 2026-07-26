@@ -5,7 +5,7 @@
       <stop offset="0.62" stop-color="#0b1210"/>
       <stop offset="1" stop-color="#050706"/>
     </radialGradient>
-    <linearGradient id="school" x1="0" y1="0" x2="0.8" y2="1">
+    <linearGradient id="ruins" x1="0" y1="0" x2="0.8" y2="1">
       <stop offset="0" stop-color="#354840"/>
       <stop offset="1" stop-color="#121917"/>
     </linearGradient>
@@ -17,7 +17,7 @@
   <circle cx="512" cy="467" r="330" fill="none" stroke="#9ff8dd" stroke-opacity=".09" stroke-width="8"/>
   <circle cx="512" cy="467" r="268" fill="none" stroke="#9ff8dd" stroke-opacity=".06" stroke-width="4"/>
   <path d="M184 795C303 701 392 751 502 638C629 507 737 483 840 370V1024H184Z" fill="#0a100e"/>
-  <path d="M250 807V497H334V382H411V276L512 172L613 276V382H690V497H774V807Z" fill="url(#school)"/>
+  <path d="M250 807V497H334V382H411V276L512 172L613 276V382H690V497H774V807Z" fill="url(#ruins)"/>
   <path d="M318 807V562H426V433L512 345L598 433V562H706V807Z" fill="#233830"/>
   <path d="M462 807V641C462 573 562 573 562 641V807Z" fill="#a5f2d7" filter="url(#glow)" opacity=".55"/>
   <path d="M466 807V643C466 580 558 580 558 643V807Z" fill="#a5f2d7"/>

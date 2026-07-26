@@ -11,6 +11,7 @@ const backgroundPath = resolve(
   root,
   'android/app/src/main/res/values/ic_launcher_background.xml',
 )
+const buildGradlePath = resolve(root, 'android/app/build.gradle')
 
 let manifest = readFileSync(manifestPath, 'utf8')
 manifest = manifest.replace('android:allowBackup="true"', 'android:allowBackup="false"')
@@ -78,4 +79,9 @@ let background = readFileSync(backgroundPath, 'utf8')
 background = background.replace(/#[0-9A-Fa-f]{6}/, '#080B0A')
 writeFileSync(backgroundPath, background)
 
-console.log('Configured landscape, fullscreen Gravenmere Android project.')
+let buildGradle = readFileSync(buildGradlePath, 'utf8')
+buildGradle = buildGradle.replace(/versionCode \d+/, 'versionCode 2')
+buildGradle = buildGradle.replace(/versionName "[^"]+"/, 'versionName "0.2.0"')
+writeFileSync(buildGradlePath, buildGradle)
+
+console.log('Configured landscape, fullscreen Gravenmere Android 0.2.0 project.')

@@ -1,6 +1,6 @@
 <svg xmlns="http://www.w3.org/2000/svg" width="1024" height="1024" viewBox="0 0 1024 1024">
   <defs>
-    <linearGradient id="school" x1="0" y1="0" x2="0.8" y2="1">
+    <linearGradient id="ruins" x1="0" y1="0" x2="0.8" y2="1">
       <stop offset="0" stop-color="#40584e"/>
       <stop offset="1" stop-color="#16201c"/>
     </linearGradient>
@@ -8,7 +8,7 @@
       <feGaussianBlur stdDeviation="16"/>
     </filter>
   </defs>
-  <path d="M212 830V500H326V372H414V267L512 164L610 267V372H698V500H812V830Z" fill="url(#school)"/>
+  <path d="M212 830V500H326V372H414V267L512 164L610 267V372H698V500H812V830Z" fill="url(#ruins)"/>
   <path d="M315 830V566H424V439L512 350L600 439V566H709V830Z" fill="#263f35"/>
   <path d="M460 830V648C460 577 564 577 564 648V830Z" fill="#a5f2d7" filter="url(#glow)" opacity=".55"/>
   <path d="M466 830V650C466 586 558 586 558 650V830Z" fill="#a5f2d7"/>

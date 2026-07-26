@@ -1,7 +1,7 @@
 import * as THREE from 'three'
 import type { RectCollider } from './math'
 
-export type InteractionKind = 'seal' | 'lore' | 'gate' | 'ending'
+export type InteractionKind = 'seal' | 'lore' | 'gate' | 'cache' | 'ending'
 
 export interface Interaction {
   id: string
@@ -12,6 +12,7 @@ export interface Interaction {
   title: string
   text: string
   object?: THREE.Object3D
+  requiresReveal?: boolean
   complete: boolean
 }
 
@@ -45,6 +46,7 @@ export interface WorldData {
   update: (elapsed: number, delta: number) => void
   setReveal: (visible: boolean) => void
   markSealCollected: (id: string) => void
+  openGroundsCache: () => void
 }
 
 type MaterialSet = ReturnType<typeof createMaterials>
@@ -64,6 +66,12 @@ interface RoomOptions {
   floor?: THREE.Material
   wall?: THREE.Material
   ceiling?: boolean
+}
+
+interface GroundsCache {
+  lid: THREE.Object3D
+  prize: THREE.Object3D
+  opened: boolean
 }
 
 function seededRandom(seed = 918273) {
@@ -232,6 +240,11 @@ function createMaterials() {
     deadLeaf: new THREE.MeshStandardMaterial({ color: 0x202e27, roughness: 1 }),
     cloth: new THREE.MeshStandardMaterial({ color: 0x4c3455, roughness: 0.92, side: THREE.DoubleSide }),
     paper: new THREE.MeshStandardMaterial({ color: 0xc9bb96, roughness: 0.9 }),
+    grass: new THREE.MeshStandardMaterial({ color: 0x263a2f, roughness: 1 }),
+    path: new THREE.MeshStandardMaterial({ color: 0x687069, roughness: 0.98 }),
+    bark: new THREE.MeshStandardMaterial({ color: 0x3d3228, roughness: 1 }),
+    leaf: new THREE.MeshStandardMaterial({ color: 0x234131, roughness: 1 }),
+    paleLeaf: new THREE.MeshStandardMaterial({ color: 0x385448, roughness: 1 }),
   }
 }
 
@@ -561,6 +574,7 @@ function addGreatHall(
     height: 7.4,
     openings: {
       north: [{ center: 0, width: 6 }],
+      south: [{ center: 0, width: 6 }],
       east: [{ center: 0, width: 5.5 }],
       west: [{ center: 0, width: 5.5 }],
     },
@@ -612,10 +626,10 @@ function addGreatHall(
     kind: 'lore',
     position: new THREE.Vector3(0, 1.1, 10.3),
     radius: 2.35,
-    label: 'Read the enrollment ledger',
-    title: 'The Last Enrollment',
+    label: 'Read the survey ledger',
+    title: 'The Last Survey',
     text:
-      'The final page lists four incoming students. Three names are crossed out in brown ink. The fourth line is empty except for today’s date.',
+      'The final page lists four expeditions into the northern tower. Three routes are crossed out in brown ink. The fourth line is empty except for today’s date.',
     object: book,
     complete: false,
   })
@@ -808,9 +822,9 @@ function addArchive(
     position: new THREE.Vector3(35.5, 1, 10.5),
     radius: 2.4,
     label: 'Inspect the waterlogged desk',
-    title: 'A Librarian’s Complaint',
+    title: 'An Archivist’s Complaint',
     text:
-      '“The rain has begun falling upward from the lower stacks again. Until the roof remembers where it belongs, students are to return drowned books before borrowing dry ones.”',
+      '“The rain has begun falling upward from the lower stacks again. Until the roof remembers where it belongs, all recovered volumes remain in the dry vault.”',
     object: drownedDesk,
     complete: false,
   })
@@ -913,7 +927,7 @@ function addCloister(
     label: 'Take the Seal of Roots',
     title: 'Seal of Roots',
     text:
-      'Something beneath the courtyard loosens its grip. For one moment you feel the entire school hanging from the tree like fruit.',
+      'Something beneath the courtyard loosens its grip. For one moment you feel the entire ruin hanging from the tree like fruit.',
     object: seal,
     complete: false,
   })
@@ -1010,10 +1024,10 @@ function addCrossedStair(
     kind: 'seal',
     position: new THREE.Vector3(6.5, 1.6, -48.8),
     radius: 2.2,
-    label: 'Take the Seal of Courses',
-    title: 'Seal of Courses',
+    label: 'Take the Seal of Paths',
+    title: 'Seal of Paths',
     text:
-      'The staircases stop moving. Somewhere overhead, feet resume climbing toward a lesson that ended a century ago.',
+      'The staircases stop moving. Somewhere overhead, feet resume climbing toward a destination that no longer appears on any map.',
     object: seal,
     complete: false,
   })
@@ -1025,10 +1039,10 @@ function addCrossedStair(
     kind: 'lore',
     position: new THREE.Vector3(-7.7, 1.6, -51.8),
     radius: 2.3,
-    label: 'Read the shifting timetable',
-    title: 'Tuesday’s Lessons',
+    label: 'Read the shifting route slate',
+    title: 'Routes Through the Tower',
     text:
-      'The chalk rearranges itself as you watch: Defensive Botany, Applied Silence, Astronomy of Interior Spaces. Every class is marked “present.”',
+      'The chalk rearranges itself as you watch: Root Passage, Silent Gallery, Interior Sky. Every route is marked “open.”',
     object: timetable,
     complete: false,
   })
@@ -1067,11 +1081,11 @@ function addGate(
     radius: 2.35,
     label: 'Touch the observatory gate',
     title: 'The Observatory Gate',
-    text: 'Three faculty impressions surround the lock.',
+    text: 'Three ward impressions surround the lock.',
     object: gateGroup,
     complete: false,
   })
-  createHiddenRune(scene, revealables, 'A STUDENT MAY ENTER', 0, 4.45, -57.78, 0, 1.2)
+  createHiddenRune(scene, revealables, 'A BEARER MAY ENTER', 0, 4.45, -57.78, 0, 1.2)
   return { object: gateGroup, collider, opened: false, progress: 0 }
 }
 
@@ -1166,22 +1180,369 @@ function addObservatory(
     kind: 'ending',
     position: new THREE.Vector3(0, 1.3, -85.6),
     radius: 2.5,
-    label: 'Place your hand on the fourth chair',
-    title: 'The Fourth Chair',
+    label: 'Touch the silent side of the orrery',
+    title: 'The Missing Path',
     text:
-      'The school has not been empty. It has been between classes, holding its breath until someone arrived to take the vacant place.',
+      'A fourth ring appears around the orrery and turns south. Its line passes through the outer wall, toward country the old surveys left blank.',
     object: orrery,
     complete: false,
   })
-  createHiddenRune(scene, revealables, 'WELCOME', 0, 0.08, -81.8, Math.PI, 1.4)
+  createHiddenRune(scene, revealables, 'CONTINUE', 0, 0.08, -81.8, Math.PI, 1.4)
+}
+
+function addOutdoorTrees(
+  scene: THREE.Scene,
+  colliders: RectCollider[],
+  materials: MaterialSet,
+): void {
+  const random = seededRandom(41971)
+  const positions: Array<{ x: number; z: number; height: number; width: number }> = []
+  let attempts = 0
+  while (positions.length < 58 && attempts < 800) {
+    attempts += 1
+    const x = -55 + random() * 110
+    const z = 23 + random() * 91
+    const nearPath = Math.abs(x) < 8.5
+    const nearPond = Math.hypot(x + 29, z - 68) < 13
+    const nearGatehouse = x > 18 && x < 44 && z > 49 && z < 80
+    const nearCache = Math.hypot(x, z - 92) < 12
+    const nearWaystone =
+      Math.hypot(x + 23, z - 87) < 5 ||
+      Math.hypot(x - 23, z - 84) < 5 ||
+      Math.hypot(x, z - 108) < 5
+    if (nearPath || nearPond || nearGatehouse || nearCache || nearWaystone) continue
+    if (
+      positions.some((position) => Math.hypot(position.x - x, position.z - z) < 3.1)
+    ) {
+      continue
+    }
+    positions.push({
+      x,
+      z,
+      height: 4.6 + random() * 3.2,
+      width: 1.55 + random() * 0.75,
+    })
+  }
+
+  const trunks = new THREE.InstancedMesh(
+    new THREE.CylinderGeometry(0.42, 0.62, 1, 7),
+    materials.bark,
+    positions.length,
+  )
+  const crowns = new THREE.InstancedMesh(
+    new THREE.ConeGeometry(1, 1, 7),
+    materials.leaf,
+    positions.length * 2,
+  )
+  const dummy = new THREE.Object3D()
+  positions.forEach((position, index) => {
+    dummy.position.set(position.x, position.height * 0.43, position.z)
+    dummy.rotation.set(0, index * 1.37, 0)
+    dummy.scale.set(1, position.height * 0.86, 1)
+    dummy.updateMatrix()
+    trunks.setMatrixAt(index, dummy.matrix)
+
+    dummy.position.set(position.x, position.height * 0.72, position.z)
+    dummy.rotation.set(0, index * 0.83, 0)
+    dummy.scale.set(position.width, position.height * 0.62, position.width)
+    dummy.updateMatrix()
+    crowns.setMatrixAt(index * 2, dummy.matrix)
+
+    dummy.position.set(position.x, position.height * 1.02, position.z)
+    dummy.rotation.set(0, index * 1.11 + 0.4, 0)
+    dummy.scale.set(position.width * 0.72, position.height * 0.48, position.width * 0.72)
+    dummy.updateMatrix()
+    crowns.setMatrixAt(index * 2 + 1, dummy.matrix)
+    addCollider(colliders, position.x, position.z, 1.15, 1.15)
+  })
+  trunks.instanceMatrix.needsUpdate = true
+  crowns.instanceMatrix.needsUpdate = true
+  scene.add(trunks, crowns)
+}
+
+function addOuterGrounds(
+  scene: THREE.Scene,
+  colliders: RectCollider[],
+  materials: MaterialSet,
+  animated: AnimatedObject[],
+  revealables: THREE.Object3D[],
+  interactions: Interaction[],
+): GroundsCache {
+  addBox(scene, materials.grass, 120, 0.32, 103, 0, -0.18, 68.5)
+  addBox(scene, materials.path, 7.2, 0.08, 94, 0, 0.025, 67)
+
+  const outerCourt = new THREE.Mesh(new THREE.CircleGeometry(12.5, 32), materials.path)
+  outerCourt.rotation.x = -Math.PI / 2
+  outerCourt.position.set(0, 0.075, 38)
+  scene.add(outerCourt)
+
+  for (let step = 0; step < 4; step += 1) {
+    addBox(
+      scene,
+      materials.wall,
+      7.5 + step * 0.65,
+      0.18,
+      1.15,
+      0,
+      0.08 + step * 0.04,
+      17.5 + step * 1.05,
+    )
+  }
+
+  const boundarySegments = [
+    { x: -60, z: 68.5, width: 0.7, depth: 103 },
+    { x: 60, z: 68.5, width: 0.7, depth: 103 },
+    { x: -36, z: 17, width: 48, depth: 0.7 },
+    { x: 36, z: 17, width: 48, depth: 0.7 },
+    { x: -32, z: 120, width: 56, depth: 0.7 },
+    { x: 32, z: 120, width: 56, depth: 0.7 },
+  ]
+  for (const segment of boundarySegments) {
+    addBox(
+      scene,
+      materials.darkWall,
+      segment.width,
+      2.1,
+      segment.depth,
+      segment.x,
+      1.05,
+      segment.z,
+    )
+    addCollider(colliders, segment.x, segment.z, segment.width, segment.depth)
+  }
+
+  const outerGate = new THREE.Group()
+  for (let index = -5; index <= 5; index += 1) {
+    addBox(outerGate, materials.iron, 0.13, 3.8, 0.13, index * 0.64, 1.9, 0)
+  }
+  addBox(outerGate, materials.iron, 7, 0.15, 0.15, 0, 0.8, 0)
+  addBox(outerGate, materials.iron, 7, 0.15, 0.15, 0, 3.05, 0)
+  outerGate.position.set(0, 0, 119.7)
+  scene.add(outerGate)
+  addCollider(colliders, 0, 119.7, 7.5, 0.6)
+  addColumn(scene, colliders, materials.wall, -4.5, 119.5, 4.8, 0.72)
+  addColumn(scene, colliders, materials.wall, 4.5, 119.5, 4.8, 0.72)
+  addArch(scene, materials.wall, 0, 4.55, 119.5, 8.5, Math.PI)
+
+  const pond = new THREE.Mesh(new THREE.CircleGeometry(8.5, 32), materials.water)
+  pond.rotation.x = -Math.PI / 2
+  pond.position.set(-29, 0.06, 68)
+  scene.add(pond)
+  addCollider(colliders, -29, 68, 15.5, 12.5)
+  for (let index = 0; index < 18; index += 1) {
+    const angle = (index / 18) * Math.PI * 2
+    const rock = new THREE.Mesh(
+      new THREE.DodecahedronGeometry(0.45 + (index % 3) * 0.12, 0),
+      materials.darkWall,
+    )
+    rock.position.set(
+      -29 + Math.cos(angle) * (8.35 + (index % 2) * 0.45),
+      0.28,
+      68 + Math.sin(angle) * (7.3 + (index % 2) * 0.4),
+    )
+    rock.scale.y = 0.55
+    rock.rotation.set(index * 0.31, index * 0.77, index * 0.18)
+    scene.add(rock)
+  }
+  interactions.push({
+    id: 'moon-pond',
+    kind: 'lore',
+    position: new THREE.Vector3(-20.5, 1, 68),
+    radius: 2.8,
+    label: 'Look into the moon pond',
+    title: 'The Moon Below',
+    text:
+      'The water reflects a clear night sky even beneath cloud. One star moves against the others, following the observatory dome.',
+    object: pond,
+    complete: false,
+  })
+
+  const gatehouse = new THREE.Group()
+  addBox(gatehouse, materials.darkWall, 15, 0.35, 12, 0, 0.17, 0)
+  addBox(gatehouse, materials.wall, 15, 3.4, 0.55, 0, 1.7, -6)
+  addBox(gatehouse, materials.wall, 0.55, 3.4, 12, -7.25, 1.7, 0)
+  addBox(gatehouse, materials.wall, 0.55, 3.4, 5, 7.25, 1.7, -3.5)
+  addBox(gatehouse, materials.wall, 0.55, 1.1, 3.3, 7.25, 0.55, 4.35)
+  gatehouse.position.set(31, 0, 65)
+  scene.add(gatehouse)
+  addCollider(colliders, 31, 59, 15, 0.55)
+  addCollider(colliders, 23.75, 65, 0.55, 12)
+  addCollider(colliders, 38.25, 61.5, 0.55, 5)
+  addCollider(colliders, 38.25, 69.35, 0.55, 3.3)
+  const gatehouseDesk = addBox(scene, materials.wood, 3.2, 1.05, 1.5, 29, 0.53, 62.5)
+  gatehouseDesk.rotation.y = 0.2
+  addCollider(colliders, 29, 62.5, 3.5, 1.8)
+  interactions.push({
+    id: 'gatehouse-log',
+    kind: 'lore',
+    position: new THREE.Vector3(29, 1, 62.5),
+    radius: 2.4,
+    label: 'Read the gatehouse log',
+    title: 'Road Warden’s Log',
+    text:
+      'The last entries record arrivals from roads that do not reach Gravenmere. Beside each name, the warden wrote only: “allowed to continue.”',
+    object: gatehouseDesk,
+    complete: false,
+  })
+
+  const addWaystone = (
+    id: string,
+    title: string,
+    text: string,
+    rune: string,
+    x: number,
+    z: number,
+    rotationY: number,
+  ) => {
+    const stone = new THREE.Group()
+    addBox(stone, materials.darkWall, 1.9, 0.35, 1.9, 0, 0.17, 0)
+    const pillar = new THREE.Mesh(new THREE.CylinderGeometry(0.58, 0.78, 3.8, 6), materials.wall)
+    pillar.position.y = 2.15
+    pillar.rotation.y = rotationY
+    stone.add(pillar)
+    stone.position.set(x, 0, z)
+    scene.add(stone)
+    addCollider(colliders, x, z, 1.55, 1.55)
+    createHiddenRune(
+      scene,
+      revealables,
+      rune,
+      x + Math.sin(rotationY) * 0.7,
+      2.2,
+      z + Math.cos(rotationY) * 0.7,
+      rotationY,
+      0.82,
+    )
+    interactions.push({
+      id,
+      kind: 'lore',
+      position: new THREE.Vector3(x, 1.5, z),
+      radius: 2.5,
+      label: 'Read the revealed waystone',
+      title,
+      text,
+      object: stone,
+      requiresReveal: true,
+      complete: false,
+    })
+  }
+
+  addWaystone(
+    'grounds-stone-water',
+    'Water Waystone',
+    'The first mark faces water that remembers a different sky.',
+    'I · WATER',
+    -23,
+    87,
+    -0.35,
+  )
+  addWaystone(
+    'grounds-stone-gate',
+    'Gate Waystone',
+    'The second mark faces the broken house where every road was admitted.',
+    'II · GATE',
+    23,
+    84,
+    0.42,
+  )
+  addWaystone(
+    'grounds-stone-yew',
+    'Yew Waystone',
+    'The third mark faces south, then points beneath the oldest yew.',
+    'III · YEW',
+    0,
+    108,
+    0,
+  )
+
+  const cache = new THREE.Group()
+  addBox(cache, materials.darkWall, 3.4, 0.7, 3.4, 0, 0.35, 0)
+  addBox(cache, materials.brass, 2.65, 0.12, 2.65, 0, 0.77, 0)
+  const lid = addBox(cache, materials.wall, 2.85, 0.34, 2.85, 0, 0.98, 0)
+  const prize = new THREE.Group()
+  const compassRing = new THREE.Mesh(new THREE.TorusGeometry(0.48, 0.08, 8, 24), materials.glow)
+  compassRing.rotation.x = Math.PI / 2
+  prize.add(compassRing)
+  const needle = addBox(prize, materials.redGlow, 0.12, 0.08, 0.78, 0, 0, 0)
+  needle.rotation.y = 0.4
+  prize.position.y = 1.35
+  prize.visible = false
+  cache.add(prize)
+  cache.position.set(0, 0, 92)
+  scene.add(cache)
+  addCollider(colliders, 0, 92, 3.8, 3.8)
+  interactions.push({
+    id: 'grounds-cache',
+    kind: 'cache',
+    position: new THREE.Vector3(0, 1.1, 92),
+    radius: 2.9,
+    label: 'Inspect the sealed ground-cache',
+    title: 'The Waystone Cache',
+    text: 'Three shallow hollows wait around the brass rim.',
+    object: cache,
+    complete: false,
+  })
+
+  const camp = new THREE.Group()
+  addBox(camp, materials.cloth, 4.8, 0.12, 3.2, 0, 0.08, 0)
+  addBox(camp, materials.wood, 2.3, 0.24, 1.25, 2.6, 0.3, 0)
+  addBox(camp, materials.wood, 1.25, 0.8, 1.25, -2.4, 0.4, 0.4)
+  camp.position.set(30, 0, 96)
+  camp.rotation.y = -0.2
+  scene.add(camp)
+  addCollider(colliders, 32.6, 95.5, 2.6, 1.6)
+  interactions.push({
+    id: 'abandoned-camp',
+    kind: 'lore',
+    position: new THREE.Vector3(30, 1, 96),
+    radius: 3.2,
+    label: 'Search the abandoned camp',
+    title: 'A Recent Camp',
+    text:
+      'The bedroll is dry and the kettle is cold. A map of the grounds has been cut away from its paper, leaving only the roads beyond the walls.',
+    object: camp,
+    complete: false,
+  })
+  const campLight = new THREE.PointLight(0xffb66e, 24, 25, 1.65)
+  campLight.position.set(29.5, 1.2, 96)
+  scene.add(campLight)
+
+  for (const z of [31, 57, 82]) {
+    const post = new THREE.Group()
+    addBox(post, materials.iron, 0.12, 2.8, 0.12, 0, 1.4, 0)
+    const lamp = new THREE.Mesh(new THREE.OctahedronGeometry(0.22, 0), materials.glow)
+    lamp.position.y = 2.65
+    post.add(lamp)
+    const light = new THREE.PointLight(0xb8ffe8, 10, 21, 1.65)
+    light.position.y = 2.65
+    post.add(light)
+    post.position.set(4.8, 0, z)
+    scene.add(post)
+    animated.push({
+      object: light,
+      kind: 'flicker',
+      phase: z * 0.27,
+      speed: 4.1,
+      amount: 0.14,
+      baseY: 10,
+    })
+  }
+
+  addOutdoorTrees(scene, colliders, materials)
+
+  const groundsLight = new THREE.PointLight(0xb9d8ca, 44, 118, 1.28)
+  groundsLight.position.set(-12, 24, 67)
+  scene.add(groundsLight)
+
+  return { lid, prize, opened: false }
 }
 
 function addDust(scene: THREE.Scene): void {
   const random = seededRandom(7733)
-  const count = 520
+  const count = 720
   const positions = new Float32Array(count * 3)
   for (let index = 0; index < count; index += 1) {
-    const branch = index % 5
+    const branch = index % 6
     let x = 0
     let z = 0
     if (branch === 0) {
@@ -1196,9 +1557,12 @@ function addDust(scene: THREE.Scene): void {
     } else if (branch === 3) {
       x = (random() - 0.5) * 21
       z = -47 + (random() - 0.5) * 19
-    } else {
+    } else if (branch === 4) {
       x = (random() - 0.5) * 25
       z = -90 + (random() - 0.5) * 25
+    } else {
+      x = (random() - 0.5) * 112
+      z = 20 + random() * 96
     }
     positions[index * 3] = x
     positions[index * 3 + 1] = 0.5 + random() * 6
@@ -1252,13 +1616,41 @@ export function createWorld(scene: THREE.Scene): WorldData {
   addCrossedStair(scene, colliders, materials, animated, revealables, interactions)
   const gate = addGate(scene, colliders, materials, revealables, interactions)
   addObservatory(scene, colliders, materials, animated, revealables, interactions)
+  const groundsCache = addOuterGrounds(
+    scene,
+    colliders,
+    materials,
+    animated,
+    revealables,
+    interactions,
+  )
   addDust(scene)
   setupLighting(scene)
 
   const regions: Region[] = [
     {
+      name: 'THE YEW WALK',
+      kicker: 'OUTER GROUNDS · SOUTH WALL',
+      contains: (x, z) => z > 90 && x > -16 && x < 16,
+    },
+    {
+      name: 'THE MOON POND',
+      kicker: 'OUTER GROUNDS · WEST GARDEN',
+      contains: (x, z) => x < -16 && z > 50 && z < 88,
+    },
+    {
+      name: 'THE BROKEN GATEHOUSE',
+      kicker: 'OUTER GROUNDS · EAST ROAD',
+      contains: (x, z) => x > 18 && z > 49 && z < 80,
+    },
+    {
+      name: 'THE OUTER COURT',
+      kicker: 'GRAVENMERE · SOUTH APPROACH',
+      contains: (_x, z) => z > 17,
+    },
+    {
       name: 'THE DROWNED ARCHIVE',
-      kicker: 'EAST WING · LOWER STACKS',
+      kicker: 'EAST VAULT · LOWER STACKS',
       contains: (x, z) => x > 31.5 && z > -13 && z < 16,
     },
     {
@@ -1268,12 +1660,12 @@ export function createWorld(scene: THREE.Scene): WorldData {
     },
     {
       name: 'THE CROSSED STAIR',
-      kicker: 'NORTH WING · ALL FLOORS',
+      kicker: 'INNER KEEP · ALL FLOORS',
       contains: (x, z) => x > -11.5 && x < 11.5 && z < -36.8 && z > -57.3,
     },
     {
       name: 'THE OLD OBSERVATORY',
-      kicker: 'FACULTY TOWER · CLOSED 1913',
+      kicker: 'NORTHERN TOWER · SEALED 1913',
       contains: (x, z) => x > -13.5 && x < 13.5 && z < -76.7,
     },
     {
@@ -1292,8 +1684,8 @@ export function createWorld(scene: THREE.Scene): WorldData {
       contains: (x, z) => x < -11.5 && z > -1.5 && z < 5.5,
     },
     {
-      name: 'ENTRANCE HALL',
-      kicker: 'GRAVENMERE SCHOOL',
+      name: 'THE GATE HALL',
+      kicker: 'GRAVENMERE RUINS',
       contains: () => true,
     },
   ]
@@ -1332,6 +1724,19 @@ export function createWorld(scene: THREE.Scene): WorldData {
     if (interaction.object) interaction.object.visible = false
   }
 
+  function openGroundsCache() {
+    groundsCache.opened = true
+    groundsCache.lid.position.y = 1.85
+    groundsCache.lid.rotation.z = -0.38
+    groundsCache.prize.visible = true
+    const interaction = interactions.find((candidate) => candidate.id === 'grounds-cache')
+    if (interaction) {
+      interaction.complete = true
+      interaction.text =
+        'The three waystone marks released the lid. Inside lay a brass instrument whose needle points beyond the southern wall.'
+    }
+  }
+
   return {
     colliders,
     interactions,
@@ -1342,5 +1747,6 @@ export function createWorld(scene: THREE.Scene): WorldData {
     update,
     setReveal,
     markSealCollected,
+    openGroundsCache,
   }
 }

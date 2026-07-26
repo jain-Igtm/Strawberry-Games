@@ -1,14 +1,17 @@
 # Gravenmere
 
-Gravenmere is a phone-first first-person exploration game set inside an abandoned
-wizard school. It is designed for Android landscape play with a left movement
-joystick, right-side drag look, and large touch actions.
+Gravenmere is a phone-first first-person exploration game set across an open
+ruin complex and its strange outer grounds. It is designed for Android landscape
+play with a left movement joystick, right-side drag look, and large touch actions.
 
 ## Play
 
-- Search the three school wings for faculty seals.
+- Explore the outer grounds, drowned archive, root cloister, crossed stair, and observatory.
+- Search the inner ruins for three ward seals.
 - Cast **Revelare** to expose hidden writing and traces of old magic.
 - Read plaques and objects to fill the field journal.
+- Equip the lantern from the character inventory when a passage gets too dark.
+- Reveal the three outdoor waystones to open their hidden cache.
 - Carry all three seals to the observatory.
 
 Progress is stored privately on the device. The game is fully bundled and does

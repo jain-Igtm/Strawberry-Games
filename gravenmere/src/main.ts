@@ -3,8 +3,13 @@ import { Capacitor } from '@capacitor/core'
 import { Haptics, ImpactStyle } from '@capacitor/haptics'
 import { StatusBar } from '@capacitor/status-bar'
 import * as THREE from 'three'
-import { SchoolAudio } from './audio'
+import { GravenmereAudio } from './audio'
 import { adaptivePixelRatio, circleIntersectsRect, clampPitch } from './math'
+import {
+  canOpenGroundsCache,
+  groundsCluesFound,
+  normalizeInventory,
+} from './progress'
 import { createWorld, type Interaction } from './world'
 import './styles.css'
 
@@ -17,8 +22,11 @@ interface SaveData {
   started: boolean
   seals: string[]
   notes: string[]
+  inventory: string[]
   gateOpen: boolean
+  groundsCacheOpen: boolean
   endingSeen: boolean
+  lanternEquipped: boolean
   position: { x: number; z: number; yaw: number }
   sensitivity: number
   brightness: number
@@ -36,9 +44,12 @@ function defaultSave(): SaveData {
     started: false,
     seals: [],
     notes: [],
+    inventory: normalizeInventory(undefined),
     gateOpen: false,
+    groundsCacheOpen: false,
     endingSeen: false,
-    position: { x: 0, z: 12.4, yaw: 0 },
+    lanternEquipped: false,
+    position: { x: 0, z: 114, yaw: 0 },
     sensitivity: 1,
     brightness: 1.28,
     sound: true,
@@ -56,6 +67,7 @@ function loadSave(): SaveData {
       ...parsed,
       seals: Array.isArray(parsed.seals) ? parsed.seals : [],
       notes: Array.isArray(parsed.notes) ? parsed.notes : [],
+      inventory: normalizeInventory(parsed.inventory),
       position: { ...fallback.position, ...parsed.position },
       brightness:
         typeof parsed.brightness === 'number'
@@ -88,19 +100,29 @@ const ui = {
   castButton: element<HTMLButtonElement>('cast-button'),
   interactButton: element<HTMLButtonElement>('interact-button'),
   spellCooldown: element<HTMLElement>('spell-cooldown'),
+  lanternQuick: element<HTMLButtonElement>('lantern-quick'),
   journalButton: element<HTMLButtonElement>('journal-button'),
+  inventoryButton: element<HTMLButtonElement>('inventory-button'),
   journal: element<HTMLElement>('journal'),
+  inventory: element<HTMLElement>('inventory'),
   journalEntries: element<HTMLElement>('journal-entries'),
   journalSeals: element<HTMLElement>('journal-seals'),
   journalObjective: element<HTMLElement>('journal-objective'),
   sensitivity: element<HTMLInputElement>('sensitivity'),
   brightness: element<HTMLInputElement>('brightness'),
   soundToggle: element<HTMLInputElement>('sound-toggle'),
+  characterStage: element<HTMLElement>('character-stage'),
+  equippedHand: element<HTMLElement>('equipped-hand'),
+  lanternEquip: element<HTMLButtonElement>('lantern-equip'),
+  lanternItem: element<HTMLElement>('inventory-lantern'),
+  wayfinderItem: element<HTMLElement>('inventory-wayfinder'),
+  inventorySeals: element<HTMLElement>('inventory-seals'),
+  clueCount: element<HTMLElement>('grounds-clues'),
   resetProgress: element<HTMLButtonElement>('reset-progress'),
 }
 
 let save = loadSave()
-const audio = new SchoolAudio()
+const audio = new GravenmereAudio()
 
 const canvas = element<HTMLCanvasElement>('world')
 const renderer = new THREE.WebGLRenderer({
@@ -132,6 +154,48 @@ camera.rotation.order = 'YXZ'
 const wandLight = new THREE.PointLight(0xc9ffed, 9, 15, 1.65)
 wandLight.position.set(0.25, -0.18, -0.2)
 camera.add(wandLight)
+
+const lanternRig = new THREE.Group()
+const lanternMetal = new THREE.MeshStandardMaterial({
+  color: 0x554937,
+  roughness: 0.42,
+  metalness: 0.72,
+})
+const lanternGlass = new THREE.MeshStandardMaterial({
+  color: 0xffd59a,
+  emissive: 0xff8b36,
+  emissiveIntensity: 4.6,
+  transparent: true,
+  opacity: 0.86,
+  roughness: 0.18,
+})
+const lanternBody = new THREE.Mesh(new THREE.CylinderGeometry(0.1, 0.13, 0.26, 8), lanternGlass)
+lanternRig.add(lanternBody)
+for (const x of [-0.13, 0.13]) {
+  const bar = new THREE.Mesh(new THREE.BoxGeometry(0.025, 0.39, 0.025), lanternMetal)
+  bar.position.x = x
+  lanternRig.add(bar)
+}
+for (const y of [-0.2, 0.2]) {
+  const rim = new THREE.Mesh(new THREE.TorusGeometry(0.14, 0.025, 6, 14), lanternMetal)
+  rim.rotation.x = Math.PI / 2
+  rim.position.y = y
+  lanternRig.add(rim)
+}
+const lanternHandle = new THREE.Mesh(
+  new THREE.TorusGeometry(0.19, 0.018, 6, 16, Math.PI),
+  lanternMetal,
+)
+lanternHandle.position.y = 0.24
+lanternRig.add(lanternHandle)
+lanternRig.position.set(0.46, -0.34, -0.72)
+lanternRig.rotation.set(-0.08, -0.18, -0.08)
+lanternRig.visible = false
+camera.add(lanternRig)
+
+const lanternLight = new THREE.PointLight(0xffc477, 0, 30, 1.55)
+lanternLight.position.set(0.42, -0.12, -0.4)
+camera.add(lanternLight)
 scene.add(camera)
 
 const world = createWorld(scene)
@@ -156,6 +220,7 @@ if (save.gateOpen) {
   const gateInteraction = world.interactions.find((item) => item.kind === 'gate')
   if (gateInteraction) gateInteraction.complete = true
 }
+if (save.groundsCacheOpen) world.openGroundsCache()
 
 camera.position.copy(player.position)
 camera.rotation.set(player.pitch, player.yaw, 0)
@@ -164,6 +229,7 @@ const keys = new Set<string>()
 const moveInput = { x: 0, y: 0 }
 let started = false
 let sheetOpen = false
+let activeSheet: 'journal' | 'inventory' | null = null
 let endingOpen = false
 let joyPointer: number | null = null
 let lookPointer: number | null = null
@@ -224,17 +290,17 @@ function updateObjective(): void {
   ui.journalSeals.textContent = `${count} / 3`
   if (save.gateOpen) {
     ui.objectiveCopy.textContent = save.endingSeen
-      ? 'The school is awake'
+      ? 'The road continues south'
       : 'Enter the old observatory'
     ui.journalObjective.textContent = save.endingSeen
-      ? 'The fourth chair accepted a new student.'
+      ? 'The orrery revealed a road beyond the walls.'
       : 'The observatory gate is open.'
   } else if (count === 3) {
     ui.objectiveCopy.textContent = 'Return to the north gate'
     ui.journalObjective.textContent = 'All three impressions can now be filled.'
   } else {
     ui.objectiveCopy.textContent =
-      count === 0 ? 'Search the abandoned wings' : `${3 - count} seal${count === 2 ? '' : 's'} remain`
+      count === 0 ? 'Search the inner ruins' : `${3 - count} seal${count === 2 ? '' : 's'} remain`
     ui.journalObjective.textContent = 'The observatory door bears three empty impressions.'
   }
 }
@@ -245,6 +311,7 @@ function updateJournal(): void {
       interaction.complete &&
       (interaction.kind === 'lore' ||
         interaction.kind === 'seal' ||
+        interaction.kind === 'cache' ||
         interaction.kind === 'ending'),
   )
   ui.journalEntries.replaceChildren()
@@ -262,7 +329,14 @@ function updateJournal(): void {
   for (const interaction of recorded) {
     const article = document.createElement('article')
     const marker = document.createElement('i')
-    marker.textContent = interaction.kind === 'seal' ? '✦' : interaction.kind === 'ending' ? 'IV' : '—'
+    marker.textContent =
+      interaction.kind === 'seal'
+        ? '✦'
+        : interaction.kind === 'ending'
+          ? 'IV'
+          : interaction.kind === 'cache'
+            ? '◇'
+            : '—'
     const copy = document.createElement('div')
     const heading = document.createElement('strong')
     heading.textContent = interaction.title
@@ -274,29 +348,79 @@ function updateJournal(): void {
   }
 }
 
-function openJournal(): void {
+function updateInventory(): void {
+  const lanternEquipped = save.lanternEquipped
+  lanternRig.visible = lanternEquipped
+  lanternLight.intensity = lanternEquipped ? 36 : 0
+  ui.characterStage.classList.toggle('has-lantern', lanternEquipped)
+  ui.lanternItem.classList.toggle('is-equipped', lanternEquipped)
+  ui.lanternEquip.textContent = lanternEquipped ? 'STOW' : 'EQUIP'
+  ui.equippedHand.textContent = lanternEquipped ? 'Brass lantern' : 'Empty'
+  ui.lanternQuick.setAttribute('aria-pressed', String(lanternEquipped))
+  ui.lanternQuick.classList.toggle('quick-slot--active', lanternEquipped)
+  ui.wayfinderItem.hidden = !save.inventory.includes('wayfinder')
+  ui.inventorySeals.textContent = `${save.seals.length} / 3 carried`
+  ui.clueCount.textContent = `${groundsCluesFound(save.notes)} / 3 revealed`
+}
+
+function setLanternEquipped(equipped: boolean, announce = true): void {
+  save.lanternEquipped = equipped
+  updateInventory()
+  persist()
+  haptic(ImpactStyle.Light)
+  if (announce) {
+    showToast(
+      equipped ? 'Lantern equipped' : 'Lantern stowed',
+      equipped
+        ? 'A broad amber light travels with you.'
+        : 'The cool light of Revelare remains at hand.',
+      2600,
+    )
+  }
+}
+
+function showSheet(type: 'journal' | 'inventory'): void {
   sheetOpen = true
+  activeSheet = type
   moveInput.x = 0
   moveInput.y = 0
   resetJoystick()
-  updateJournal()
-  ui.journal.classList.add('sheet--open')
-  ui.journal.setAttribute('aria-hidden', 'false')
+  ui.journal.classList.toggle('sheet--open', type === 'journal')
+  ui.journal.setAttribute('aria-hidden', String(type !== 'journal'))
+  ui.inventory.classList.toggle('sheet--open', type === 'inventory')
+  ui.inventory.setAttribute('aria-hidden', String(type !== 'inventory'))
   haptic(ImpactStyle.Light)
 }
 
-function closeJournal(): void {
+function openJournal(): void {
+  updateJournal()
+  showSheet('journal')
+}
+
+function openInventory(): void {
+  updateInventory()
+  showSheet('inventory')
+}
+
+function closeSheets(): void {
   sheetOpen = false
+  activeSheet = null
   ui.journal.classList.remove('sheet--open')
   ui.journal.setAttribute('aria-hidden', 'true')
+  ui.inventory.classList.remove('sheet--open')
+  ui.inventory.setAttribute('aria-hidden', 'true')
 }
 
 function startGame(useSavedPosition = true): void {
   if (!useSavedPosition) {
-    const settings = { sensitivity: save.sensitivity, sound: save.sound }
+    const settings = {
+      sensitivity: save.sensitivity,
+      brightness: save.brightness,
+      sound: save.sound,
+    }
     localStorage.removeItem(SAVE_KEY)
     save = { ...defaultSave(), ...settings }
-    player.position.set(0, PLAYER_HEIGHT, 12.4)
+    player.position.set(save.position.x, PLAYER_HEIGHT, save.position.z)
     player.yaw = 0
     player.pitch = -0.03
     window.location.reload()
@@ -312,7 +436,7 @@ function startGame(useSavedPosition = true): void {
   void audio.start()
   audio.setEnabled(save.sound)
   persist()
-  showToast('West gate', 'It closes behind you without making a sound.', 4500)
+  showToast('The outer grounds', 'The old road ends here. The ruins do not.', 4500)
 }
 
 function movePlayer(deltaX: number, deltaZ: number): void {
@@ -392,6 +516,7 @@ function findInteraction(): Interaction | null {
   const forward = cameraForward()
   let best: { interaction: Interaction; score: number } | null = null
   for (const interaction of world.interactions) {
+    if (interaction.requiresReveal && revealRemaining <= 0) continue
     if (
       interaction.kind === 'seal' &&
       (interaction.complete || save.seals.includes(interaction.id))
@@ -399,6 +524,7 @@ function findInteraction(): Interaction | null {
       continue
     }
     if (interaction.kind === 'gate' && save.gateOpen) continue
+    if (interaction.kind === 'cache' && interaction.complete) continue
     const dx = interaction.position.x - player.position.x
     const dz = interaction.position.z - player.position.z
     const distance = Math.hypot(dx, dz)
@@ -431,6 +557,7 @@ function recordInteraction(interaction: Interaction): void {
   haptic(ImpactStyle.Light)
   showToast(interaction.title, interaction.text)
   updateJournal()
+  updateInventory()
   persist()
 }
 
@@ -450,6 +577,38 @@ function performInteraction(): void {
     showToast(interaction.title, interaction.text, 7000)
     updateObjective()
     updateJournal()
+    updateInventory()
+    persist()
+    currentInteraction = null
+    return
+  }
+  if (interaction.kind === 'cache') {
+    const clues = groundsCluesFound(save.notes)
+    if (!canOpenGroundsCache(save.notes)) {
+      haptic(ImpactStyle.Medium)
+      showToast(
+        'The cache remains sealed',
+        `${clues} of 3 waystone marks have been revealed. Cast Revelare near each standing stone.`,
+        4600,
+      )
+      return
+    }
+    save.groundsCacheOpen = true
+    interaction.complete = true
+    interaction.text =
+      'The three waystone marks released the lid. Inside lay a brass instrument whose needle points beyond the southern wall.'
+    if (!save.notes.includes(interaction.id)) save.notes.push(interaction.id)
+    if (!save.inventory.includes('wayfinder')) save.inventory.push('wayfinder')
+    world.openGroundsCache()
+    audio.collect()
+    haptic(ImpactStyle.Heavy)
+    showToast(
+      'The brass wayfinder',
+      'The three marks release the lid. The needle points past the southern wall.',
+      6500,
+    )
+    updateJournal()
+    updateInventory()
     persist()
     currentInteraction = null
     return
@@ -469,7 +628,11 @@ function performInteraction(): void {
     world.gate.opened = true
     audio.gateOpen()
     haptic(ImpactStyle.Heavy)
-    showToast('The observatory gate', 'The three seals turn together. The iron rises into the stone.', 6500)
+    showToast(
+      'The observatory gate',
+      'The three ward seals turn together. The iron rises into the stone.',
+      6500,
+    )
     updateObjective()
     persist()
     return
@@ -487,6 +650,7 @@ function performInteraction(): void {
     ui.endingScreen.setAttribute('aria-hidden', 'false')
     updateObjective()
     updateJournal()
+    updateInventory()
     persist()
     return
   }
@@ -604,7 +768,14 @@ window.addEventListener('keydown', (event) => {
   keys.add(event.code)
   if (event.code === 'KeyE') performInteraction()
   if (event.code === 'KeyQ') castReveal()
-  if (event.code === 'KeyJ') (sheetOpen ? closeJournal() : openJournal())
+  if (event.code === 'KeyJ') {
+    if (activeSheet === 'journal') closeSheets()
+    else openJournal()
+  }
+  if (event.code === 'KeyI') {
+    if (activeSheet === 'inventory') closeSheets()
+    else openInventory()
+  }
 })
 window.addEventListener('keyup', (event) => keys.delete(event.code))
 canvas.addEventListener('click', () => {
@@ -629,8 +800,11 @@ ui.interactButton.addEventListener('pointerdown', (event) => {
   performInteraction()
 })
 ui.journalButton.addEventListener('click', openJournal)
+ui.inventoryButton.addEventListener('click', openInventory)
+ui.lanternQuick.addEventListener('click', () => setLanternEquipped(!save.lanternEquipped))
+ui.lanternEquip.addEventListener('click', () => setLanternEquipped(!save.lanternEquipped))
 document.querySelectorAll<HTMLElement>('[data-close-sheet]').forEach((button) => {
-  button.addEventListener('click', closeJournal)
+  button.addEventListener('click', closeSheets)
 })
 ui.endingClose.addEventListener('click', () => {
   endingOpen = false
@@ -675,7 +849,7 @@ if (Capacitor.isNativePlatform()) {
       return
     }
     if (sheetOpen) {
-      closeJournal()
+      closeSheets()
       return
     }
     openJournal()
@@ -695,6 +869,7 @@ window.addEventListener('pagehide', persist)
 
 updateObjective()
 updateJournal()
+updateInventory()
 
 const clock = new THREE.Clock()
 function animate(): void {
