@@ -1,0 +1,139 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta
+      name="viewport"
+      content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover"
+    />
+    <meta name="theme-color" content="#080a0a" />
+    <title>Gravenmere</title>
+  </head>
+  <body>
+    <main id="app">
+      <canvas id="world" aria-label="Gravenmere game world"></canvas>
+
+      <section id="start-screen" class="screen screen--visible">
+        <div class="start-vignette"></div>
+        <div class="start-copy">
+          <span class="eyebrow">THE SCHOOL HAS BEEN EMPTY FOR 113 YEARS</span>
+          <h1>GRAVENMERE</h1>
+          <p>
+            The west gate opened before you touched it. Find the three faculty seals and
+            learn why the observatory is still awake.
+          </p>
+          <button id="start-button" class="primary-button">ENTER THE SCHOOL</button>
+          <button id="continue-button" class="text-button" hidden>CONTINUE</button>
+          <small>Headphones recommended · saves automatically</small>
+        </div>
+      </section>
+
+      <section id="ending-screen" class="screen" aria-hidden="true">
+        <div class="ending-copy">
+          <span class="eyebrow">THE FOURTH CHAIR TURNS TOWARD YOU</span>
+          <h2>IT WAS WAITING<br />FOR A STUDENT.</h2>
+          <p id="ending-note"></p>
+          <button id="ending-close" class="primary-button">KEEP EXPLORING</button>
+        </div>
+      </section>
+
+      <div id="rotate-message" aria-hidden="true">
+        <div class="rotate-glyph">↻</div>
+        <strong>TURN YOUR PHONE SIDEWAYS</strong>
+        <span>Gravenmere is built for landscape.</span>
+      </div>
+
+      <div id="hud" aria-hidden="true">
+        <header class="hud-top">
+          <div class="place-block">
+            <span id="place-kicker">GRAVENMERE SCHOOL</span>
+            <strong id="place-name">ENTRANCE HALL</strong>
+          </div>
+          <button id="journal-button" class="round-button" aria-label="Open field journal">
+            <span>III</span>
+          </button>
+        </header>
+
+        <div id="objective" class="objective">
+          <span>FACULTY SEALS</span>
+          <div id="seal-pips" class="seal-pips" aria-label="Zero of three seals found">
+            <i></i><i></i><i></i>
+          </div>
+          <strong id="objective-copy">Search the abandoned wings</strong>
+        </div>
+
+        <div id="crosshair" aria-hidden="true"><i></i><i></i></div>
+        <div id="interaction-prompt" role="status"></div>
+        <div id="toast" role="status"></div>
+
+        <div id="joystick" class="joystick" aria-label="Movement joystick">
+          <div class="joystick-ring"></div>
+          <div id="joystick-knob" class="joystick-knob"></div>
+        </div>
+
+        <div id="look-pad" aria-label="Drag to look"></div>
+
+        <div class="action-cluster">
+          <button id="cast-button" class="action-button action-button--spell" aria-label="Cast Revelare">
+            <span class="spell-mark">✦</span>
+            <small>REVEAL</small>
+          </button>
+          <button id="interact-button" class="action-button" aria-label="Interact">
+            <span class="hand-mark">⌁</span>
+            <small>TOUCH</small>
+          </button>
+        </div>
+
+        <div id="spell-status" class="spell-status">
+          <span>REVELARE</span>
+          <i id="spell-cooldown"></i>
+        </div>
+      </div>
+
+      <aside id="journal" class="sheet" aria-hidden="true">
+        <div class="sheet-scrim" data-close-sheet></div>
+        <section class="sheet-panel">
+          <header>
+            <div>
+              <span class="eyebrow">FIELD JOURNAL</span>
+              <h2>What the school left behind</h2>
+            </div>
+            <button class="round-button" data-close-sheet aria-label="Close journal">×</button>
+          </header>
+          <div class="sheet-body">
+            <section class="journal-progress">
+              <div>
+                <span>Faculty seals</span>
+                <strong id="journal-seals">0 / 3</strong>
+              </div>
+              <p id="journal-objective">The observatory door bears three empty impressions.</p>
+            </section>
+            <section>
+              <h3>NOTES</h3>
+              <div id="journal-entries" class="journal-entries">
+                <article class="journal-empty">
+                  <span>Nothing recorded yet.</span>
+                  <small>Read plaques and inspect unusual objects.</small>
+                </article>
+              </div>
+            </section>
+            <section class="settings">
+              <h3>SETTINGS</h3>
+              <label>
+                <span>Look sensitivity</span>
+                <input id="sensitivity" type="range" min="0.65" max="1.65" step="0.05" value="1" />
+              </label>
+              <label>
+                <span>Ambient sound</span>
+                <input id="sound-toggle" type="checkbox" checked />
+              </label>
+              <button id="reset-progress" class="danger-button">RESET PROGRESS</button>
+            </section>
+          </div>
+        </section>
+      </aside>
+    </main>
+
+    <script type="module" src="/src/main.ts"></script>
+  </body>
+</html>
