@@ -60,4 +60,4 @@ for (const [folder, width, height, iconSize] of splashes) {
   )
 }
 
-console.log('Generated Gravenmere Android icons and splash screens.')
+console.log('Generated World Explorer Android icons and splash screens.')
