@@ -80,8 +80,8 @@ background = background.replace(/#[0-9A-Fa-f]{6}/, '#080B0A')
 writeFileSync(backgroundPath, background)
 
 let buildGradle = readFileSync(buildGradlePath, 'utf8')
-buildGradle = buildGradle.replace(/versionCode \d+/, 'versionCode 2')
+buildGradle = buildGradle.replace(/versionCode \d+/, 'versionCode 3')
 buildGradle = buildGradle.replace(/versionName "[^"]+"/, 'versionName "0.2.0"')
 writeFileSync(buildGradlePath, buildGradle)
 
-console.log('Configured landscape, fullscreen Gravenmere Android 0.2.0 project.')
+console.log('Configured landscape, fullscreen World Explorer Android 0.2.0 (3) project.')
