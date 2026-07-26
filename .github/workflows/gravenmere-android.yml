@@ -1,4 +1,4 @@
-name: Build Gravenmere Android APK
+name: Build World Explorer Android APK
 
 on:
   workflow_dispatch:
@@ -17,7 +17,7 @@ permissions:
   contents: write
 
 concurrency:
-  group: gravenmere-android-${{ github.ref }}
+  group: world-explorer-android-${{ github.ref }}
   cancel-in-progress: true
 
 jobs:
@@ -73,29 +73,29 @@ jobs:
       - name: Prepare download and checksum
         working-directory: gravenmere
         run: |
-          cp android/app/build/outputs/apk/debug/app-debug.apk Gravenmere.apk
-          sha256sum Gravenmere.apk > Gravenmere.apk.sha256
+          cp android/app/build/outputs/apk/debug/app-debug.apk World-Explorer.apk
+          sha256sum World-Explorer.apk > World-Explorer.apk.sha256
 
-      - name: Upload Gravenmere APK
+      - name: Upload World Explorer APK
         uses: actions/upload-artifact@v4
         with:
-          name: Gravenmere-Android
+          name: World-Explorer-Android
           path: |
-            gravenmere/Gravenmere.apk
-            gravenmere/Gravenmere.apk.sha256
+            gravenmere/World-Explorer.apk
+            gravenmere/World-Explorer.apk.sha256
           if-no-files-found: error
           retention-days: 30
 
-      - name: Publish durable Gravenmere release
+      - name: Publish durable World Explorer release
         if: github.event_name == 'push' && github.ref == 'refs/heads/main'
         working-directory: gravenmere
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          tag="gravenmere-android-${GITHUB_RUN_NUMBER}"
+          tag="world-explorer-android-${GITHUB_RUN_NUMBER}"
           gh release create "$tag" \
-            Gravenmere.apk \
-            Gravenmere.apk.sha256 \
-            --title "Gravenmere Android build ${GITHUB_RUN_NUMBER}" \
-            --notes "Install Gravenmere.apk on Android 7 or newer. The game runs offline and is designed for landscape touch play." \
+            World-Explorer.apk \
+            World-Explorer.apk.sha256 \
+            --title "World Explorer Android build ${GITHUB_RUN_NUMBER}" \
+            --notes "Install World-Explorer.apk on Android 7 or newer. The game runs offline and is designed for landscape touch play." \
             --latest=false
