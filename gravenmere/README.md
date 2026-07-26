@@ -1,8 +1,9 @@
-# Gravenmere
+# World Explorer
 
-Gravenmere is a phone-first first-person exploration game set across an open
-ruin complex and its strange outer grounds. It is designed for Android landscape
-play with a left movement joystick, right-side drag look, and large touch actions.
+World Explorer is a phone-first first-person exploration game set across the open
+ruins of Gravenmere and its strange outer grounds. It is designed for Android
+landscape play with a left movement joystick, right-side drag look, and large
+touch actions.
 
 ## Play
 
@@ -10,7 +11,7 @@ play with a left movement joystick, right-side drag look, and large touch action
 - Search the inner ruins for three ward seals.
 - Cast **Revelare** to expose hidden writing and traces of old magic.
 - Read plaques and objects to fill the field journal.
-- Equip the lantern from the character inventory when a passage gets too dark.
+- Toggle the lantern at any time, including while walking with the touch joystick.
 - Reveal the three outdoor waystones to open their hidden cache.
 - Carry all three seals to the observatory.
 
@@ -38,4 +39,4 @@ cd android
 ```
 
 The GitHub workflow at `.github/workflows/gravenmere-android.yml` builds an
-installable `Gravenmere.apk` and uploads it as a workflow artifact.
+installable `World-Explorer.apk` and uploads it as a workflow artifact.
