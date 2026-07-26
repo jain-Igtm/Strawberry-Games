@@ -173,35 +173,35 @@ function makeRuneTexture(symbol: string, color: string): THREE.CanvasTexture {
 }
 
 function createMaterials() {
-  const wallTexture = makeStoneTexture('#333835', '#161a18', 101)
+  const wallTexture = makeStoneTexture('#4a5350', '#242c29', 101)
   wallTexture.repeat.set(2.4, 1.5)
-  const darkStoneTexture = makeStoneTexture('#252926', '#101311', 202)
+  const darkStoneTexture = makeStoneTexture('#3b423f', '#1e2522', 202)
   darkStoneTexture.repeat.set(2.1, 1.5)
-  const floorTexture = makeStoneTexture('#2d312f', '#121514', 303, 6, 6)
+  const floorTexture = makeStoneTexture('#414a46', '#202724', 303, 6, 6)
   floorTexture.repeat.set(4, 4)
-  const greenStoneTexture = makeStoneTexture('#293a34', '#121b17', 404)
+  const greenStoneTexture = makeStoneTexture('#3a5148', '#1f3029', 404)
   greenStoneTexture.repeat.set(2, 2)
   const woodTexture = makeWoodTexture()
   woodTexture.repeat.set(2, 2)
 
   return {
-    wall: new THREE.MeshStandardMaterial({ map: wallTexture, roughness: 0.96, color: 0xa7aba6 }),
+    wall: new THREE.MeshStandardMaterial({ map: wallTexture, roughness: 0.96, color: 0xd4d8d3 }),
     darkWall: new THREE.MeshStandardMaterial({
       map: darkStoneTexture,
       roughness: 1,
-      color: 0x92968f,
+      color: 0xb8bdb5,
     }),
     greenWall: new THREE.MeshStandardMaterial({
       map: greenStoneTexture,
       roughness: 0.98,
-      color: 0xa1aaa4,
+      color: 0xc7d2cc,
     }),
-    floor: new THREE.MeshStandardMaterial({ map: floorTexture, roughness: 0.91, color: 0x949a96 }),
-    wood: new THREE.MeshStandardMaterial({ map: woodTexture, roughness: 0.92, color: 0xb9a28f }),
-    blackWood: new THREE.MeshStandardMaterial({ color: 0x171411, roughness: 0.92 }),
-    iron: new THREE.MeshStandardMaterial({ color: 0x343a38, roughness: 0.56, metalness: 0.72 }),
-    brass: new THREE.MeshStandardMaterial({ color: 0x7a6843, roughness: 0.45, metalness: 0.62 }),
-    plaster: new THREE.MeshStandardMaterial({ color: 0x87857a, roughness: 1 }),
+    floor: new THREE.MeshStandardMaterial({ map: floorTexture, roughness: 0.91, color: 0xbcc4bf }),
+    wood: new THREE.MeshStandardMaterial({ map: woodTexture, roughness: 0.92, color: 0xd0bca6 }),
+    blackWood: new THREE.MeshStandardMaterial({ color: 0x28221d, roughness: 0.92 }),
+    iron: new THREE.MeshStandardMaterial({ color: 0x505b57, roughness: 0.56, metalness: 0.72 }),
+    brass: new THREE.MeshStandardMaterial({ color: 0x9f8859, roughness: 0.45, metalness: 0.62 }),
+    plaster: new THREE.MeshStandardMaterial({ color: 0xaaa89c, roughness: 1 }),
     water: new THREE.MeshStandardMaterial({
       color: 0x183c3d,
       emissive: 0x071515,
@@ -229,9 +229,9 @@ function createMaterials() {
       emissiveIntensity: 2.9,
       roughness: 0.25,
     }),
-    deadLeaf: new THREE.MeshStandardMaterial({ color: 0x101713, roughness: 1 }),
-    cloth: new THREE.MeshStandardMaterial({ color: 0x312037, roughness: 0.92, side: THREE.DoubleSide }),
-    paper: new THREE.MeshStandardMaterial({ color: 0xa79b7e, roughness: 0.9 }),
+    deadLeaf: new THREE.MeshStandardMaterial({ color: 0x202e27, roughness: 1 }),
+    cloth: new THREE.MeshStandardMaterial({ color: 0x4c3455, roughness: 0.92, side: THREE.DoubleSide }),
+    paper: new THREE.MeshStandardMaterial({ color: 0xc9bb96, roughness: 0.9 }),
   }
 }
 
@@ -449,7 +449,7 @@ function addWallLantern(
   const cage = new THREE.Mesh(new THREE.OctahedronGeometry(0.19, 0), materials.glow)
   cage.position.y = -0.35
   bracket.add(cage)
-  const light = new THREE.PointLight(color, 2.5, 11, 2)
+  const light = new THREE.PointLight(color, 8, 17, 1.7)
   light.position.y = -0.35
   bracket.add(light)
   bracket.position.set(x, y, z)
@@ -460,7 +460,7 @@ function addWallLantern(
     phase,
     speed: 5.2,
     amount: 0.2,
-    baseY: 2.5,
+    baseY: 8,
   })
 }
 
@@ -1217,23 +1217,23 @@ function addDust(scene: THREE.Scene): void {
 }
 
 function setupLighting(scene: THREE.Scene): void {
-  scene.add(new THREE.HemisphereLight(0x40556a, 0x0b100d, 0.62))
-  const moon = new THREE.DirectionalLight(0x8ea3bf, 0.72)
+  scene.add(new THREE.HemisphereLight(0x8299a3, 0x25342e, 1.45))
+  const moon = new THREE.DirectionalLight(0xa9c1df, 1.35)
   moon.position.set(-20, 34, 12)
   scene.add(moon)
-  const hall = new THREE.PointLight(0x8affdc, 4.8, 30, 2)
+  const hall = new THREE.PointLight(0x8affdc, 18, 38, 1.7)
   hall.position.set(0, 5, 1)
   scene.add(hall)
-  const archive = new THREE.PointLight(0x5dcbd0, 4, 25, 2)
+  const archive = new THREE.PointLight(0x78e4e8, 15, 34, 1.7)
   archive.position.set(43, 4, 1)
   scene.add(archive)
-  const cloister = new THREE.PointLight(0xa3d89f, 3.8, 24, 2)
+  const cloister = new THREE.PointLight(0xb6e9ad, 15, 34, 1.7)
   cloister.position.set(-43, 5.5, 1)
   scene.add(cloister)
-  const stair = new THREE.PointLight(0xd06c57, 4.2, 27, 2)
+  const stair = new THREE.PointLight(0xe77f68, 16, 36, 1.7)
   stair.position.set(0, 7, -47)
   scene.add(stair)
-  const observatory = new THREE.PointLight(0x779aff, 5.4, 31, 2)
+  const observatory = new THREE.PointLight(0x90adff, 20, 40, 1.7)
   observatory.position.set(0, 7, -90)
   scene.add(observatory)
 }

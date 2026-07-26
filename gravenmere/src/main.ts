@@ -21,6 +21,7 @@ interface SaveData {
   endingSeen: boolean
   position: { x: number; z: number; yaw: number }
   sensitivity: number
+  brightness: number
   sound: boolean
 }
 
@@ -39,6 +40,7 @@ function defaultSave(): SaveData {
     endingSeen: false,
     position: { x: 0, z: 12.4, yaw: 0 },
     sensitivity: 1,
+    brightness: 1.28,
     sound: true,
   }
 }
@@ -55,6 +57,10 @@ function loadSave(): SaveData {
       seals: Array.isArray(parsed.seals) ? parsed.seals : [],
       notes: Array.isArray(parsed.notes) ? parsed.notes : [],
       position: { ...fallback.position, ...parsed.position },
+      brightness:
+        typeof parsed.brightness === 'number'
+          ? Math.min(1.85, Math.max(0.85, parsed.brightness))
+          : fallback.brightness,
     }
   } catch {
     return defaultSave()
@@ -88,6 +94,7 @@ const ui = {
   journalSeals: element<HTMLElement>('journal-seals'),
   journalObjective: element<HTMLElement>('journal-objective'),
   sensitivity: element<HTMLInputElement>('sensitivity'),
+  brightness: element<HTMLInputElement>('brightness'),
   soundToggle: element<HTMLInputElement>('sound-toggle'),
   resetProgress: element<HTMLButtonElement>('reset-progress'),
 }
@@ -109,11 +116,11 @@ renderer.setPixelRatio(renderRatio)
 renderer.setSize(window.innerWidth, window.innerHeight, false)
 renderer.outputColorSpace = THREE.SRGBColorSpace
 renderer.toneMapping = THREE.ACESFilmicToneMapping
-renderer.toneMappingExposure = 0.82
+renderer.toneMappingExposure = save.brightness
 
 const scene = new THREE.Scene()
-scene.background = new THREE.Color(0x080a0a)
-scene.fog = new THREE.FogExp2(0x080b0b, 0.018)
+scene.background = new THREE.Color(0x121918)
+scene.fog = new THREE.FogExp2(0x18211f, 0.0095)
 
 const camera = new THREE.PerspectiveCamera(
   68,
@@ -122,7 +129,7 @@ const camera = new THREE.PerspectiveCamera(
   145,
 )
 camera.rotation.order = 'YXZ'
-const wandLight = new THREE.PointLight(0xb5ffe7, 1.25, 8.5, 2)
+const wandLight = new THREE.PointLight(0xc9ffed, 9, 15, 1.65)
 wandLight.position.set(0.25, -0.18, -0.2)
 camera.add(wandLight)
 scene.add(camera)
@@ -632,9 +639,15 @@ ui.endingClose.addEventListener('click', () => {
 })
 
 ui.sensitivity.value = String(save.sensitivity)
+ui.brightness.value = String(save.brightness)
 ui.soundToggle.checked = save.sound
 ui.sensitivity.addEventListener('input', () => {
   save.sensitivity = Number(ui.sensitivity.value)
+  persist()
+})
+ui.brightness.addEventListener('input', () => {
+  save.brightness = Number(ui.brightness.value)
+  renderer.toneMappingExposure = save.brightness
   persist()
 })
 ui.soundToggle.addEventListener('change', () => {
