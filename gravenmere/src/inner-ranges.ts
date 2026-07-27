@@ -1,37 +1,31 @@
 import * as THREE from 'three'
+import type { RectCollider } from './math'
+import { schoolPlan, type SchoolConnection, type SchoolSpace, type Side } from './school-plan'
+import type { AnimatedObject, Interaction, Region } from './world'
 
-type Side = 'north' | 'south' | 'east' | 'west'
+type Opening = { center: number; width: number }
+type Mats = ReturnType<typeof makeMaterials>
 
-type Opening = {
-  center: number
-  width: number
+export interface InnerRangesData {
+  colliders: RectCollider[]
+  interactions: Interaction[]
+  animated: AnimatedObject[]
+  revealables: THREE.Object3D[]
+  containsPosition: (x: number, z: number) => boolean
+  getRegion: (x: number, z: number) => Region | null
+  openCache: () => void
 }
 
-type Openings = Partial<Record<Side, Opening[]>>
+const MIN_Z = 16.25
+const MAX_Z = 122.5
+const HALF_WIDTH = 66
+const boxCache = new Map<string, THREE.BoxGeometry>()
 
-type Collider = {
-  minX: number
-  maxX: number
-  minZ: number
-  maxZ: number
+function containsPosition(x: number, z: number): boolean {
+  return Math.abs(x) <= HALF_WIDTH && z >= MIN_Z && z <= MAX_Z
 }
 
-type RangeLabel = {
-  name: string
-  kicker: string
-  contains: (x: number, z: number) => boolean
-}
-
-type MaterialSet = ReturnType<typeof createMaterials>
-
-const colliders: Collider[] = []
-const geometryCache = new Map<string, THREE.BoxGeometry>()
-let built = false
-let lastSafeX = 0
-let lastSafeZ = 0
-let copyHookInstalled = false
-
-function seededRandom(seed: number) {
+function randomFactory(seed: number) {
   let state = seed >>> 0
   return () => {
     state = (state * 1664525 + 1013904223) >>> 0
@@ -39,27 +33,24 @@ function seededRandom(seed: number) {
   }
 }
 
-function makeMasonryTexture(base: string, mortar: string, seed: number): THREE.CanvasTexture {
-  const random = seededRandom(seed)
+function stoneTexture(base: string, mortar: string, seed: number) {
+  const random = randomFactory(seed)
   const canvas = document.createElement('canvas')
   canvas.width = 192
   canvas.height = 192
   const context = canvas.getContext('2d')
   if (!context) throw new Error('Canvas textures are unavailable')
   context.fillStyle = mortar
-  context.fillRect(0, 0, canvas.width, canvas.height)
-  const width = 48
-  const height = 32
+  context.fillRect(0, 0, 192, 192)
   for (let row = 0; row < 6; row += 1) {
     for (let column = -1; column < 5; column += 1) {
-      const offset = row % 2 ? width / 2 : 0
-      const x = column * width + offset + 2
-      const y = row * height + 2
+      const x = column * 48 + (row % 2 ? 24 : 0) + 2
+      const y = row * 32 + 2
       context.fillStyle = base
-      context.fillRect(x, y, width - 4, height - 4)
+      context.fillRect(x, y, 44, 28)
       const value = random() - 0.5
       context.fillStyle = value > 0 ? `rgba(255,255,255,${value * 0.13})` : `rgba(0,0,0,${-value * 0.18})`
-      context.fillRect(x, y, width - 4, height - 4)
+      context.fillRect(x, y, 44, 28)
     }
   }
   const texture = new THREE.CanvasTexture(canvas)
@@ -71,791 +62,444 @@ function makeMasonryTexture(base: string, mortar: string, seed: number): THREE.C
   return texture
 }
 
-function createMaterials() {
+function makeMaterials() {
+  const masonry = (base: string, mortar: string, seed: number, color: number) =>
+    new THREE.MeshStandardMaterial({ map: stoneTexture(base, mortar, seed), color, roughness: 0.96 })
   return {
-    slate: new THREE.MeshStandardMaterial({
-      map: makeMasonryTexture('#465350', '#202825', 211),
-      color: 0xc2cdc7,
-      roughness: 0.96,
-    }),
-    blueStone: new THREE.MeshStandardMaterial({
-      map: makeMasonryTexture('#3d4e5a', '#1b252c', 419),
-      color: 0xc0ced7,
-      roughness: 0.96,
-    }),
-    violetStone: new THREE.MeshStandardMaterial({
-      map: makeMasonryTexture('#504253', '#272028', 611),
-      color: 0xcbbccc,
-      roughness: 0.98,
-    }),
-    warmStone: new THREE.MeshStandardMaterial({
-      map: makeMasonryTexture('#5a5143', '#29251f', 733),
-      color: 0xd5cbb7,
-      roughness: 0.95,
-    }),
-    paleStone: new THREE.MeshStandardMaterial({ color: 0x87958e, roughness: 0.94 }),
-    darkStone: new THREE.MeshStandardMaterial({ color: 0x29312f, roughness: 1 }),
-    floor: new THREE.MeshStandardMaterial({
-      map: makeMasonryTexture('#525d59', '#252d2a', 929),
-      color: 0xc5cdc8,
-      roughness: 0.91,
-    }),
+    slate: masonry('#465350', '#202825', 211, 0xc2cdc7),
+    blue: masonry('#3d4e5a', '#1b252c', 419, 0xc0ced7),
+    violet: masonry('#504253', '#272028', 611, 0xcbbccc),
+    warm: masonry('#5a5143', '#29251f', 733, 0xd5cbb7),
+    dark: new THREE.MeshStandardMaterial({ color: 0x29312f, roughness: 1 }),
+    floor: masonry('#525d59', '#252d2a', 929, 0xc5cdc8),
     warmFloor: new THREE.MeshStandardMaterial({ color: 0x716859, roughness: 0.92 }),
     wood: new THREE.MeshStandardMaterial({ color: 0x4e392c, roughness: 0.88 }),
     darkWood: new THREE.MeshStandardMaterial({ color: 0x27201c, roughness: 0.94 }),
     brass: new THREE.MeshStandardMaterial({ color: 0xa78e58, metalness: 0.58, roughness: 0.42 }),
     iron: new THREE.MeshStandardMaterial({ color: 0x45514f, metalness: 0.58, roughness: 0.52 }),
     grass: new THREE.MeshStandardMaterial({ color: 0x294037, roughness: 1 }),
-    paleGrass: new THREE.MeshStandardMaterial({ color: 0x385345, roughness: 1 }),
-    water: new THREE.MeshStandardMaterial({
-      color: 0x234e55,
-      emissive: 0x0a2022,
-      emissiveIntensity: 0.8,
-      transparent: true,
-      opacity: 0.76,
-      roughness: 0.24,
-    }),
-    glass: new THREE.MeshStandardMaterial({
-      color: 0x84b8aa,
-      emissive: 0x142f29,
-      emissiveIntensity: 0.45,
-      transparent: true,
-      opacity: 0.24,
-      side: THREE.DoubleSide,
-      depthWrite: false,
-      roughness: 0.16,
-    }),
-    tealGlow: new THREE.MeshStandardMaterial({
-      color: 0xb7ffe7,
-      emissive: 0x4bd6b1,
-      emissiveIntensity: 3.5,
-      roughness: 0.2,
-    }),
-    goldGlow: new THREE.MeshStandardMaterial({
-      color: 0xffdeb0,
-      emissive: 0xf1a95c,
-      emissiveIntensity: 3.2,
-      roughness: 0.22,
-    }),
-    blueGlow: new THREE.MeshStandardMaterial({
-      color: 0xc8d9ff,
-      emissive: 0x6c91e8,
-      emissiveIntensity: 3.2,
-      roughness: 0.2,
-    }),
-    violetGlow: new THREE.MeshStandardMaterial({
-      color: 0xf0c5ff,
-      emissive: 0xa76dd0,
-      emissiveIntensity: 3.1,
-      roughness: 0.2,
-    }),
+    water: new THREE.MeshStandardMaterial({ color: 0x234e55, emissive: 0x0a2022, emissiveIntensity: 0.8, transparent: true, opacity: 0.76, roughness: 0.24 }),
+    glass: new THREE.MeshStandardMaterial({ color: 0x84b8aa, emissive: 0x142f29, emissiveIntensity: 0.45, transparent: true, opacity: 0.24, side: THREE.DoubleSide, depthWrite: false, roughness: 0.16 }),
+    tealGlow: new THREE.MeshStandardMaterial({ color: 0xb7ffe7, emissive: 0x4bd6b1, emissiveIntensity: 3.5, roughness: 0.2 }),
+    goldGlow: new THREE.MeshStandardMaterial({ color: 0xffdeb0, emissive: 0xf1a95c, emissiveIntensity: 3.2, roughness: 0.22 }),
+    blueGlow: new THREE.MeshStandardMaterial({ color: 0xc8d9ff, emissive: 0x6c91e8, emissiveIntensity: 3.2, roughness: 0.2 }),
+    violetGlow: new THREE.MeshStandardMaterial({ color: 0xf0c5ff, emissive: 0xa76dd0, emissiveIntensity: 3.1, roughness: 0.2 }),
   }
 }
 
-function boxGeometry(width: number, height: number, depth: number): THREE.BoxGeometry {
-  const key = `${width.toFixed(3)}:${height.toFixed(3)}:${depth.toFixed(3)}`
-  const cached = geometryCache.get(key)
-  if (cached) return cached
-  const geometry = new THREE.BoxGeometry(width, height, depth)
-  geometryCache.set(key, geometry)
-  return geometry
+function materialFor(m: Mats, space: SchoolSpace): THREE.Material {
+  if (space.colorFamily === 'blue') return m.blue
+  if (space.colorFamily === 'warm') return m.warm
+  if (space.colorFamily === 'violet') return m.violet
+  if (space.colorFamily === 'green') return m.slate
+  return m.slate
 }
 
-function addCollider(x: number, z: number, width: number, depth: number): void {
-  colliders.push({
-    minX: x - width / 2,
-    maxX: x + width / 2,
-    minZ: z - depth / 2,
-    maxZ: z + depth / 2,
-  })
+function geometry(width: number, height: number, depth: number) {
+  const key = `${width}:${height}:${depth}`
+  const found = boxCache.get(key)
+  if (found) return found
+  const value = new THREE.BoxGeometry(width, height, depth)
+  boxCache.set(key, value)
+  return value
 }
 
-function addBox(
-  scene: THREE.Object3D,
-  material: THREE.Material,
-  width: number,
-  height: number,
-  depth: number,
-  x: number,
-  y: number,
-  z: number,
-  collide = false,
-): THREE.Mesh {
-  const mesh = new THREE.Mesh(boxGeometry(width, height, depth), material)
+function box(parent: THREE.Object3D, material: THREE.Material, width: number, height: number, depth: number, x: number, y: number, z: number) {
+  const mesh = new THREE.Mesh(geometry(width, height, depth), material)
   mesh.position.set(x, y, z)
-  scene.add(mesh)
-  if (collide) addCollider(x, z, width, depth)
+  parent.add(mesh)
   return mesh
 }
 
-function segments(center: number, length: number, openings: Opening[]): Array<{ center: number; length: number }> {
+function collider(list: RectCollider[], x: number, z: number, width: number, depth: number) {
+  const value = { minX: x - width / 2, maxX: x + width / 2, minZ: z - depth / 2, maxZ: z + depth / 2, enabled: true }
+  list.push(value)
+  return value
+}
+
+function solid(scene: THREE.Scene, list: RectCollider[], material: THREE.Material, width: number, height: number, depth: number, x: number, y: number, z: number) {
+  const mesh = box(scene, material, width, height, depth, x, y, z)
+  collider(list, x, z, width, depth)
+  return mesh
+}
+
+function segments(center: number, length: number, openings: readonly Opening[]) {
   const start = center - length / 2
   const end = center + length / 2
   const cuts = openings
-    .map((opening) => ({
-      start: Math.max(start, opening.center - opening.width / 2),
-      end: Math.min(end, opening.center + opening.width / 2),
-    }))
+    .map((opening) => ({ start: Math.max(start, opening.center - opening.width / 2), end: Math.min(end, opening.center + opening.width / 2) }))
     .filter((opening) => opening.end > opening.start)
-    .sort((left, right) => left.start - right.start)
-  const result: Array<{ center: number; length: number }> = []
+    .sort((a, b) => a.start - b.start)
+  const result: Opening[] = []
   let cursor = start
   for (const opening of cuts) {
-    if (opening.start > cursor) {
-      result.push({ center: (cursor + opening.start) / 2, length: opening.start - cursor })
-    }
+    if (opening.start > cursor) result.push({ center: (cursor + opening.start) / 2, width: opening.start - cursor })
     cursor = Math.max(cursor, opening.end)
   }
-  if (cursor < end) result.push({ center: (cursor + end) / 2, length: end - cursor })
+  if (cursor < end) result.push({ center: (cursor + end) / 2, width: end - cursor })
   return result
 }
 
-function addRoom(
-  scene: THREE.Scene,
-  materials: MaterialSet,
-  options: {
-    x: number
-    z: number
-    width: number
-    depth: number
-    height: number
-    wall: THREE.Material
-    floor?: THREE.Material
-    ceiling?: boolean
-    openings?: Openings
-  },
-): void {
-  const thickness = 0.46
-  addBox(scene, options.floor ?? materials.floor, options.width, 0.24, options.depth, options.x, -0.12, options.z)
-  if (options.ceiling !== false) {
-    addBox(scene, materials.darkStone, options.width, 0.22, options.depth, options.x, options.height, options.z)
-  }
-  for (const segment of segments(options.x, options.width, options.openings?.north ?? [])) {
-    addBox(scene, options.wall, segment.length, options.height, thickness, segment.center, options.height / 2, options.z - options.depth / 2, true)
-  }
-  for (const segment of segments(options.x, options.width, options.openings?.south ?? [])) {
-    addBox(scene, options.wall, segment.length, options.height, thickness, segment.center, options.height / 2, options.z + options.depth / 2, true)
-  }
-  for (const segment of segments(options.z, options.depth, options.openings?.west ?? [])) {
-    addBox(scene, options.wall, thickness, options.height, segment.length, options.x - options.width / 2, options.height / 2, segment.center, true)
-  }
-  for (const segment of segments(options.z, options.depth, options.openings?.east ?? [])) {
-    addBox(scene, options.wall, thickness, options.height, segment.length, options.x + options.width / 2, options.height / 2, segment.center, true)
+function openings(space: SchoolSpace, side: Side): Opening[] {
+  return schoolPlan.connections.flatMap((connection) => {
+    const match = (connection.a === space.id && connection.sideA === side) || (connection.b === space.id && connection.sideB === side)
+    return match ? [{ center: side === 'north' || side === 'south' ? space.x : space.z, width: connection.width }] : []
+  })
+}
+
+function wall(scene: THREE.Scene, list: RectCollider[], material: THREE.Material, side: Side, x: number, z: number, length: number, height: number, doors: readonly Opening[]) {
+  if (side === 'north' || side === 'south') {
+    for (const part of segments(x, length, doors)) solid(scene, list, material, part.width, height, 0.46, part.center, height / 2, z)
+  } else {
+    for (const part of segments(z, length, doors)) solid(scene, list, material, 0.46, height, part.width, x, height / 2, part.center)
   }
 }
 
-function addColumn(
-  scene: THREE.Scene,
-  material: THREE.Material,
-  x: number,
-  z: number,
-  height = 6.2,
-  radius = 0.48,
-  collide = true,
-): void {
-  const column = new THREE.Group()
+function shell(scene: THREE.Scene, list: RectCollider[], m: Mats, space: SchoolSpace, ceiling = true, floor: THREE.Material = m.floor) {
+  const height = space.height || 5.8
+  const material = materialFor(m, space)
+  box(scene, floor, space.width, 0.24, space.depth, space.x, -0.12, space.z)
+  if (ceiling && !space.openSky) box(scene, m.dark, space.width, 0.22, space.depth, space.x, height, space.z)
+  wall(scene, list, material, 'north', space.x, space.z - space.depth / 2, space.width, height, openings(space, 'north'))
+  wall(scene, list, material, 'south', space.x, space.z + space.depth / 2, space.width, height, openings(space, 'south'))
+  wall(scene, list, material, 'west', space.x - space.width / 2, space.z, space.depth, height, openings(space, 'west'))
+  wall(scene, list, material, 'east', space.x + space.width / 2, space.z, space.depth, height, openings(space, 'east'))
+}
+
+function column(scene: THREE.Scene, list: RectCollider[], material: THREE.Material, x: number, z: number, height = 6.2, radius = 0.44) {
+  const group = new THREE.Group()
   const shaft = new THREE.Mesh(new THREE.CylinderGeometry(radius * 0.78, radius, height, 9), material)
   shaft.position.y = height / 2
-  column.add(shaft)
-  addBox(column, material, radius * 2.45, 0.24, radius * 2.45, 0, 0.12, 0)
-  addBox(column, material, radius * 2.25, 0.28, radius * 2.25, 0, height - 0.14, 0)
-  column.position.set(x, 0, z)
-  scene.add(column)
-  if (collide) addCollider(x, z, radius * 1.75, radius * 1.75)
+  group.add(shaft)
+  box(group, material, radius * 2.35, 0.22, radius * 2.35, 0, 0.11, 0)
+  box(group, material, radius * 2.2, 0.26, radius * 2.2, 0, height - 0.13, 0)
+  group.position.set(x, 0, z)
+  scene.add(group)
+  collider(list, x, z, radius * 1.75, radius * 1.75)
 }
 
-function addArch(
-  scene: THREE.Scene,
-  material: THREE.Material,
-  x: number,
-  y: number,
-  z: number,
-  width: number,
-  rotationY = 0,
-): void {
-  const arch = new THREE.Mesh(new THREE.TorusGeometry(width / 2, 0.24, 7, 24, Math.PI), material)
-  arch.position.set(x, y, z)
-  arch.rotation.y = rotationY
-  scene.add(arch)
+function arch(scene: THREE.Scene, material: THREE.Material, x: number, y: number, z: number, width: number, rotationY = 0) {
+  const mesh = new THREE.Mesh(new THREE.TorusGeometry(width / 2, 0.22, 7, 24, Math.PI), material)
+  mesh.position.set(x, y, z)
+  mesh.rotation.y = rotationY
+  scene.add(mesh)
 }
 
-function addLantern(
-  scene: THREE.Scene,
-  materials: MaterialSet,
-  x: number,
-  y: number,
-  z: number,
-  color: number,
-  glow: THREE.Material,
-): void {
-  addBox(scene, materials.iron, 0.08, 0.62, 0.08, x, y, z)
+function lantern(scene: THREE.Scene, m: Mats, x: number, y: number, z: number, glow: THREE.Material) {
+  box(scene, m.iron, 0.08, 0.62, 0.08, x, y, z)
   const cage = new THREE.Mesh(new THREE.OctahedronGeometry(0.2, 0), glow)
   cage.position.set(x, y - 0.38, z)
   scene.add(cage)
-  const light = new THREE.PointLight(color, 10, 22, 1.68)
-  light.position.set(x, y - 0.38, z)
+}
+
+function roomLight(scene: THREE.Scene, color: number, intensity: number, distance: number, x: number, y: number, z: number) {
+  const light = new THREE.PointLight(color, intensity, distance, 1.55)
+  light.position.set(x, y, z)
   scene.add(light)
 }
 
-function addBench(scene: THREE.Scene, materials: MaterialSet, x: number, z: number, rotationY = 0): void {
-  const bench = new THREE.Group()
-  addBox(bench, materials.wood, 3.2, 0.2, 0.72, 0, 0.75, 0)
-  addBox(bench, materials.darkWood, 3.2, 1.25, 0.15, 0, 1.25, 0.32)
-  for (const legX of [-1.2, 1.2]) addBox(bench, materials.darkWood, 0.18, 0.75, 0.18, legX, 0.37, 0)
-  bench.position.set(x, 0, z)
-  bench.rotation.y = rotationY
-  scene.add(bench)
-  addCollider(x, z, rotationY ? 1 : 3.4, rotationY ? 3.4 : 1)
+function table(scene: THREE.Scene, list: RectCollider[], m: Mats, x: number, z: number, width: number, depth: number) {
+  box(scene, m.wood, width, 0.2, depth, x, 1.05, z)
+  for (const dx of [-width / 2 + 0.3, width / 2 - 0.3]) for (const dz of [-depth / 2 + 0.3, depth / 2 - 0.3]) box(scene, m.darkWood, 0.18, 1.05, 0.18, x + dx, 0.52, z + dz)
+  collider(list, x, z, width + 0.25, depth + 0.25)
 }
 
-function addTable(scene: THREE.Scene, materials: MaterialSet, x: number, z: number, width: number, depth: number): void {
-  addBox(scene, materials.wood, width, 0.2, depth, x, 1.05, z)
-  for (const dx of [-width / 2 + 0.3, width / 2 - 0.3]) {
-    for (const dz of [-depth / 2 + 0.3, depth / 2 - 0.3]) {
-      addBox(scene, materials.darkWood, 0.18, 1.05, 0.18, x + dx, 0.52, z + dz)
-    }
-  }
-  addCollider(x, z, width + 0.25, depth + 0.25)
+function bench(scene: THREE.Scene, list: RectCollider[], m: Mats, x: number, z: number, rotationY = 0) {
+  const group = new THREE.Group()
+  box(group, m.wood, 3.2, 0.2, 0.72, 0, 0.75, 0)
+  box(group, m.darkWood, 3.2, 1.25, 0.15, 0, 1.25, 0.32)
+  for (const legX of [-1.2, 1.2]) box(group, m.darkWood, 0.18, 0.75, 0.18, legX, 0.37, 0)
+  group.position.set(x, 0, z)
+  group.rotation.y = rotationY
+  scene.add(group)
+  collider(list, x, z, rotationY ? 1 : 3.4, rotationY ? 3.4 : 1)
 }
 
-function addTree(scene: THREE.Scene, materials: MaterialSet, x: number, z: number, height: number): void {
-  const trunk = new THREE.Mesh(new THREE.CylinderGeometry(0.35, 0.55, height * 0.58, 7), materials.darkWood)
-  trunk.position.set(x, height * 0.29, z)
-  scene.add(trunk)
-  const crown = new THREE.Mesh(new THREE.ConeGeometry(1.65, height * 0.62, 8), materials.paleGrass)
-  crown.position.set(x, height * 0.69, z)
-  scene.add(crown)
-  addCollider(x, z, 1.15, 1.15)
+function sidePoint(space: SchoolSpace, side: Side) {
+  if (side === 'north') return new THREE.Vector2(space.x, space.z - space.depth / 2)
+  if (side === 'south') return new THREE.Vector2(space.x, space.z + space.depth / 2)
+  if (side === 'west') return new THREE.Vector2(space.x - space.width / 2, space.z)
+  return new THREE.Vector2(space.x + space.width / 2, space.z)
 }
 
-function addGlassRoof(scene: THREE.Scene, materials: MaterialSet, x: number, z: number, width: number, depth: number, y: number): void {
-  const roof = new THREE.Group()
-  const left = addBox(roof, materials.glass, width / 2, 0.08, depth, -width / 4, 0, 0)
-  const right = addBox(roof, materials.glass, width / 2, 0.08, depth, width / 4, 0, 0)
-  left.rotation.z = 0.12
-  right.rotation.z = -0.12
-  for (let offset = -depth / 2; offset <= depth / 2; offset += 4.5) {
-    addBox(roof, materials.brass, width, 0.08, 0.08, 0, 0.04, offset)
-  }
-  addBox(roof, materials.brass, 0.1, 0.18, depth, 0, 0.22, 0)
-  roof.position.set(x, y, z)
-  scene.add(roof)
+function overlaps(a: SchoolSpace, b: SchoolSpace) {
+  return Math.abs(a.x - b.x) < (a.width + b.width) / 2 - 0.05 && Math.abs(a.z - b.z) < (a.depth + b.depth) / 2 - 0.05
 }
 
-function addFixedCrossedStair(scene: THREE.Scene, materials: MaterialSet): void {
-  scene.traverse((object) => {
-    if (!(object instanceof THREE.Group)) return
-    if (Math.abs(object.position.z + 47) > 8 || Math.abs(object.position.x) > 7) return
-    const steps = object.children.filter((child) => {
-      if (!(child instanceof THREE.Mesh) || !(child.geometry instanceof THREE.BoxGeometry)) return false
-      const parameters = child.geometry.parameters
-      return Math.abs(parameters.width - 2.6) < 0.01 && Math.abs(parameters.height - 0.34) < 0.01
-    })
-    if (steps.length === 11) object.visible = false
-  })
-
-  const addFlight = (x: number, startZ: number, direction: number) => {
-    for (let step = 0; step < 12; step += 1) {
-      addBox(
-        scene,
-        materials.paleStone,
-        4.1,
-        0.34,
-        0.78,
-        x,
-        0.17 + step * 0.34,
-        startZ + direction * step * 0.61,
-      )
-    }
-  }
-
-  addFlight(-6.4, -54.1, 1)
-  addFlight(6.4, -39.9, -1)
-  addBox(scene, materials.slate, 18.2, 0.42, 3.4, 0, 4.25, -47)
-  addBox(scene, materials.darkStone, 18.2, 0.45, 3.4, 0, 3.8, -47)
-  addCollider(-6.4, -50.7, 4.5, 7.8)
-  addCollider(6.4, -43.3, 4.5, 7.8)
-
-  for (const x of [-8.25, -3.9, 3.9, 8.25]) addColumn(scene, materials.darkStone, x, -47, 4.05, 0.42, false)
-  for (const x of [-8.7, 8.7]) {
-    addBox(scene, materials.brass, 0.1, 1.1, 3.4, x, 4.9, -47)
-  }
-  for (let x = -7.8; x <= 7.8; x += 1.3) {
-    addBox(scene, materials.iron, 0.08, 0.95, 0.08, x, 4.78, -45.42)
-    addBox(scene, materials.iron, 0.08, 0.95, 0.08, x, 4.78, -48.58)
-  }
-  addBox(scene, materials.brass, 16.2, 0.09, 0.09, 0, 5.2, -45.42)
-  addBox(scene, materials.brass, 16.2, 0.09, 0.09, 0, 5.2, -48.58)
-  addArch(scene, materials.warmStone, 0, 7.2, -55.7, 6.2)
-  addArch(scene, materials.blueStone, 0, 7.2, -38.3, 6.2, Math.PI)
-  addLantern(scene, materials, -9.5, 6.3, -47, 0xffb16d, materials.goldGlow)
-  addLantern(scene, materials, 9.5, 6.3, -47, 0x8fd8ff, materials.blueGlow)
-}
-
-function addFoundersCourt(scene: THREE.Scene, materials: MaterialSet): void {
-  addRoom(scene, materials, {
-    x: 0,
-    z: 36,
-    width: 52,
-    depth: 32,
-    height: 7.2,
-    wall: materials.slate,
-    floor: materials.warmFloor,
-    ceiling: false,
-    openings: {
-      north: [{ center: 0, width: 7 }],
-      south: [{ center: 0, width: 8 }],
-      east: [{ center: 36, width: 7 }],
-      west: [{ center: 36, width: 7 }],
-    },
-  })
-  addBox(scene, materials.floor, 7, 0.12, 35, 0, 0.04, 36)
-  for (const x of [-19.5, -13, 13, 19.5]) {
-    for (const z of [23.5, 48.5]) addColumn(scene, materials.paleStone, x, z, 6.7, 0.48)
-  }
-  for (const x of [-16.25, 16.25]) {
-    addArch(scene, materials.paleStone, x, 4.4, 23.5, 6.5)
-    addArch(scene, materials.paleStone, x, 4.4, 48.5, 6.5, Math.PI)
-  }
-  for (const z of [28, 36, 44]) {
-    addColumn(scene, materials.paleStone, -22.5, z, 6.7, 0.45)
-    addColumn(scene, materials.paleStone, 22.5, z, 6.7, 0.45)
-    addArch(scene, materials.paleStone, -22.5, 4.3, z, 6.4, Math.PI / 2)
-    addArch(scene, materials.paleStone, 22.5, 4.3, z, 6.4, -Math.PI / 2)
-  }
-  addBench(scene, materials, -10, 39, 0)
-  addBench(scene, materials, 10, 33, Math.PI)
-  addLantern(scene, materials, -5, 5.2, 26, 0x91ffe0, materials.tealGlow)
-  addLantern(scene, materials, 5, 5.2, 46, 0xffc27c, materials.goldGlow)
-  const light = new THREE.PointLight(0xb7d9cb, 20, 48, 1.45)
-  light.position.set(0, 11, 36)
-  scene.add(light)
-}
-
-function addLongGallery(scene: THREE.Scene, materials: MaterialSet): void {
-  addRoom(scene, materials, {
-    x: 0,
-    z: 75,
-    width: 18,
-    depth: 46,
-    height: 7.1,
-    wall: materials.blueStone,
-    openings: {
-      north: [{ center: 0, width: 8 }],
-      south: [{ center: 0, width: 8 }],
-      east: [{ center: 69, width: 8 }],
-      west: [{ center: 70, width: 8 }],
-    },
-  })
-  for (const z of [57, 65, 75, 85, 93]) {
-    addColumn(scene, materials.paleStone, -7.25, z, 6.6, 0.38)
-    addColumn(scene, materials.paleStone, 7.25, z, 6.6, 0.38)
-    addArch(scene, z % 20 === 5 ? materials.warmStone : materials.blueStone, 0, 4.55, z, 14.5)
-  }
-  for (const z of [60, 72, 84, 94]) {
-    const warm = Math.floor(z / 10) % 2 === 0
-    addLantern(scene, materials, -7.6, 4.8, z, warm ? 0xffb86f : 0x78e8dc, warm ? materials.goldGlow : materials.tealGlow)
-    addLantern(scene, materials, 7.6, 4.8, z + 3, warm ? 0x78e8dc : 0xffb86f, warm ? materials.tealGlow : materials.goldGlow)
-  }
-  for (const z of [63, 79, 91]) {
-    const frame = addBox(scene, materials.brass, 2.7, 3.3, 0.12, -8.73, 2.7, z)
-    frame.rotation.y = Math.PI / 2
-    addBox(scene, materials.violetStone, 2.2, 2.8, 0.08, -8.63, 2.7, z)
+function connector(scene: THREE.Scene, list: RectCollider[], m: Mats, connection: SchoolConnection, spaces: ReadonlyMap<string, SchoolSpace>) {
+  const a = spaces.get(connection.a)
+  const b = spaces.get(connection.b)
+  if (!a || !b || overlaps(a, b)) return
+  const pa = sidePoint(a, connection.sideA)
+  const pb = sidePoint(b, connection.sideB)
+  const height = Math.max(5.4, Math.min(a.height || 6, b.height || 6))
+  if (Math.abs(pa.x - pb.x) < 0.2) {
+    const depth = Math.abs(pa.y - pb.y)
+    if (depth < 0.15) return
+    const x = pa.x
+    const z = (pa.y + pb.y) / 2
+    box(scene, m.floor, connection.width, 0.18, depth, x, -0.08, z)
+    box(scene, m.dark, connection.width, 0.18, depth, x, height, z)
+    solid(scene, list, m.slate, 0.42, height, depth, x - connection.width / 2, height / 2, z)
+    solid(scene, list, m.slate, 0.42, height, depth, x + connection.width / 2, height / 2, z)
+  } else if (Math.abs(pa.y - pb.y) < 0.2) {
+    const width = Math.abs(pa.x - pb.x)
+    if (width < 0.15) return
+    const x = (pa.x + pb.x) / 2
+    const z = pa.y
+    box(scene, m.floor, width, 0.18, connection.width, x, -0.08, z)
+    box(scene, m.dark, width, 0.18, connection.width, x, height, z)
+    solid(scene, list, m.slate, width, height, 0.42, x, height / 2, z - connection.width / 2)
+    solid(scene, list, m.slate, width, height, 0.42, x, height / 2, z + connection.width / 2)
   }
 }
 
-function addMoonCloister(scene: THREE.Scene, materials: MaterialSet): void {
-  addRoom(scene, materials, {
-    x: -33,
-    z: 70,
-    width: 46,
-    depth: 36,
-    height: 6.7,
-    wall: materials.violetStone,
-    floor: materials.grass,
-    ceiling: false,
-    openings: {
-      north: [{ center: -33, width: 8 }],
-      south: [{ center: -33, width: 8 }],
-      east: [{ center: 70, width: 8 }],
-    },
-  })
-  const innerWidth = 29
-  const innerDepth = 21
-  for (const x of [-46, -39.5, -26.5, -20]) {
-    addColumn(scene, materials.paleStone, x, 60.5, 6.2, 0.42)
-    addColumn(scene, materials.paleStone, x, 79.5, 6.2, 0.42)
+function cloister(scene: THREE.Scene, list: RectCollider[], m: Mats, spaces: ReadonlyMap<string, SchoolSpace>) {
+  const south = spaces.get('south-cloister')!
+  const north = spaces.get('north-cloister')!
+  const west = spaces.get('west-cloister')!
+  const east = spaces.get('east-cloister')!
+  const court = spaces.get('founders-court')!
+  for (const range of [south, north, west, east]) {
+    box(scene, m.floor, range.width, 0.24, range.depth, range.x, -0.12, range.z)
+    box(scene, m.dark, range.width, 0.2, range.depth, range.x, south.height, range.z)
   }
-  for (const z of [63, 70, 77]) {
-    addColumn(scene, materials.paleStone, -47.5, z, 6.2, 0.42)
-    addColumn(scene, materials.paleStone, -18.5, z, 6.2, 0.42)
+  wall(scene, list, m.slate, 'south', south.x, south.z + south.depth / 2, south.width, south.height, openings(south, 'south'))
+  wall(scene, list, m.blue, 'north', north.x, north.z - north.depth / 2, north.width, north.height, openings(north, 'north'))
+  wall(scene, list, m.violet, 'west', west.x - west.width / 2, west.z, west.depth, west.height, openings(west, 'west'))
+  wall(scene, list, m.warm, 'east', east.x + east.width / 2, east.z, east.depth, east.height, openings(east, 'east'))
+  const xs = [-18, -12, -6, 0, 6, 12, 18]
+  const zs = [34, 41, 48, 55, 62]
+  for (const x of xs) {
+    column(scene, list, m.slate, x, 65, 6.25, 0.42)
+    column(scene, list, m.blue, x, 31, 6.25, 0.42)
   }
-  addBox(scene, materials.floor, innerWidth, 0.1, 2.5, -33, 0.03, 59.7)
-  addBox(scene, materials.floor, innerWidth, 0.1, 2.5, -33, 0.03, 80.3)
-  addBox(scene, materials.floor, 2.5, 0.1, innerDepth, -48.3, 0.03, 70)
-  addBox(scene, materials.floor, 2.5, 0.1, innerDepth, -17.7, 0.03, 70)
-  addBench(scene, materials, -42, 76.5, -Math.PI / 2)
-  addBench(scene, materials, -24, 63.5, Math.PI / 2)
-  addLantern(scene, materials, -47.5, 5.1, 60.5, 0xb590ff, materials.violetGlow)
-  addLantern(scene, materials, -18.5, 5.1, 79.5, 0x87dfff, materials.blueGlow)
-  const moonLight = new THREE.PointLight(0xa8baff, 24, 46, 1.48)
-  moonLight.position.set(-33, 10, 70)
-  scene.add(moonLight)
-}
-
-function addSurveyHall(scene: THREE.Scene, materials: MaterialSet): void {
-  addRoom(scene, materials, {
-    x: 31,
-    z: 69,
-    width: 44,
-    depth: 34,
-    height: 7.3,
-    wall: materials.warmStone,
-    floor: materials.warmFloor,
-    openings: {
-      north: [{ center: 42, width: 8 }],
-      south: [{ center: 31, width: 8 }],
-      west: [{ center: 69, width: 8 }],
-    },
-  })
-  for (const x of [18, 27, 36, 45]) {
-    addTable(scene, materials, x, 73, 5.6, 2.2)
+  for (const z of zs) {
+    column(scene, list, m.violet, -20, z, 6.25, 0.42)
+    column(scene, list, m.warm, 20, z, 6.25, 0.42)
   }
-  for (const x of [17, 25, 33, 41, 49]) {
-    const cabinet = addBox(scene, materials.darkWood, 4.6, 4.8, 0.7, x, 2.4, 53.9, true)
-    cabinet.rotation.y = 0
-    for (let y = 0.8; y < 4.5; y += 0.9) addBox(scene, materials.brass, 4.1, 0.06, 0.76, x, y, 54.25)
+  for (let i = 0; i < xs.length - 1; i += 1) {
+    arch(scene, m.slate, (xs[i] + xs[i + 1]) / 2, 4.15, 65, 5.8)
+    arch(scene, m.blue, (xs[i] + xs[i + 1]) / 2, 4.15, 31, 5.8, Math.PI)
   }
-  const map = new THREE.Mesh(new THREE.CircleGeometry(6.8, 28), materials.blueStone)
-  map.rotation.x = -Math.PI / 2
-  map.position.set(31, 0.08, 63.5)
-  scene.add(map)
-  for (let index = 0; index < 7; index += 1) {
-    const angle = (index / 7) * Math.PI * 2
-    const marker = new THREE.Mesh(new THREE.ConeGeometry(0.16, 0.75, 6), index % 2 ? materials.tealGlow : materials.goldGlow)
-    marker.position.set(31 + Math.cos(angle) * (2.5 + index * 0.35), 0.48, 63.5 + Math.sin(angle) * (2.5 + index * 0.35))
-    scene.add(marker)
+  for (let i = 0; i < zs.length - 1; i += 1) {
+    arch(scene, m.violet, -20, 4.15, (zs[i] + zs[i + 1]) / 2, 6.8, Math.PI / 2)
+    arch(scene, m.warm, 20, 4.15, (zs[i] + zs[i + 1]) / 2, 6.8, -Math.PI / 2)
   }
-  addLantern(scene, materials, 12.2, 5.4, 61, 0xffc06f, materials.goldGlow)
-  addLantern(scene, materials, 49.8, 5.4, 78, 0xff9f71, materials.goldGlow)
-  const light = new THREE.PointLight(0xffc07d, 26, 52, 1.5)
-  light.position.set(31, 8, 69)
-  scene.add(light)
-}
-
-function addSouthVestibule(scene: THREE.Scene, materials: MaterialSet): void {
-  addRoom(scene, materials, {
-    x: 0,
-    z: 109,
-    width: 24,
-    depth: 22,
-    height: 8.2,
-    wall: materials.slate,
-    floor: materials.floor,
-    openings: {
-      north: [{ center: 0, width: 8 }],
-      south: [{ center: 0, width: 8 }],
-      east: [{ center: 109, width: 7 }],
-      west: [{ center: 109, width: 7 }],
-    },
-  })
-  for (const x of [-8.8, 8.8]) {
-    for (const z of [101.5, 116.5]) addColumn(scene, materials.paleStone, x, z, 7.7, 0.54)
-  }
-  addArch(scene, materials.paleStone, 0, 5.5, 99.2, 8)
-  addArch(scene, materials.paleStone, 0, 5.5, 118.8, 8, Math.PI)
-  const ring = new THREE.Mesh(new THREE.TorusGeometry(3.7, 0.14, 8, 36), materials.brass)
-  ring.position.set(0, 5.8, 109)
-  ring.rotation.x = Math.PI / 2
-  scene.add(ring)
-  for (let index = 0; index < 8; index += 1) {
-    const angle = (index / 8) * Math.PI * 2
-    const lamp = new THREE.Mesh(new THREE.SphereGeometry(0.1, 7, 6), materials.goldGlow)
-    lamp.position.set(Math.cos(angle) * 3.7, 5.8, 109 + Math.sin(angle) * 3.7)
-    scene.add(lamp)
-  }
-  const light = new THREE.PointLight(0xffca87, 25, 40, 1.55)
-  light.position.set(0, 6, 109)
-  scene.add(light)
-}
-
-function addWinterGarden(scene: THREE.Scene, materials: MaterialSet): void {
-  addRoom(scene, materials, {
-    x: -33,
-    z: 103,
-    width: 46,
-    depth: 30,
-    height: 7.4,
-    wall: materials.blueStone,
-    floor: materials.grass,
-    ceiling: false,
-    openings: {
-      north: [{ center: -33, width: 8 }],
-      east: [{ center: 109, width: 7 }],
-    },
-  })
-  addGlassRoof(scene, materials, -33, 103, 42, 27, 7.3)
-  for (const position of [
-    [-44, 95, 6.5],
-    [-38, 110, 5.8],
-    [-27, 97, 6.2],
-    [-20, 111, 5.5],
-  ] as const) {
-    addTree(scene, materials, position[0], position[1], position[2])
-  }
-  const pool = new THREE.Mesh(new THREE.CircleGeometry(4.4, 24), materials.water)
-  pool.rotation.x = -Math.PI / 2
-  pool.position.set(-33, 0.08, 103)
-  scene.add(pool)
-  addBench(scene, materials, -45, 104, Math.PI / 2)
-  addBench(scene, materials, -21, 102, -Math.PI / 2)
-  const light = new THREE.PointLight(0x9ddbc9, 26, 48, 1.45)
-  light.position.set(-33, 8.5, 103)
-  scene.add(light)
-}
-
-function addLanternConservatory(scene: THREE.Scene, materials: MaterialSet): void {
-  addRoom(scene, materials, {
-    x: 31,
-    z: 103,
-    width: 44,
-    depth: 30,
-    height: 7.4,
-    wall: materials.warmStone,
-    floor: materials.paleGrass,
-    ceiling: false,
-    openings: {
-      north: [{ center: 31, width: 8 }],
-      west: [{ center: 109, width: 7 }],
-    },
-  })
-  addGlassRoof(scene, materials, 31, 103, 40, 27, 7.3)
-  for (const x of [18, 25, 37, 44]) {
-    const planter = addBox(scene, materials.warmStone, 4.7, 0.75, 2.2, x, 0.37, x % 2 ? 96 : 110, true)
-    planter.rotation.y = x % 2 ? 0.12 : -0.12
-    for (let index = 0; index < 5; index += 1) {
-      const leaf = new THREE.Mesh(new THREE.ConeGeometry(0.32, 1.5 + (index % 2) * 0.4, 6), materials.paleGrass)
-      leaf.position.set(x - 1.5 + index * 0.75, 1.35, x % 2 ? 96 : 110)
-      leaf.rotation.z = -0.22 + index * 0.1
-      scene.add(leaf)
-    }
-  }
-  for (const z of [94.5, 101.5, 108.5, 115.5]) {
-    addLantern(scene, materials, 10.3, 5.2, z, 0xffbe71, materials.goldGlow)
-    addLantern(scene, materials, 51.7, 5.2, z, 0x9ee5c8, materials.tealGlow)
-  }
-  const light = new THREE.PointLight(0xf0bb7c, 28, 50, 1.45)
-  light.position.set(31, 8.5, 103)
-  scene.add(light)
-}
-
-function addSideRanges(scene: THREE.Scene, materials: MaterialSet): void {
-  addRoom(scene, materials, {
-    x: -42,
-    z: 36,
-    width: 30,
-    depth: 28,
-    height: 6.4,
-    wall: materials.darkStone,
-    openings: {
-      east: [{ center: 36, width: 7 }],
-      south: [{ center: -42, width: 6 }],
-    },
-  })
-  for (const x of [-51, -45, -39, -33]) {
-    addColumn(scene, materials.violetStone, x, 27, 5.9, 0.4)
-    addArch(scene, materials.violetStone, x + 3, 4.05, 27, 6)
-  }
-  for (const z of [33, 40, 46]) addBench(scene, materials, -49, z, Math.PI / 2)
-  addLantern(scene, materials, -55.5, 4.8, 30, 0xb695ff, materials.violetGlow)
-  addLantern(scene, materials, -55.5, 4.8, 44, 0x88d8ff, materials.blueGlow)
-
-  addRoom(scene, materials, {
-    x: 42,
-    z: 36,
-    width: 30,
-    depth: 28,
-    height: 6.8,
-    wall: materials.blueStone,
-    floor: materials.floor,
-    openings: {
-      west: [{ center: 36, width: 7 }],
-      south: [{ center: 42, width: 6 }],
-    },
-  })
-  const basin = new THREE.Mesh(new THREE.CylinderGeometry(7.2, 7.8, 0.6, 28), materials.darkStone)
-  basin.position.set(42, 0.3, 36)
+  box(scene, m.grass, court.width, 0.12, court.depth, court.x, -0.03, court.z)
+  box(scene, m.floor, 4.2, 0.14, court.depth, 0, 0.02, 48)
+  box(scene, m.floor, court.width, 0.14, 4.2, 0, 0.02, 48)
+  const basin = new THREE.Mesh(new THREE.CylinderGeometry(4.2, 4.6, 0.62, 28), m.dark)
+  basin.position.set(0, 0.31, 48)
   scene.add(basin)
-  addCollider(42, 36, 14.6, 14.6)
-  const water = new THREE.Mesh(new THREE.CircleGeometry(6.8, 28), materials.water)
+  collider(list, 0, 48, 8.6, 8.6)
+  const water = new THREE.Mesh(new THREE.CircleGeometry(3.85, 28), m.water)
   water.rotation.x = -Math.PI / 2
-  water.position.set(42, 0.63, 36)
+  water.position.set(0, 0.64, 48)
   scene.add(water)
-  for (let index = 0; index < 6; index += 1) {
-    const angle = (index / 6) * Math.PI * 2
-    const sphere = new THREE.Mesh(new THREE.SphereGeometry(0.28 + index * 0.035, 9, 7), index % 2 ? materials.blueGlow : materials.tealGlow)
-    sphere.position.set(42 + Math.cos(angle) * 4.6, 1.5 + (index % 3) * 0.55, 36 + Math.sin(angle) * 4.6)
-    scene.add(sphere)
+  bench(scene, list, m, -12, 48, Math.PI / 2)
+  bench(scene, list, m, 12, 48, -Math.PI / 2)
+  lantern(scene, m, -18.8, 5.25, 32.2, m.violetGlow)
+  lantern(scene, m, 18.8, 5.25, 63.8, m.goldGlow)
+  roomLight(scene, 0xb8d9cb, 22, 52, 0, 10, 48)
+}
+
+function switchback(scene: THREE.Scene, list: RectCollider[], m: Mats, x: number, z: number, mirror: number) {
+  const firstX = x - mirror * 2.05
+  const secondX = x + mirror * 2.05
+  for (let step = 0; step < 11; step += 1) {
+    box(scene, m.slate, 3.1, 0.32, 0.62, firstX, 0.16 + step * 0.32, z + 3.2 - step * 0.56)
+    box(scene, m.slate, 3.1, 0.32, 0.62, secondX, 3.68 + step * 0.32, z - 2.4 + step * 0.56)
   }
-  const tideLight = new THREE.PointLight(0x77cfe2, 27, 45, 1.55)
-  tideLight.position.set(42, 6, 36)
-  scene.add(tideLight)
+  box(scene, m.dark, 8.1, 0.4, 2.1, x, 3.55, z - 2.85)
+  box(scene, m.slate, 8.1, 0.32, 2.1, x, 3.88, z - 2.85)
+  for (const supportX of [x - 4.1, x, x + 4.1]) column(scene, list, m.dark, supportX, z - 2.85, 3.5, 0.34)
+  collider(list, firstX, z + 0.25, 3.5, 6.8)
+  collider(list, secondX, z + 0.25, 3.5, 6.8)
 }
 
-function addConnections(scene: THREE.Scene, materials: MaterialSet): void {
-  addRoom(scene, materials, {
-    x: 0,
-    z: 18.5,
-    width: 7,
-    depth: 3,
-    height: 6.7,
-    wall: materials.slate,
-    openings: {
-      north: [{ center: 0, width: 6 }],
-      south: [{ center: 0, width: 6 }],
-    },
-  })
-  addArch(scene, materials.paleStone, 0, 4.5, 19.7, 6.2, Math.PI)
-  addBox(scene, materials.floor, 2.2, 0.12, 8, -9.8, 0.03, 70)
-  addBox(scene, materials.floor, 2.2, 0.12, 8, 9.8, 0.03, 69)
-  addBox(scene, materials.floor, 8, 0.12, 2.2, -33, 0.03, 51)
-  addBox(scene, materials.floor, 8, 0.12, 2.2, 42, 0.03, 51)
-  addBox(scene, materials.floor, 3.2, 0.12, 7, -11, 0.03, 109)
-  addBox(scene, materials.floor, 3.2, 0.12, 7, 10.5, 0.03, 109)
-  addArch(scene, materials.violetStone, -10.1, 4.2, 70, 6.5, Math.PI / 2)
-  addArch(scene, materials.warmStone, 9.9, 4.2, 69, 6.5, -Math.PI / 2)
-  addArch(scene, materials.blueStone, -11, 4.35, 109, 6.2, Math.PI / 2)
-  addArch(scene, materials.warmStone, 10.5, 4.35, 109, 6.2, -Math.PI / 2)
+function stairTower(scene: THREE.Scene, list: RectCollider[], m: Mats, space: SchoolSpace, west: boolean) {
+  shell(scene, list, m, space)
+  switchback(scene, list, m, space.x, space.z, west ? 1 : -1)
+  lantern(scene, m, space.x, 8.2, space.z, west ? m.violetGlow : m.goldGlow)
+  roomLight(scene, west ? 0xb79cff : 0xffbd7c, 22, 32, space.x, 8, space.z)
 }
 
-const labels: RangeLabel[] = [
-  {
-    name: 'THE SOUTH VESTIBULE',
-    kicker: 'LOWER RANGE · LANTERN DOORS',
-    contains: (x, z) => Math.abs(x) < 13 && z >= 98,
-  },
-  {
-    name: 'THE WINTER GARDEN',
-    kicker: 'WEST HOUSE · GLASS VAULTS',
-    contains: (x, z) => x <= -10 && z >= 88,
-  },
-  {
-    name: 'THE LANTERN CONSERVATORY',
-    kicker: 'EAST HOUSE · GLASS VAULTS',
-    contains: (x, z) => x >= 9 && z >= 88,
-  },
-  {
-    name: 'THE LONG GALLERY',
-    kicker: 'SOUTH RANGE · PORTRAIT WALK',
-    contains: (x, z) => Math.abs(x) < 10 && z >= 52 && z < 98,
-  },
-  {
-    name: 'THE MOON CLOISTER',
-    kicker: 'WEST RANGE · GARDEN COURT',
-    contains: (x, z) => x <= -10 && z >= 52 && z < 88,
-  },
-  {
-    name: 'THE SURVEY HALL',
-    kicker: 'EAST RANGE · LOWER TABLES',
-    contains: (x, z) => x >= 9 && z >= 52 && z < 88,
-  },
-  {
-    name: "THE FOUNDERS' COURT",
-    kicker: 'SOUTH RANGE · VAULTED WALK',
-    contains: (x, z) => Math.abs(x) < 27 && z >= 20 && z < 52,
-  },
-  {
-    name: 'THE QUIET UNDERCROFT',
-    kicker: 'WEST RANGE · BELOW THE BELLS',
-    contains: (x, z) => x <= -27 && z >= 20 && z < 52,
-  },
-  {
-    name: 'THE CHAMBER OF TIDES',
-    kicker: 'EAST RANGE · WATER TABLE',
-    contains: (x, z) => x >= 27 && z >= 20 && z < 52,
-  },
-  {
-    name: 'THE CROSSED STAIR',
-    kicker: 'INNER KEEP · GRAND LANDING',
-    contains: (x, z) => Math.abs(x) < 12 && z > -58 && z < -36,
-  },
-]
-
-function intersects(x: number, z: number, radius = 0.42): boolean {
-  for (const collider of colliders) {
-    const closestX = Math.max(collider.minX, Math.min(x, collider.maxX))
-    const closestZ = Math.max(collider.minZ, Math.min(z, collider.maxZ))
-    const dx = x - closestX
-    const dz = z - closestZ
-    if (dx * dx + dz * dz < radius * radius) return true
+function garden(scene: THREE.Scene, list: RectCollider[], m: Mats, space: SchoolSpace, west: boolean) {
+  shell(scene, list, m, space, false, m.grass)
+  box(scene, m.floor, 4, 0.12, space.depth - 2, space.x, 0.02, space.z)
+  box(scene, m.floor, space.width - 2, 0.12, 4, space.x, 0.02, space.z)
+  if (west) {
+    const pool = new THREE.Mesh(new THREE.CircleGeometry(4.2, 24), m.water)
+    pool.rotation.x = -Math.PI / 2
+    pool.position.set(space.x, 0.08, space.z)
+    scene.add(pool)
+    collider(list, space.x, space.z, 8.8, 8.8)
+  } else {
+    const trunk = new THREE.Mesh(new THREE.CylinderGeometry(0.42, 0.62, 5.2, 8), m.darkWood)
+    trunk.position.set(space.x, 2.6, space.z)
+    scene.add(trunk)
+    const crown = new THREE.Mesh(new THREE.ConeGeometry(2.2, 5.8, 9), m.slate)
+    crown.position.set(space.x, 6.6, space.z)
+    scene.add(crown)
+    collider(list, space.x, space.z, 1.4, 1.4)
   }
-  return false
+  bench(scene, list, m, space.x - 9, space.z + 6, Math.PI / 2)
+  bench(scene, list, m, space.x + 9, space.z - 6, -Math.PI / 2)
+  roomLight(scene, west ? 0x9bbcff : 0xf0bb7c, 20, 42, space.x, 9, space.z)
 }
 
-function installPositionHook(camera: THREE.PerspectiveCamera): void {
-  if (copyHookInstalled) return
-  copyHookInstalled = true
-  lastSafeX = camera.position.x
-  lastSafeZ = camera.position.z
-  const position = camera.position
-  const originalCopy = position.copy.bind(position)
-  position.copy = ((source: THREE.Vector3Like) => {
-    const nextX = source.x
-    const nextZ = source.z
-    if (!intersects(nextX, nextZ)) {
-      lastSafeX = nextX
-      lastSafeZ = nextZ
-    } else if (!intersects(nextX, lastSafeZ)) {
-      source.z = lastSafeZ
-      lastSafeX = nextX
-    } else if (!intersects(lastSafeX, nextZ)) {
-      source.x = lastSafeX
-      lastSafeZ = nextZ
-    } else {
-      source.x = lastSafeX
-      source.z = lastSafeZ
-    }
-    return originalCopy(source)
-  }) as typeof position.copy
-}
+function roomDetails(scene: THREE.Scene, list: RectCollider[], m: Mats) {
+  table(scene, list, m, -4.8, 110.5, 3.8, 1.6)
+  bench(scene, list, m, 5.8, 108.5, Math.PI / 2)
+  for (const x of [-7.5, 7.5]) column(scene, list, m.slate, x, 106.5, 7.7, 0.5)
+  arch(scene, m.warm, 0, 5.4, 103.3, 7.2)
+  roomLight(scene, 0xffc487, 24, 38, 0, 6, 112)
 
-function updateRangeLabel(camera: THREE.PerspectiveCamera): void {
-  const label = labels.find((candidate) => candidate.contains(camera.position.x, camera.position.z))
-  if (!label) return
-  const name = document.getElementById('place-name')
-  const kicker = document.getElementById('place-kicker')
-  if (name && name.textContent !== label.name) name.textContent = label.name
-  if (kicker && kicker.textContent !== label.kicker) kicker.textContent = label.kicker
-}
-
-function build(scene: THREE.Scene, camera: THREE.PerspectiveCamera): void {
-  const materials = createMaterials()
-  addFixedCrossedStair(scene, materials)
-  addFoundersCourt(scene, materials)
-  addLongGallery(scene, materials)
-  addMoonCloister(scene, materials)
-  addSurveyHall(scene, materials)
-  addSouthVestibule(scene, materials)
-  addWinterGarden(scene, materials)
-  addLanternConservatory(scene, materials)
-  addSideRanges(scene, materials)
-  addConnections(scene, materials)
-  installPositionHook(camera)
-}
-
-type RenderFunction = (
-  this: THREE.WebGLRenderer,
-  scene: THREE.Object3D,
-  camera: THREE.Camera,
-) => void
-
-const prototype = THREE.WebGLRenderer.prototype as unknown as { render: RenderFunction }
-const originalRender = prototype.render
-prototype.render = function render(scene, camera): void {
-  if (!built && scene instanceof THREE.Scene && camera instanceof THREE.PerspectiveCamera) {
-    build(scene, camera)
-    built = true
+  for (const z of [82.5, 88, 93.5, 99]) {
+    column(scene, list, m.blue, -7.2, z, 6.8, 0.36)
+    column(scene, list, m.blue, 7.2, z, 6.8, 0.36)
+    arch(scene, m.blue, 0, 4.55, z, 14.1)
   }
-  if (built && camera instanceof THREE.PerspectiveCamera) updateRangeLabel(camera)
-  originalRender.call(this, scene, camera)
+  roomLight(scene, 0xa9d8d4, 20, 42, 0, 6.5, 91)
+
+  for (const z of [31, 38, 45, 52, 59, 66]) {
+    solid(scene, list, m.darkWood, 0.82, 5.6, 5.2, -61.5, 2.8, z)
+    solid(scene, list, m.darkWood, 0.82, 5.6, 5.2, -34.5, 2.8, z)
+  }
+  for (const z of [36, 48, 60]) table(scene, list, m, -48, z, 8.2, 2.4)
+  roomLight(scene, 0xb79cff, 25, 52, -48, 7, 48)
+
+  for (const z of [37, 47, 57]) {
+    table(scene, list, m, 43.2, z, 6.8, 2.2)
+    table(scene, list, m, 52.8, z, 6.8, 2.2)
+  }
+  solid(scene, list, m.warmFloor, 18, 0.55, 5.4, 48, 0.27, 29.3)
+  box(scene, m.wood, 9, 1.4, 1.9, 48, 0.7, 28.5)
+  roomLight(scene, 0xffbd7c, 28, 58, 48, 8, 48)
+
+  for (const z of [-1, 5, 11, 17]) {
+    column(scene, list, m.blue, -7.1, z, 7.1, 0.36)
+    column(scene, list, m.blue, 7.1, z, 7.1, 0.36)
+    arch(scene, m.blue, 0, 4.7, z, 13.9)
+  }
+  roomLight(scene, 0x9fc7df, 20, 42, 0, 7, 8)
+}
+
+function waystone(scene: THREE.Scene, list: RectCollider[], m: Mats, revealables: THREE.Object3D[], interactions: Interaction[], id: string, title: string, text: string, x: number, z: number, glow: THREE.Material) {
+  const group = new THREE.Group()
+  box(group, m.dark, 1.9, 0.35, 1.9, 0, 0.17, 0)
+  const pillar = new THREE.Mesh(new THREE.CylinderGeometry(0.58, 0.78, 3.8, 6), m.slate)
+  pillar.position.y = 2.15
+  group.add(pillar)
+  const rune = new THREE.Mesh(new THREE.PlaneGeometry(1.25, 1.25), glow)
+  rune.position.set(0, 2.2, 0.72)
+  rune.visible = false
+  group.add(rune)
+  group.position.set(x, 0, z)
+  scene.add(group)
+  revealables.push(rune)
+  collider(list, x, z, 1.55, 1.55)
+  interactions.push({ id, kind: 'lore', position: new THREE.Vector3(x, 1.5, z), radius: 2.5, label: 'Read the revealed waystone', title, text, object: group, requiresReveal: true, complete: false })
+}
+
+function puzzle(scene: THREE.Scene, list: RectCollider[], m: Mats, revealables: THREE.Object3D[], interactions: Interaction[]) {
+  waystone(scene, list, m, revealables, interactions, 'grounds-stone-water', 'Water Court Mark', 'The first mark faces water held inside the western court.', -48, 94, m.blueGlow)
+  waystone(scene, list, m, revealables, interactions, 'grounds-stone-gate', 'Gatehouse Mark', 'The second mark watches every arrival pass beneath the southern arch.', -6.5, 114, m.goldGlow)
+  waystone(scene, list, m, revealables, interactions, 'grounds-stone-yew', 'Lantern Court Mark', 'The third mark stands beneath the tree whose branches avoid the lanterns.', 48, 94, m.tealGlow)
+  const cache = new THREE.Group()
+  box(cache, m.dark, 4.6, 1.1, 3.4, 0, 0.55, 0)
+  const lid = box(cache, m.brass, 4.8, 0.26, 3.6, 0, 1.2, 0)
+  const prize = new THREE.Mesh(new THREE.TorusGeometry(0.65, 0.12, 7, 24), m.goldGlow)
+  prize.rotation.x = Math.PI / 2
+  prize.position.y = 1.25
+  prize.visible = false
+  cache.add(prize)
+  cache.position.set(0, 0, 57.5)
+  scene.add(cache)
+  collider(list, 0, 57.5, 5, 3.8)
+  interactions.push({ id: 'grounds-cache', kind: 'cache', position: new THREE.Vector3(0, 1.1, 57.5), radius: 2.8, label: 'Open the cloister cache', title: 'The Cloister Cache', text: 'Three empty marks circle the brass lock.', object: cache, complete: false })
+  let opened = false
+  return () => {
+    if (opened) return
+    opened = true
+    lid.position.y = 2.3
+    lid.rotation.x = -0.45
+    prize.visible = true
+  }
+}
+
+function lore(scene: THREE.Scene, m: Mats, interactions: Interaction[]) {
+  const items = [
+    ['school-gate-ledger', 'The Admissions Ledger', 'The entries are arranged by door rather than date. Several students arrived through doors that no longer exist.', 'Read the admissions ledger', -4.8, 110.5, m.wood],
+    ['school-library-index', 'Index of Borrowed Rooms', 'The catalogue records rooms as if they were books. The west tower has been overdue for eighty-seven years.', 'Read the open index', -48, 48, m.violet],
+    ['school-hall-slate', 'Hall Order', 'Meals, lectures, and judgments share the same timetable. The final bell is reserved for a class whose name has been scraped away.', 'Read the hall order', 48, 28.2, m.darkWood],
+    ['school-court-plaque', "Founders' Court", 'The inscription names no founder. It says only that the school was built around a place that was already waiting.', 'Read the court inscription', 0, 63.2, m.brass],
+  ] as const
+  for (const [id, title, text, label, x, z, material] of items) {
+    const object = box(scene, material, 1.2, 0.14, 0.9, x, 1.2, z)
+    interactions.push({ id, kind: 'lore', position: new THREE.Vector3(x, 1.2, z), radius: 2.5, label, title, text, object, complete: false })
+  }
+}
+
+function grandStair(scene: THREE.Scene, list: RectCollider[], m: Mats) {
+  const flight = (x: number, startZ: number, direction: number) => {
+    for (let step = 0; step < 12; step += 1) box(scene, m.slate, 4.1, 0.34, 0.78, x, 0.17 + step * 0.34, startZ + direction * step * 0.61)
+  }
+  flight(-6.1, -54.1, 1)
+  flight(6.1, -39.9, -1)
+  box(scene, m.dark, 18.2, 0.45, 3.4, 0, 3.8, -47)
+  box(scene, m.slate, 18.2, 0.42, 3.4, 0, 4.25, -47)
+  collider(list, -6.1, -50.7, 4.5, 7.8)
+  collider(list, 6.1, -43.3, 4.5, 7.8)
+  for (const x of [-8.25, -3.9, 3.9, 8.25]) column(scene, list, m.dark, x, -47, 4.05, 0.42)
+  roomLight(scene, 0xb4cde0, 20, 36, 0, 7, -47)
+}
+
+function clearGrounds(scene: THREE.Scene) {
+  scene.updateMatrixWorld(true)
+  const bounds = new THREE.Box3()
+  const center = new THREE.Vector3()
+  for (const child of [...scene.children]) {
+    if (child instanceof THREE.Camera || child instanceof THREE.Light) continue
+    bounds.setFromObject(child)
+    if (bounds.isEmpty()) continue
+    bounds.getCenter(center)
+    if (containsPosition(center.x, center.z)) scene.remove(child)
+  }
+}
+
+function region(space: SchoolSpace): Region {
+  return {
+    name: space.name.toUpperCase(),
+    kicker: `GRAVENMERE · ${space.kind === 'cloister' ? 'CLOISTER RANGE' : space.kind.toUpperCase().replace('-', ' ')}`,
+    contains: (x, z) => Math.abs(x - space.x) <= space.width / 2 && Math.abs(z - space.z) <= space.depth / 2,
+  }
+}
+
+export function buildInnerRanges(scene: THREE.Scene): InnerRangesData {
+  clearGrounds(scene)
+  const m = makeMaterials()
+  const colliders: RectCollider[] = []
+  const interactions: Interaction[] = []
+  const animated: AnimatedObject[] = []
+  const revealables: THREE.Object3D[] = []
+  const spaces = new Map<string, SchoolSpace>(schoolPlan.spaces.map((space) => [space.id, space] as const))
+
+  cloister(scene, colliders, m, spaces)
+  for (const space of schoolPlan.spaces) {
+    if (space.kind === 'cloister' || space.kind === 'court') continue
+    if (space.kind === 'garden') garden(scene, colliders, m, space, space.id === 'winter-court')
+    else if (space.kind === 'stair') stairTower(scene, colliders, m, space, space.id === 'west-stair-tower')
+    else shell(scene, colliders, m, space, true, space.kind === 'hall' || space.kind === 'gatehouse' ? m.warmFloor : m.floor)
+  }
+  for (const connection of schoolPlan.connections) connector(scene, colliders, m, connection, spaces)
+  roomDetails(scene, colliders, m)
+  lore(scene, m, interactions)
+  const openCache = puzzle(scene, colliders, m, revealables, interactions)
+  grandStair(scene, colliders, m)
+
+  const regions = schoolPlan.spaces.map(region)
+  regions.push({ name: 'THE GRAND STAIR HALL', kicker: 'GRAVENMERE · INNER KEEP', contains: (x, z) => Math.abs(x) < 12 && z > -58 && z < -36 })
+  return { colliders, interactions, animated, revealables, containsPosition, getRegion: (x, z) => regions.find((value) => value.contains(x, z)) ?? null, openCache }
 }
