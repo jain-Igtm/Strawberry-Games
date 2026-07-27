@@ -59,12 +59,22 @@ jobs:
       - name: Build and synchronize Android
         working-directory: gravenmere
         run: |
-          npm run build
+          set -o pipefail
+          npm run build 2>&1 | tee build-output.txt
           npx cap add android
           npm run configure:android
           npm run assets:android
           npx cap sync android
           chmod +x android/gradlew
+
+      - name: Upload build diagnostics
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: World-Explorer-build-diagnostics
+          path: gravenmere/build-output.txt
+          if-no-files-found: ignore
+          retention-days: 7
 
       - name: Compile installable APK
         working-directory: gravenmere/android
