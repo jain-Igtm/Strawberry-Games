@@ -16,9 +16,10 @@ describe('movement helpers', () => {
     expect(circleIntersectsRect(0.5, 2, 0.35, wall)).toBe(false)
   })
 
-  it('reduces render resolution under sustained load', () => {
-    expect(adaptivePixelRatio(1.4, 30, 3)).toBeCloseTo(1.3)
+  it('reduces render resolution quickly under sustained load', () => {
+    expect(adaptivePixelRatio(1.4, 35, 3)).toBeCloseTo(1.2)
+    expect(adaptivePixelRatio(1.0, 25, 3)).toBeCloseTo(0.9)
     expect(adaptivePixelRatio(1.0, 15, 3)).toBeCloseTo(1.05)
-    expect(adaptivePixelRatio(0.85, 40, 3)).toBe(0.85)
+    expect(adaptivePixelRatio(0.65, 40, 3)).toBe(0.65)
   })
 })
