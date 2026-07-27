@@ -11,13 +11,53 @@ function replaceRequired(source, search, replacement, label) {
   return source.replace(search, replacement)
 }
 
-const ranges = read('src/inner-ranges.ts')
+let ranges = read('src/inner-ranges.ts')
 if (!ranges.includes('export function buildInnerRanges')) {
   throw new Error('The coherent school builder is not exported')
 }
 if (ranges.includes('WebGLRenderer.prototype')) {
   throw new Error('The inactive renderer prototype hook returned')
 }
+ranges = replaceRequired(
+  ranges,
+  "function openings(space: SchoolSpace, side: Side): Opening[] {\n  return schoolPlan.connections.flatMap((connection) => {",
+  "function openings(space: SchoolSpace, side: Side): Opening[] {\n  if (space.id === 'north-academic-spine' && side === 'north') {\n    return [{ center: space.x, width: 7 }]\n  }\n  return schoolPlan.connections.flatMap((connection) => {",
+  'inner-keep threshold opening',
+)
+ranges = replaceRequired(
+  ranges,
+  "const spaces = new Map<string, SchoolSpace>(schoolPlan.spaces.map((space) => [space.id, space] as const))",
+  `const spaces = new Map<string, SchoolSpace>(
+    schoolPlan.spaces.map((space) => {
+      const renderedSpace =
+        space.id === 'north-academic-spine' ? { ...space, z: 18.5, depth: 5 } : space
+      return [renderedSpace.id, renderedSpace] as const
+    }),
+  )`,
+  'short north threshold',
+)
+ranges = replaceRequired(
+  ranges,
+  'for (const space of schoolPlan.spaces) {',
+  'for (const space of spaces.values()) {',
+  'rendered space loop',
+)
+ranges = replaceRequired(
+  ranges,
+  'const regions = schoolPlan.spaces.map(region)',
+  'const regions = [...spaces.values()].map(region)',
+  'rendered region bounds',
+)
+ranges = ranges.replace('for (const z of [-1, 5, 11, 17]) {', 'for (const z of [17.2, 19.2]) {')
+ranges = ranges.replace(
+  "'The first mark faces water held inside the western court.', -48, 94, m.blueGlow)",
+  "'The first mark faces water held inside the western court.', -57, 94, m.blueGlow)",
+)
+ranges = ranges.replace(
+  "'The third mark stands beneath the tree whose branches avoid the lanterns.', 48, 94, m.tealGlow)",
+  "'The third mark stands beneath the tree whose branches avoid the lanterns.', 57, 94, m.tealGlow)",
+)
+write('src/inner-ranges.ts', ranges)
 
 let main = read('src/main.ts')
 main = replaceRequired(
