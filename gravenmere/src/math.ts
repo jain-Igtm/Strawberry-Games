@@ -46,9 +46,9 @@ export function adaptivePixelRatio(
   averageFrameMs: number,
   deviceRatio: number,
 ): number {
-  const ceiling = Math.min(deviceRatio || 1, 1.35)
-  if (averageFrameMs > 27 && current > 0.78) return Math.max(0.78, current - 0.08)
-  if (averageFrameMs < 18 && current < ceiling) return Math.min(ceiling, current + 0.04)
+  const ceiling = Math.min(deviceRatio || 1, 1.45)
+  if (averageFrameMs > 25 && current > 0.85) return Math.max(0.85, current - 0.1)
+  if (averageFrameMs < 18 && current < ceiling) return Math.min(ceiling, current + 0.05)
   return current
 }
 
