@@ -4,6 +4,8 @@ export interface RectCollider {
   minZ: number
   maxZ: number
   enabled: boolean
+  minY?: number
+  maxY?: number
 }
 
 export function clampPitch(pitch: number): number {
@@ -24,14 +26,29 @@ export function circleIntersectsRect(
   return dx * dx + dz * dz < radius * radius
 }
 
+export function circleIntersectsRectAtHeight(
+  x: number,
+  z: number,
+  feetY: number,
+  playerHeight: number,
+  radius: number,
+  collider: RectCollider,
+): boolean {
+  if (!collider.enabled) return false
+  const minY = collider.minY ?? Number.NEGATIVE_INFINITY
+  const maxY = collider.maxY ?? Number.POSITIVE_INFINITY
+  if (feetY + playerHeight <= minY || feetY >= maxY) return false
+  return circleIntersectsRect(x, z, radius, collider)
+}
+
 export function adaptivePixelRatio(
   current: number,
   averageFrameMs: number,
   deviceRatio: number,
 ): number {
-  const ceiling = Math.min(deviceRatio || 1, 1.45)
-  if (averageFrameMs > 25 && current > 0.85) return Math.max(0.85, current - 0.1)
-  if (averageFrameMs < 18 && current < ceiling) return Math.min(ceiling, current + 0.05)
+  const ceiling = Math.min(deviceRatio || 1, 1.35)
+  if (averageFrameMs > 27 && current > 0.78) return Math.max(0.78, current - 0.08)
+  if (averageFrameMs < 18 && current < ceiling) return Math.min(ceiling, current + 0.04)
   return current
 }
 
