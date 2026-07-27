@@ -4,7 +4,10 @@
   "version": "0.2.0",
   "type": "module",
   "scripts": {
+    "prepare:world": "node scripts/integrate-inner-ranges.mjs",
+    "predev": "npm run prepare:world",
     "dev": "vite --host 0.0.0.0",
+    "prebuild": "npm run prepare:world",
     "build": "tsc --noEmit && vite build",
     "test": "vitest run",
     "assets:android": "node scripts/generate-android-assets.mjs",
