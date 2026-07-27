@@ -2,58 +2,76 @@ import { readFileSync, writeFileSync } from 'node:fs'
 import { resolve } from 'node:path'
 
 const root = resolve(import.meta.dirname, '..')
+const read = (path) => readFileSync(resolve(root, path), 'utf8')
+const write = (path, content) => writeFileSync(resolve(root, path), content)
 
-function read(relativePath) {
-  return readFileSync(resolve(root, relativePath), 'utf8')
-}
-
-function write(relativePath, content) {
-  writeFileSync(resolve(root, relativePath), content)
-}
-
-function requireReplacement(source, search, replacement, label) {
+function replaceRequired(source, search, replacement, label) {
   if (source.includes(replacement)) return source
   if (!source.includes(search)) throw new Error(`Could not integrate ${label}`)
   return source.replace(search, replacement)
 }
 
-let ranges = read('src/inner-ranges.ts')
-
-ranges = ranges.replace(
-  "let built = false\nlet lastSafeX = 0\nlet lastSafeZ = 0\nlet copyHookInstalled = false\n",
-  '',
-)
-
-ranges = ranges.replace(
-  /function intersects\([\s\S]*?\nfunction build\(scene: THREE\.Scene, camera: THREE\.PerspectiveCamera\): void \{/,
-  `export function buildInnerRanges(scene: THREE.Scene): {\n  colliders: Array<Collider & { enabled: boolean }>\n  getRegion: (x: number, z: number) => RangeLabel | null\n} {`,
-)
-
-ranges = ranges.replace(
-  /  installPositionHook\(camera\)\n\}\n\ntype RenderFunction[\s\S]*$/,
-  `  return {\n    colliders: colliders.map((collider) => ({ ...collider, enabled: true })),\n    getRegion: (x, z) => labels.find((label) => label.contains(x, z)) ?? null,\n  }\n}\n`,
-)
-
+const ranges = read('src/inner-ranges.ts')
 if (!ranges.includes('export function buildInnerRanges')) {
-  throw new Error('Inner ranges still use the inactive renderer prototype hook')
+  throw new Error('The coherent school builder is not exported')
 }
 if (ranges.includes('WebGLRenderer.prototype')) {
-  throw new Error('Inactive renderer prototype hook was not removed')
+  throw new Error('The inactive renderer prototype hook returned')
 }
-write('src/inner-ranges.ts', ranges)
 
 let main = read('src/main.ts')
-main = requireReplacement(
+main = replaceRequired(
   main,
   "import { createWorld, type Interaction } from './world'",
   "import { buildInnerRanges } from './inner-ranges'\nimport { createWorld, type Interaction } from './world'",
-  'inner-ranges import',
+  'school builder import',
 )
-main = requireReplacement(
+main = replaceRequired(
   main,
   'const world = createWorld(scene)',
-  `const world = createWorld(scene)\nconst innerRanges = buildInnerRanges(scene)\nworld.colliders.push(...innerRanges.colliders)\nconst baseGetRegion = world.getRegion\nworld.getRegion = (x, z) => innerRanges.getRegion(x, z) ?? baseGetRegion(x, z)`,
-  'inner-ranges world call',
+  `const world = createWorld(scene)
+const school = buildInnerRanges(scene)
+const objectPosition = new THREE.Vector3()
+const objectInsideSchool = (object: THREE.Object3D) => {
+  object.getWorldPosition(objectPosition)
+  return school.containsPosition(objectPosition.x, objectPosition.z)
+}
+world.colliders.splice(
+  0,
+  world.colliders.length,
+  ...world.colliders.filter((collider) => {
+    const x = (collider.minX + collider.maxX) / 2
+    const z = (collider.minZ + collider.maxZ) / 2
+    return !school.containsPosition(x, z)
+  }),
+  ...school.colliders,
+)
+world.interactions.splice(
+  0,
+  world.interactions.length,
+  ...world.interactions.filter((interaction) => !school.containsPosition(interaction.position.x, interaction.position.z)),
+  ...school.interactions,
+)
+world.animated.splice(
+  0,
+  world.animated.length,
+  ...world.animated.filter((animated) => !objectInsideSchool(animated.object)),
+  ...school.animated,
+)
+world.revealables.splice(
+  0,
+  world.revealables.length,
+  ...world.revealables.filter((object) => !objectInsideSchool(object)),
+  ...school.revealables,
+)
+world.openGroundsCache = school.openCache
+const baseGetRegion = world.getRegion
+world.getRegion = (x, z) => school.getRegion(x, z) ?? baseGetRegion(x, z)`,
+  'coherent school world merge',
+)
+main = main.replace(
+  "showToast('The outer grounds', 'The old road ends here. The ruins do not.', 4500)",
+  "showToast('The south gatehouse', 'Beyond the arch, the school closes around its oldest court.', 4500)",
 )
 write('src/main.ts', main)
 
@@ -63,22 +81,28 @@ world = world.replace(
   '  const pedestal = createPedestal',
 )
 if (world.includes('const stairGroups: THREE.Group[] = []')) {
-  throw new Error('The original protruding stair assemblies were not removed')
+  throw new Error('The protruding staircase assemblies were not removed')
 }
 write('src/world.ts', world)
 
 let html = read('index.html')
 html = html.replace(
   /      #world \{[\s\S]*?      #lantern-quick \{/,
-  `      #world {\n        filter: none;\n      }\n\n      #lantern-quick {`,
+  `      #world {
+        filter: none;
+      }
+
+      #lantern-quick {`,
 )
 html = html.replace(
   /    <script type="module">\s*import '\/src\/inner-ranges\.ts'\s*import '\/src\/main\.ts'\s*<\/script>/,
   '    <script type="module" src="/src/main.ts"></script>',
 )
+html = html.replace('GRAVENMERE · SOUTH APPROACH', 'GRAVENMERE · GATEHOUSE RANGE')
+html = html.replace('THE YEW WALK', 'SOUTH GATEHOUSE')
 if (html.includes('mix-blend-mode: screen')) {
   throw new Error('The washed-out screen overlay was not removed')
 }
 write('index.html', html)
 
-console.log('Integrated inner ranges directly into the playable world and removed the old stair assemblies.')
+console.log('Built the school from its circulation plan, removed the overlapping grounds, and repaired the grand stair.')
