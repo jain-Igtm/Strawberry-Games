@@ -41,10 +41,10 @@
           <span class="eyebrow">THE ROADS END AT GRAVENMERE</span>
           <h1>WORLD<br />EXPLORER</h1>
           <p>
-            Search the open grounds and inner ruins. Recover the three ward seals,
+            Search the ranges and inner ruins. Recover the three ward seals,
             uncover hidden paths with Revelare, and learn where the observatory points.
           </p>
-          <button id="start-button" class="primary-button">ENTER THE GROUNDS</button>
+          <button id="start-button" class="primary-button">ENTER GRAVENMERE</button>
           <button id="continue-button" class="text-button" hidden>CONTINUE</button>
           <small>Headphones recommended · saves automatically</small>
         </div>
@@ -283,6 +283,9 @@
       </aside>
     </main>
 
-    <script type="module" src="/src/main.ts"></script>
+    <script type="module">
+      import '/src/inner-ranges.ts'
+      import '/src/main.ts'
+    </script>
   </body>
 </html>
