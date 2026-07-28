@@ -95,3 +95,22 @@ export function sampleFloorHeight(
   }
   return best?.y ?? null
 }
+
+export function resolveWorldFloorHeight(
+  streamedSurfaces: readonly FloorSurface[],
+  localSurfaces: readonly FloorSurface[],
+  x: number,
+  z: number,
+  currentY: number,
+  insideStreamedRealm: boolean,
+): number | null {
+  const streamedFloor = sampleFloorHeight(streamedSurfaces, x, z, currentY)
+  if (streamedFloor !== null) return streamedFloor
+
+  const localFloor = sampleFloorHeight(localSurfaces, x, z, currentY)
+  if (localFloor !== null) return localFloor
+
+  // The original game world is a continuous ground-level map. Only the
+  // explicitly streamed bridge realms are allowed to contain real voids.
+  return insideStreamedRealm ? null : 0
+}
