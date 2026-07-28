@@ -1,5 +1,10 @@
 import { describe, expect, it } from 'vitest'
-import { flatSurface, rampSurface, sampleFloorHeight } from './vertical'
+import {
+  flatSurface,
+  rampSurface,
+  resolveWorldFloorHeight,
+  sampleFloorHeight,
+} from './vertical'
 
 describe('vertical navigation', () => {
   it('climbs a ramp continuously', () => {
@@ -22,5 +27,16 @@ describe('vertical navigation', () => {
     const bridge = flatSurface(0, 0, 12, 2, 14)
     expect(sampleFloorHeight([bridge], 0, 0, 14)).toBe(14)
     expect(sampleFloorHeight([bridge], 0, 2, 14)).toBeNull()
+  })
+
+  it('keeps the original school and keep on continuous ground', () => {
+    expect(resolveWorldFloorHeight([], [], 0, 114, 0, false)).toBe(0)
+    expect(resolveWorldFloorHeight([], [], 72, 18, 0, false)).toBe(0)
+  })
+
+  it('allows actual voids only inside the streamed endless realm', () => {
+    expect(resolveWorldFloorHeight([], [], 190, 10, 14, true)).toBeNull()
+    const bridge = flatSurface(190, 0, 18, 2.4, 14)
+    expect(resolveWorldFloorHeight([bridge], [], 190, 0, 14, true)).toBe(14)
   })
 })
