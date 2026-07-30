@@ -3,7 +3,9 @@ import type { EnvironmentMaterials } from '../environment'
 import {
   ATLAS_TILES,
   forestAtlasTexture,
+  gameplayAtlasTexture,
   mapGeometryToAtlas,
+  smokeAtlasTexture,
 } from '../texture-atlas'
 import type {
   Driveable,
@@ -57,6 +59,51 @@ type DockTownMaterials = {
   grass: THREE.MeshStandardMaterial
   cable: THREE.MeshStandardMaterial
   roadLine: THREE.MeshBasicMaterial
+  vehiclePaint: THREE.MeshStandardMaterial
+  ambulancePaint: THREE.MeshStandardMaterial
+}
+
+type BoxInstanceSpec = {
+  width: number
+  height: number
+  depth: number
+  x: number
+  y: number
+  z: number
+  rotationY?: number
+}
+
+const unitBoxGeometry = new THREE.BoxGeometry(1, 1, 1)
+const instanceMatrix = new THREE.Matrix4()
+const instancePosition = new THREE.Vector3()
+const instanceScale = new THREE.Vector3()
+const instanceRotation = new THREE.Quaternion()
+const instanceEuler = new THREE.Euler()
+
+function addBoxInstances(
+  group: THREE.Group,
+  material: THREE.Material,
+  specs: BoxInstanceSpec[],
+  shotTargets?: THREE.Object3D[],
+): THREE.InstancedMesh | null {
+  if (specs.length === 0) return null
+  const mesh = new THREE.InstancedMesh(unitBoxGeometry, material, specs.length)
+  for (let index = 0; index < specs.length; index += 1) {
+    const spec = specs[index]
+    instancePosition.set(spec.x, spec.y, spec.z)
+    instanceScale.set(spec.width, spec.height, spec.depth)
+    instanceEuler.set(0, spec.rotationY ?? 0, 0)
+    instanceRotation.setFromEuler(instanceEuler)
+    instanceMatrix.compose(instancePosition, instanceRotation, instanceScale)
+    mesh.setMatrixAt(index, instanceMatrix)
+  }
+  mesh.instanceMatrix.setUsage(THREE.StaticDrawUsage)
+  mesh.computeBoundingBox()
+  mesh.computeBoundingSphere()
+  mesh.userData.blocksShot = Boolean(shotTargets)
+  group.add(mesh)
+  if (shotTargets) shotTargets.push(mesh)
+  return mesh
 }
 
 function box(
@@ -193,6 +240,18 @@ function createMaterials(base: EnvironmentMaterials): DockTownMaterials {
       polygonOffsetFactor: -8,
       polygonOffsetUnits: -8,
     }),
+    vehiclePaint: new THREE.MeshStandardMaterial({
+      color: 0xd4ccc3,
+      map: gameplayAtlasTexture,
+      roughness: 0.88,
+      metalness: 0.22,
+    }),
+    ambulancePaint: new THREE.MeshStandardMaterial({
+      color: 0xe0ddd4,
+      map: gameplayAtlasTexture,
+      roughness: 0.9,
+      metalness: 0.16,
+    }),
   }
 }
 
@@ -251,20 +310,30 @@ function addRoad(context: DockTownContext, materials: DockTownMaterials, road: P
   )
   const roadLength = curve.getLength()
   const dashCount = Math.max(2, Math.floor(roadLength / 8))
+  const dashes = new THREE.InstancedMesh(
+    unitBoxGeometry,
+    materials.roadLine,
+    Math.max(1, dashCount - 1),
+  )
   for (let index = 1; index < dashCount; index += 1) {
     const t = index / dashCount
     const center = curve.getPoint(t)
     const tangent = curve.getTangent(t)
-    const dash = box(0.24, 0.045, 3.65, materials.roadLine)
-    dash.position.set(
+    instancePosition.set(
       center.x,
       terrainHeightAt(center.x, center.z) + 0.225,
       center.z,
     )
-    dash.rotation.y = Math.atan2(tangent.x, tangent.z)
-    dash.renderOrder = 5
-    context.scene.add(dash)
+    instanceEuler.set(0, Math.atan2(tangent.x, tangent.z), 0)
+    instanceRotation.setFromEuler(instanceEuler)
+    instanceScale.set(0.24, 0.045, 3.65)
+    instanceMatrix.compose(instancePosition, instanceRotation, instanceScale)
+    dashes.setMatrixAt(index - 1, instanceMatrix)
   }
+  dashes.instanceMatrix.setUsage(THREE.StaticDrawUsage)
+  dashes.computeBoundingSphere()
+  dashes.renderOrder = 5
+  context.scene.add(dashes)
 }
 
 function signMaterial(text: string, accent = '#9a4b2d'): THREE.MeshStandardMaterial {
@@ -473,6 +542,7 @@ function addBar(
 
 function addStaticAmbulance(
   context: DockTownContext,
+  materials: DockTownMaterials,
   x: number,
   z: number,
   yaw: number,
@@ -480,12 +550,14 @@ function addStaticAmbulance(
   const group = new THREE.Group()
   group.position.set(x, terrainHeightAt(x, z) + 0.1, z)
   group.rotation.y = yaw
-  const white = context.materials.concrete.clone()
-  white.color.setHex(0xb8b4a8)
   const red = context.materials.rust.clone()
   red.color.setHex(0x8a2f25)
-  group.add(box(2.2, 1.3, 4.8, white, 0, 1.0, 0))
-  group.add(box(2.05, 1.0, 1.45, context.materials.blackMetal, 0, 1.95, -1.45))
+  const ambulanceBody = box(2.2, 1.3, 4.8, materials.ambulancePaint, 0, 1.0, 0)
+  mapGeometryToAtlas(ambulanceBody.geometry, ATLAS_TILES.bottomLeft)
+  const cab = box(2.05, 1.0, 1.45, materials.vehiclePaint, 0, 1.95, -1.45)
+  mapGeometryToAtlas(cab.geometry, ATLAS_TILES.topLeft)
+  group.add(ambulanceBody)
+  group.add(cab)
   group.add(box(2.25, 0.3, 3.8, red, 0, 1.05, 0.25))
   group.add(box(0.7, 0.18, 0.28, context.materials.warning, 0, 2.58, -0.55))
   for (const wheelZ of [-1.45, 1.45]) {
@@ -509,6 +581,39 @@ function addHospitalComplex(
   const interiorHeight = 3.25
   const group = new THREE.Group()
   group.position.set(x, terrainHeightAt(x, z), z)
+  const blockerBatches = new Map<THREE.Material, BoxInstanceSpec[]>()
+  const decorationBatches = new Map<THREE.Material, BoxInstanceSpec[]>()
+
+  const queue = (
+    batches: Map<THREE.Material, BoxInstanceSpec[]>,
+    material: THREE.Material,
+    spec: BoxInstanceSpec,
+  ): void => {
+    const batch = batches.get(material)
+    if (batch) batch.push(spec)
+    else batches.set(material, [spec])
+  }
+
+  const queueDecoration = (
+    width: number,
+    height: number,
+    depth: number,
+    material: THREE.Material,
+    localX: number,
+    localY: number,
+    localZ: number,
+    rotationY = 0,
+  ): void => {
+    queue(decorationBatches, material, {
+      width,
+      height,
+      depth,
+      x: localX,
+      y: localY,
+      z: localZ,
+      rotationY,
+    })
+  }
 
   const addWall = (
     localX: number,
@@ -517,13 +622,16 @@ function addHospitalComplex(
     wallDepth: number,
     wallHeight = interiorHeight,
     material: THREE.Material = materials.painted,
-  ): THREE.Mesh => {
-    const wall = box(wallWidth, wallHeight, wallDepth, material, localX, wallHeight / 2, localZ)
-    wall.userData.blocksShot = true
-    group.add(wall)
-    context.shotTargets.push(wall)
+  ): void => {
+    queue(blockerBatches, material, {
+      width: wallWidth,
+      height: wallHeight,
+      depth: wallDepth,
+      x: localX,
+      y: wallHeight / 2,
+      z: localZ,
+    })
     context.addCollider(x + localX, z + localZ, wallWidth, wallDepth, 0.045)
-    return wall
   }
 
   const addWallRunX = (
@@ -533,7 +641,7 @@ function addHospitalComplex(
     doors: number[],
     wallHeight = interiorHeight,
     material: THREE.Material = materials.painted,
-    doorWidth = 2.4,
+    doorWidth = 3.2,
   ): void => {
     let cursor = start
     for (const door of [...doors].sort((a, b) => a - b)) {
@@ -543,10 +651,14 @@ function addHospitalComplex(
       }
       const lintelHeight = wallHeight - 2.55
       if (lintelHeight > 0.2) {
-        const lintel = box(doorWidth, lintelHeight, 0.28, material, door, 2.55 + lintelHeight / 2, localZ)
-        lintel.userData.blocksShot = true
-        group.add(lintel)
-        context.shotTargets.push(lintel)
+        queue(blockerBatches, material, {
+          width: doorWidth,
+          height: lintelHeight,
+          depth: 0.28,
+          x: door,
+          y: 2.55 + lintelHeight / 2,
+          z: localZ,
+        })
       }
       cursor = Math.min(end, door + doorWidth / 2)
     }
@@ -562,7 +674,7 @@ function addHospitalComplex(
     doors: number[],
     wallHeight = interiorHeight,
     material: THREE.Material = materials.painted,
-    doorWidth = 2.4,
+    doorWidth = 3.2,
   ): void => {
     let cursor = start
     for (const door of [...doors].sort((a, b) => a - b)) {
@@ -572,10 +684,14 @@ function addHospitalComplex(
       }
       const lintelHeight = wallHeight - 2.55
       if (lintelHeight > 0.2) {
-        const lintel = box(0.28, lintelHeight, doorWidth, material, localX, 2.55 + lintelHeight / 2, door)
-        lintel.userData.blocksShot = true
-        group.add(lintel)
-        context.shotTargets.push(lintel)
+        queue(blockerBatches, material, {
+          width: 0.28,
+          height: lintelHeight,
+          depth: doorWidth,
+          x: localX,
+          y: 2.55 + lintelHeight / 2,
+          z: door,
+        })
       }
       cursor = Math.min(end, door + doorWidth / 2)
     }
@@ -584,84 +700,142 @@ function addHospitalComplex(
     }
   }
 
-  // A four-storey exterior wraps a fully playable ground-floor hospital. The
-  // long central hall and crossing north hall divide the footprint into wards,
-  // treatment rooms, reception, pharmacy and emergency spaces.
-  group.add(box(width, 0.24, depth, context.materials.concrete, 0, 0.12, 0))
-  group.add(box(width + 0.8, 0.45, depth + 0.8, materials.roof, 0, exteriorHeight + 0.22, 0))
-  group.add(box(width - 0.7, 0.24, depth - 0.7, materials.concrete, 0, 3.55, 0))
-  group.add(box(width + 0.5, 0.28, depth + 0.5, context.materials.rust, 0, 6.4, 0))
-  group.add(box(width + 0.5, 0.24, depth + 0.5, context.materials.darkRust, 0, 9.6, 0))
+  // This playable plan adapts the public-domain HABS first-floor survey of
+  // St. Elizabeths Hospital's West Wing: two named ward corridors, a central
+  // transfer core, a large day room, irregular patient rooms, treatment rooms,
+  // and an east ward spur. Geometry is instanced by material rather than issued
+  // as hundreds of individual meshes.
+  queueDecoration(width, 0.24, depth, context.materials.concrete, 0, 0.12, 0)
+  queueDecoration(width + 0.8, 0.45, depth + 0.8, materials.roof, 0, exteriorHeight + 0.22, 0)
+  queueDecoration(width - 0.7, 0.24, depth - 0.7, materials.concrete, 0, 3.55, 0)
+  queueDecoration(width + 0.5, 0.28, depth + 0.5, context.materials.rust, 0, 6.4, 0)
+  queueDecoration(width + 0.5, 0.24, depth + 0.5, context.materials.darkRust, 0, 9.6, 0)
 
-  addWallRunX(-halfWidth, halfWidth, -halfDepth, [-22, 22], exteriorHeight, materials.concrete, 4.6)
+  addWallRunX(-halfWidth, halfWidth, -halfDepth, [-24, 24], exteriorHeight, materials.concrete, 4.6)
   addWallRunX(-halfWidth, halfWidth, halfDepth, [0], exteriorHeight, materials.concrete, 3.6)
-  addWallRunZ(-halfWidth, -halfDepth, halfDepth, [0], exteriorHeight, materials.concrete, 3.4)
-  addWallRunZ(halfWidth, -halfDepth, halfDepth, [7], exteriorHeight, materials.concrete, 3.4)
-  addFacadeWindows(group, materials.glass, width, depth, 4, 3.2)
+  addWallRunZ(-halfWidth, -halfDepth, halfDepth, [-8], exteriorHeight, materials.concrete, 3.4)
+  addWallRunZ(halfWidth, -halfDepth, halfDepth, [8], exteriorHeight, materials.concrete, 3.4)
+
+  for (let floor = 1; floor < 4; floor += 1) {
+    const windowY = 2.1 + floor * 3.2
+    for (let column = 0; column < 22; column += 1) {
+      const windowX = -halfWidth + 2.2 + column * ((width - 4.4) / 21)
+      queueDecoration(1.25, 1.45, 0.13, materials.glass, windowX, windowY, -halfDepth - 0.08)
+      queueDecoration(1.25, 1.45, 0.13, materials.glass, windowX, windowY, halfDepth + 0.08)
+    }
+    for (const side of [-1, 1]) {
+      for (let column = 0; column < 10; column += 1) {
+        const windowZ = -halfDepth + 2.2 + column * ((depth - 4.4) / 9)
+        queueDecoration(0.13, 1.35, 1.2, materials.glass, side * (halfWidth + 0.08), windowY, windowZ)
+      }
+    }
+  }
 
   group.add(box(22, 1.25, 0.18, signMaterial('ST. AGNES HOSPITAL', '#b24f38'), -6, 4.9, -halfDepth - 0.22))
   group.add(box(13.5, 1.08, 0.18, signMaterial('EMERGENCY', '#bd352b'), 25, 4.35, -halfDepth - 0.24))
-  group.add(box(13.5, 0.46, 5.8, context.materials.metal, 22, 3.62, -halfDepth - 2.75))
+  queueDecoration(13.5, 0.46, 5.8, context.materials.metal, 22, 3.62, -halfDepth - 2.75)
   for (const canopyX of [16, 28]) {
-    group.add(box(0.36, 3.5, 0.36, context.materials.metal, canopyX, 1.75, -halfDepth - 5.2))
+    queueDecoration(0.36, 3.5, 0.36, context.materials.metal, canopyX, 1.75, -halfDepth - 5.2)
   }
 
-  // Long east-west hall, with doors into every room bay.
-  const roomDoors = [-33, -24, -15, -6, 6, 15, 24, 33]
-  addWallRunX(-halfWidth, halfWidth, -3.15, roomDoors)
-  addWallRunX(-halfWidth, halfWidth, 3.15, roomDoors)
-
-  // South treatment rooms.
-  for (const dividerX of [-29, -20, -11, -2, 8, 18, 28]) {
-    addWallRunZ(dividerX, -halfDepth, -3.15, [-12.5])
+  // Oak Ward: an offset west corridor with patient rooms on both sides.
+  const oakDoors = [-31, -23, -15, -7]
+  addWallRunX(-halfWidth + 1.4, -4, -10.5, oakDoors)
+  addWallRunX(-halfWidth + 1.4, -4, -5.5, oakDoors)
+  for (const dividerX of [-34, -26, -18, -10]) {
+    addWall(dividerX, (-halfDepth - 10.5) / 2, 0.28, halfDepth - 10.5)
+    addWall(dividerX, -1, 0.28, 9)
   }
 
-  // North wards surround a crossing corridor that reaches the rear exit.
-  for (const dividerX of [-29, -20, -11, 11, 20, 29]) {
-    addWallRunZ(dividerX, 3.15, halfDepth, [13.2])
-  }
-  addWallRunZ(-3.15, 3.15, halfDepth, [10, 19])
-  addWallRunZ(3.15, 3.15, halfDepth, [10, 19])
-  addWallRunX(-halfWidth, -3.15, 13.2, [-25, -15, -7])
-  addWallRunX(3.15, halfWidth, 13.2, [8, 17, 27])
+  // Gray Ash Corridor and its transfer junction continue east into a separate
+  // ward spur. The offset junctions create loops instead of one exposed grid.
+  addWallRunX(-4, 34, 3.5, [0, 8, 16, 24, 30])
+  addWallRunX(-4, 34, 8.5, [0, 8, 16, 24, 30])
+  addWallRunZ(-4, -10.5, 3.5, [-8])
+  addWallRunZ(4, -5.5, 3.5, [-1])
 
-  // Reception, pharmacy and clinical room furniture.
-  group.add(box(12.5, 1.05, 1.15, context.materials.metal, -22, 0.64, -8.2))
-  group.add(box(8.5, 2.35, 0.28, materials.glass, -22, 1.55, -8.72))
-  group.add(box(12, 1.0, 1.1, materials.wood, 25, 0.6, 8.4))
-  group.add(box(11.6, 2.15, 0.24, materials.glass, 25, 1.55, 8.98))
+  // Front clinical, waiting, pharmacy and ER rooms.
+  for (const dividerX of [4, 12, 20, 28]) {
+    addWall(dividerX, (-halfDepth - 10.5) / 2, 0.28, halfDepth - 10.5)
+  }
+
+  // East ward spur: paired rooms off a north-south corridor, adapted from the
+  // HABS seclusion/ward run but repurposed here as general patient rooms.
+  addWallRunZ(27, -10.5, halfDepth, [-7, 0, 6, 14, 20])
+  addWallRunZ(32, -10.5, halfDepth, [-7, 0, 6, 14, 20])
+  for (const dividerZ of [-4, 3.5, 11, 18]) {
+    addWall(23.5, dividerZ, 7, 0.28)
+    addWall(35, dividerZ, 6, 0.28)
+  }
+
+  // A large day room sits behind Gray Ash with a dining bay and a service
+  // passage to the rear exit.
+  addWallRunZ(-4, 8.5, halfDepth, [12, 20])
+  addWallRunZ(20, 8.5, halfDepth, [12, 20])
+  addWallRunX(-4, 20, 17.5, [4, 14])
+  addWallRunZ(8, 17.5, halfDepth, [20])
+
+  // Corridor floor bands make the circulation plan immediately legible.
+  queueDecoration(34, 0.035, 4.65, materials.concrete, -21, 0.2, -8)
+  queueDecoration(38, 0.035, 4.65, materials.concrete, 15, 0.2, 6)
+  queueDecoration(4.65, 0.035, 28.5, materials.concrete, 29.5, 0.2, 7)
+  queueDecoration(23.5, 0.035, 8.4, materials.sidewalk, 8, 0.205, 13)
+
+  // Reception, pharmacy and clinical furniture are instanced in a few batches.
+  queueDecoration(11.5, 1.05, 1.05, context.materials.metal, 8.5, 0.64, -16.2)
+  queueDecoration(7.6, 2.15, 0.24, materials.glass, 8.5, 1.5, -16.75)
+  for (const shelfX of [14.2, 17.2]) {
+    queueDecoration(0.55, 2.25, 4.8, materials.wood, shelfX, 1.18, -17)
+  }
 
   const bedPositions: Array<[number, number, number]> = [
-    [-33, -13, 0], [-24.5, -13, 0], [-15.5, -13, 0], [-6.5, -13, 0],
-    [12.5, -13, 0], [22.5, -13, 0], [32.5, -13, 0],
-    [-33, 8.5, Math.PI], [-24.5, 8.5, Math.PI], [-15.5, 8.5, Math.PI],
-    [15.5, 18, Math.PI], [25, 18, Math.PI], [33, 18, Math.PI],
+    [-30, -17, 0], [-22, -17, 0], [-14, -17, 0], [-7, -17, 0],
+    [-30, -1, Math.PI], [-22, -1, Math.PI], [-14, -1, Math.PI], [-7, -1, Math.PI],
+    [23.3, -7, Math.PI / 2], [23.3, 0, Math.PI / 2],
+    [23.3, 14, Math.PI / 2], [35.2, -7, -Math.PI / 2],
+    [35.2, 0, -Math.PI / 2], [35.2, 14, -Math.PI / 2],
   ]
   for (const [bedX, bedZ, rotation] of bedPositions) {
-    const bed = new THREE.Group()
-    bed.position.set(bedX, 0, bedZ)
-    bed.rotation.y = rotation
-    bed.add(box(2.25, 0.5, 0.95, context.materials.metal, 0, 0.42, 0))
-    bed.add(box(1.92, 0.22, 0.82, materials.painted, 0, 0.78, 0))
-    bed.add(box(0.52, 0.2, 0.76, materials.concrete, 0.66, 0.97, 0))
-    group.add(bed)
+    queueDecoration(2.25, 0.5, 0.95, context.materials.metal, bedX, 0.42, bedZ, rotation)
+    queueDecoration(1.92, 0.22, 0.82, materials.painted, bedX, 0.78, bedZ, rotation)
+    const pillowOffsetX = Math.cos(rotation) * 0.66
+    const pillowOffsetZ = -Math.sin(rotation) * 0.66
+    queueDecoration(
+      0.52,
+      0.2,
+      0.76,
+      materials.concrete,
+      bedX + pillowOffsetX,
+      0.97,
+      bedZ + pillowOffsetZ,
+      rotation,
+    )
   }
-  for (const [chairX, chairZ] of [[-28, -18], [-24.5, -18], [-21, -18], [-17.5, -18], [17, -18], [20.5, -18]] as Array<[number, number]>) {
-    group.add(box(1.2, 0.2, 1.2, context.materials.darkRust, chairX, 0.48, chairZ))
-    group.add(box(1.2, 1.05, 0.2, context.materials.darkRust, chairX, 0.93, chairZ + 0.5))
+  for (const [tableX, tableZ] of [[2, 13], [9, 13], [16, 13]] as Array<[number, number]>) {
+    queueDecoration(2.3, 0.18, 1.25, materials.wood, tableX, 0.82, tableZ)
+    for (const chairOffset of [-1.55, 1.55]) {
+      queueDecoration(0.78, 0.18, 0.78, context.materials.darkRust, tableX + chairOffset, 0.48, tableZ)
+      queueDecoration(0.78, 0.86, 0.16, context.materials.darkRust, tableX + chairOffset, 0.88, tableZ + 0.32)
+    }
   }
 
   const hospitalLightMaterial = new THREE.MeshBasicMaterial({ color: 0xffd2a6, toneMapped: false })
-  for (const [lightX, lightZ] of [
-    [-30, 0], [-18, 0], [-6, 0], [6, 0], [18, 0], [30, 0],
-    [0, 9], [0, 18], [-24, -13], [24, -13], [-24, 17], [24, 17],
-  ] as Array<[number, number]>) {
-    group.add(box(3.2, 0.08, 0.52, hospitalLightMaterial, lightX, 3.39, lightZ))
+  for (const [lightX, lightZ, rotation] of [
+    [-31, -8, 0], [-23, -8, 0], [-15, -8, 0], [-7, -8, 0],
+    [0, 6, 0], [8, 6, 0], [16, 6, 0], [24, 6, 0],
+    [29.5, -6, Math.PI / 2], [29.5, 3, Math.PI / 2],
+    [29.5, 12, Math.PI / 2], [29.5, 20, Math.PI / 2],
+    [2, 13, 0], [9, 13, 0], [16, 13, 0],
+    [8, -16, 0], [24, -17, 0], [32, -17, 0],
+  ] as Array<[number, number, number]>) {
+    queueDecoration(3.2, 0.08, 0.52, hospitalLightMaterial, lightX, 3.39, lightZ, rotation)
   }
-  for (const [lightX, lightZ] of [[-24, 0], [0, 0], [24, 0], [0, 16]] as Array<[number, number]>) {
-    const light = new THREE.PointLight(0xffc89e, 3.6, 25, 2)
-    light.position.set(lightX, 2.85, lightZ)
-    group.add(light)
+
+  for (const [material, specs] of blockerBatches) {
+    addBoxInstances(group, material, specs, context.shotTargets)
+  }
+  for (const [material, specs] of decorationBatches) {
+    addBoxInstances(group, material, specs)
   }
 
   context.scene.add(group)
@@ -672,8 +846,8 @@ function addHospitalComplex(
     const stripe = box(0.18, 0.035, 5.8, materials.roadLine, x + xOffset, terrainHeightAt(x, 79) + 0.18, 79)
     context.scene.add(stripe)
   }
-  addStaticAmbulance(context, 192, 79, Math.PI / 2)
-  addStaticAmbulance(context, 204, 79, Math.PI / 2)
+  addStaticAmbulance(context, materials, 192, 79, Math.PI / 2)
+  addStaticAmbulance(context, materials, 204, 79, Math.PI / 2)
 }
 
 function addGasStation(
@@ -860,46 +1034,92 @@ function addFalloutHillsAndCloud(
     context.scene.add(mesh)
   }
 
-  const smokeMaterial = new THREE.MeshStandardMaterial({
-    color: 0x51443d,
-    emissive: 0x4b2116,
-    emissiveIntensity: 0.24,
-    roughness: 1,
-    transparent: true,
-    opacity: 0.92,
-    flatShading: true,
-  })
-  const cloud = new THREE.Group()
-  cloud.position.set(FALLOUT_HILLS.cloudX, 0, FALLOUT_HILLS.cloudZ)
-  for (let level = 0; level < 8; level += 1) {
-    const puff = new THREE.Mesh(
-      new THREE.DodecahedronGeometry(7.2 + level * 1.25, 0),
-      smokeMaterial,
-    )
-    puff.position.set((level % 2 - 0.5) * 3.2, 12 + level * 7.0, (level % 3 - 1) * 2.0)
-    puff.scale.set(0.86, 1.38, 0.86)
-    cloud.add(puff)
+  // One instanced, camera-facing draw replaces the old stack of lit polyhedra.
+  // Brightness in the compact grayscale atlas becomes alpha in the fragment
+  // shader, so the much larger cloud is cheaper than the previous small one.
+  const smokeSpecs: Array<[number, number, number, number, number, number]> = []
+  for (let level = 0; level < 13; level += 1) {
+    const progress = level / 12
+    smokeSpecs.push([
+      Math.sin(level * 1.73) * (2.5 + progress * 6.5),
+      13 + level * 9.2,
+      Math.cos(level * 1.31) * 3.8,
+      14 + progress * 15,
+      19 + progress * 18,
+      [2, 6, 8, 11][level % 4],
+    ])
   }
-  const capOffsets: Array<[number, number, number, number]> = [
-    [-28, 67, 2, 16],
-    [-18, 74, -3, 19],
-    [-7, 79, 1, 22],
-    [7, 80, -1, 23],
-    [21, 75, 3, 19],
-    [32, 68, -2, 15],
-    [-14, 88, 2, 16],
-    [2, 93, -2, 18],
-    [18, 87, 1, 15],
+  const capOffsets: Array<[number, number, number, number, number, number]> = [
+    [-58, 121, 5, 36, 23, 7], [-46, 134, -4, 42, 25, 3],
+    [-33, 146, 4, 44, 28, 9], [-18, 153, -3, 48, 30, 1],
+    [0, 158, 2, 52, 31, 4], [19, 154, -4, 49, 29, 10],
+    [36, 146, 3, 45, 27, 0], [51, 134, -2, 40, 24, 12],
+    [63, 121, 4, 34, 22, 15], [-42, 116, -2, 38, 20, 13],
+    [-24, 126, 4, 45, 23, 14], [-7, 132, -5, 49, 25, 5],
+    [13, 131, 5, 48, 24, 6], [31, 125, -4, 43, 22, 7],
+    [46, 115, 3, 36, 19, 15], [-28, 164, -2, 36, 22, 0],
+    [-9, 171, 2, 40, 24, 1], [12, 169, -1, 39, 23, 4],
+    [31, 160, 3, 35, 21, 10],
   ]
-  for (const [px, py, pz, radius] of capOffsets) {
-    const puff = new THREE.Mesh(new THREE.DodecahedronGeometry(radius, 0), smokeMaterial)
-    puff.position.set(px, py, pz)
-    puff.scale.y = 0.74
-    cloud.add(puff)
+  smokeSpecs.push(...capOffsets)
+
+  const smokeGeometry = new THREE.PlaneGeometry(1, 1)
+  smokeGeometry.setAttribute(
+    'atlasTile',
+    new THREE.InstancedBufferAttribute(
+      new Float32Array(smokeSpecs.map((spec) => spec[5])),
+      1,
+    ),
+  )
+  const smokeMaterial = new THREE.ShaderMaterial({
+    uniforms: {
+      smokeMap: { value: smokeAtlasTexture },
+    },
+    vertexShader: `
+      attribute float atlasTile;
+      varying vec2 vAtlasUv;
+      void main() {
+        vec4 center = modelViewMatrix * instanceMatrix * vec4(0.0, 0.0, 0.0, 1.0);
+        float width = length(instanceMatrix[0].xyz);
+        float height = length(instanceMatrix[1].xyz);
+        center.xy += position.xy * vec2(width, height);
+        gl_Position = projectionMatrix * center;
+        float column = mod(atlasTile, 4.0);
+        float row = floor(atlasTile / 4.0);
+        vAtlasUv = (uv + vec2(column, 3.0 - row)) * 0.25;
+      }
+    `,
+    fragmentShader: `
+      uniform sampler2D smokeMap;
+      varying vec2 vAtlasUv;
+      void main() {
+        vec3 sampleColor = texture2D(smokeMap, vAtlasUv).rgb;
+        float brightness = max(sampleColor.r, max(sampleColor.g, sampleColor.b));
+        float mask = smoothstep(0.012, 0.42, brightness);
+        if (mask < 0.018) discard;
+        vec3 darkAsh = vec3(0.105, 0.082, 0.075);
+        vec3 lightAsh = vec3(0.47, 0.405, 0.37);
+        vec3 color = mix(darkAsh, lightAsh, smoothstep(0.08, 0.82, brightness));
+        gl_FragColor = vec4(color, mask * 0.9);
+      }
+    `,
+    transparent: true,
+    depthWrite: false,
+    side: THREE.DoubleSide,
+    toneMapped: false,
+  })
+  const cloud = new THREE.InstancedMesh(smokeGeometry, smokeMaterial, smokeSpecs.length)
+  cloud.position.set(FALLOUT_HILLS.cloudX, 0, FALLOUT_HILLS.cloudZ)
+  for (let index = 0; index < smokeSpecs.length; index += 1) {
+    const [px, py, pz, width, height] = smokeSpecs[index]
+    instancePosition.set(px, py, pz)
+    instanceRotation.identity()
+    instanceScale.set(width, height, 1)
+    instanceMatrix.compose(instancePosition, instanceRotation, instanceScale)
+    cloud.setMatrixAt(index, instanceMatrix)
   }
-  const underside = new THREE.PointLight(0xff4a22, 8.5, 120, 2)
-  underside.position.set(0, 57, 0)
-  cloud.add(underside)
+  cloud.instanceMatrix.setUsage(THREE.StaticDrawUsage)
+  cloud.computeBoundingSphere()
   context.scene.add(cloud)
 
   const warning = box(16, 2.2, 0.22, signMaterial('ROAD CLOSED · FALLOUT'), -2, 4.2, 184)
@@ -941,7 +1161,7 @@ function addWaterTower(context: DockTownContext, materials: DockTownMaterials): 
   const z = WATER_TOWER_POSITION.y
   const group = new THREE.Group()
   group.position.set(x, terrainHeightAt(x, z), z)
-  const legHeight = 19.5
+  const legHeight = 28
   for (const legX of [-2.5, 2.5]) {
     for (const legZ of [-2.5, 2.5]) {
       const leg = box(0.38, legHeight, 0.38, context.materials.metal, legX, legHeight / 2, legZ)
@@ -950,18 +1170,20 @@ function addWaterTower(context: DockTownContext, materials: DockTownMaterials): 
       group.add(leg)
     }
   }
-  for (const y of [4.2, 8.4, 12.6, 16.7]) {
+  for (const y of [5.6, 11.2, 16.8, 22.4, 27.2]) {
     group.add(box(5.3, 0.18, 0.18, context.materials.rust, 0, y, -2.5))
     group.add(box(5.3, 0.18, 0.18, context.materials.rust, 0, y, 2.5))
     group.add(box(0.18, 0.18, 5.3, context.materials.rust, -2.5, y, 0))
     group.add(box(0.18, 0.18, 5.3, context.materials.rust, 2.5, y, 0))
   }
-  const tank = cylinder(3.85, 3.85, 5.0, 18, context.materials.metal, 0, 22.0, 0)
+  // The entire painted face, including its bottom edge, now clears the nearby
+  // six-storey Tower House roof from Main Street.
+  const tank = cylinder(4.15, 4.15, 6.2, 18, context.materials.metal, 0, 31.4, 0)
   tank.scale.z = 0.92
   group.add(tank)
-  group.add(cylinder(1.65, 3.65, 1.8, 16, context.materials.darkRust, 0, 25.35, 0))
-  group.add(box(5.45, 3.9, 0.18, smileMaterial(), 0, 21.95, -3.72))
-  const towerTimber = box(1.1, 18.6, 0.12, materials.wood, 3.15, 9.8, 0)
+  group.add(cylinder(1.8, 3.95, 2.2, 16, context.materials.darkRust, 0, 35.55, 0))
+  group.add(box(5.9, 4.55, 0.18, smileMaterial(), 0, 31.35, -4.03))
+  const towerTimber = box(1.1, 27.2, 0.12, materials.wood, 3.4, 13.9, 0)
   mapGeometryToAtlas(towerTimber.geometry, ATLAS_TILES.topLeft)
   group.add(towerTimber)
   context.scene.add(group)
@@ -1443,6 +1665,7 @@ function wheel(material: THREE.Material, x: number, y: number, z: number): THREE
 
 function addVehicle(
   context: DockTownContext,
+  materials: DockTownMaterials,
   id: string,
   label: string,
   kind: VehicleKind,
@@ -1455,9 +1678,20 @@ function addVehicle(
   group.rotation.y = yaw
   const length = kind === 'truck' ? 4.8 : 3.9
   const width = kind === 'truck' ? 2.2 : 1.9
-  const bodyMaterial = kind === 'truck' ? context.materials.rust : context.materials.warning
-  group.add(box(width, 0.72, length, bodyMaterial, 0, 0.72, 0))
-  group.add(box(width * 0.88, 1.05, length * 0.38, context.materials.blackMetal, 0, 1.52, -length * 0.17))
+  const body = box(width, 0.72, length, materials.vehiclePaint, 0, 0.72, 0)
+  mapGeometryToAtlas(body.geometry, ATLAS_TILES.bottomRight)
+  const cab = box(
+    width * 0.88,
+    1.05,
+    length * 0.38,
+    materials.vehiclePaint,
+    0,
+    1.52,
+    -length * 0.17,
+  )
+  mapGeometryToAtlas(cab.geometry, ATLAS_TILES.topLeft)
+  group.add(body)
+  group.add(cab)
   group.add(wheel(context.materials.blackMetal, -width * 0.55, 0.43, -length * 0.32))
   group.add(wheel(context.materials.blackMetal, width * 0.55, 0.43, -length * 0.32))
   group.add(wheel(context.materials.blackMetal, -width * 0.55, 0.43, length * 0.32))
@@ -1588,8 +1822,8 @@ export function buildDockTownDistrict(context: DockTownContext): DockTownDistric
   addBoundaryBarricades(context, materials)
 
   const vehicles = [
-    addVehicle(context, 'town-pickup', 'TOWN PICKUP', 'truck', 101, 67, Math.PI / 2),
-    addVehicle(context, 'neighborhood-sedan', 'NEIGHBORHOOD SEDAN', 'buggy', 65, 43, 0),
+    addVehicle(context, materials, 'town-pickup', 'TOWN PICKUP', 'truck', 101, 67, Math.PI / 2),
+    addVehicle(context, materials, 'neighborhood-sedan', 'NEIGHBORHOOD SEDAN', 'buggy', 65, 43, 0),
   ]
 
   return {
