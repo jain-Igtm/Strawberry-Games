@@ -15,13 +15,13 @@ const points = (...coordinates: Array<[number, number]>): THREE.Vector2[] => (
 /**
  * Authored Dock Town road skeleton.
  *
- * These are intentionally stable connection points. Future districts should
- * meet the named exits rather than shifting Dock Town to make room.
+ * These are intentionally stable connection points. Later maps can meet the
+ * boundary roads without shifting Dock Town to make room.
  *
  * The impassable forest is deliberately inside the district rather than along
  * its outer boundary. Harbor Road, Warehouse Lane, Main Street and Water Tower
- * Curve wrap around it, forcing a real road journey between Dock Town and the
- * shipyard instead of allowing a straight cross-country walk.
+ * Curve wrap around it, forcing a real road journey around the forest instead
+ * of allowing a straight cross-country walk.
  */
 export const DOCK_TOWN_ROADS: PlannedRoad[] = [
   {
@@ -82,8 +82,23 @@ export const DOCK_TOWN_LIMITS = {
   maxZ: 138,
 } as const
 
+export const DOCK_TOWN_BOUNDARY = points(
+  [-12, 70],
+  [3, 49],
+  [34, 43],
+  [72, 42],
+  [111, 46],
+  [141, 66],
+  [144, 92],
+  [139, 122],
+  [121, 140],
+  [74, 143],
+  [22, 143],
+  [-12, 136],
+)
+
 export const DOCK_TOWN_EXITS = {
-  shipyard: new THREE.Vector2(-8, 132),
+  westHarbor: new THREE.Vector2(-8, 132),
   harbor: new THREE.Vector2(120, 124),
   hospital: new THREE.Vector2(134, 75),
   outskirts: new THREE.Vector2(134, 82),

@@ -130,7 +130,7 @@ export class DeadwaterSoundscapeV7 extends DeadwaterSoundscapeV5 {
     const duration = Math.min(sample.duration, 23 + Math.random() * 14)
     const maximumOffset = Math.max(0, sample.duration - duration)
     const offset = maximumOffset > 0 ? Math.random() * maximumOffset : 0
-    // Slightly left-biased and filtered to suggest the fallout hills beyond the shipyard.
+    // Slightly left-biased and filtered to suggest the fallout hills beyond the western boundary.
     this.playBuffer(sample, 0.033, 0.96 + Math.random() * 0.035, offset, duration, 3500, -0.34, 1.4)
   }
 }

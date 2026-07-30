@@ -474,7 +474,6 @@ function addUpgradeMachine(context: ObjectBuildContext, x: number, z: number): U
 }
 
 export function buildWorldObjects(context: ObjectBuildContext): BuiltWorldObjects {
-  addEnterableBuilding(context, 62, 104, 14, 10, 'DOCK WAREHOUSE', 0)
   addEnterableBuilding(context, -55, 91, 12, 9, 'FIELD STATION', Math.PI / 2)
   addEnterableBuilding(context, -118, -4, 13, 10, 'DRAINAGE', Math.PI / 2)
   addEnterableBuilding(context, 111, -72, 12, 9, 'COAST BUNKER', 0)
@@ -534,3 +533,4 @@ export function buildWorldObjects(context: ObjectBuildContext): BuiltWorldObject
     update,
   }
 }
+

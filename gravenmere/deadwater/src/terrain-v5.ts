@@ -1,25 +1,59 @@
 import * as THREE from 'three'
 import type { EnvironmentMaterials } from './environment'
 
+// DEADWATER_NATURAL_TERRAIN_V6
+// DEADWATER_TERRAIN_WINDING_V6
 type Hill = {
   x: number
   z: number
   radiusX: number
   radiusZ: number
   height: number
+  rotation: number
+  seed: number
+}
+
+type TerrainClearance = {
+  x: number
+  z: number
+  radius: number
 }
 
 const hills: Hill[] = [
-  { x: -86, z: 58, radiusX: 34, radiusZ: 27, height: 11 },
-  { x: -112, z: -43, radiusX: 28, radiusZ: 32, height: 9 },
-  { x: 73, z: 66, radiusX: 36, radiusZ: 27, height: 13 },
-  { x: 102, z: -52, radiusX: 31, radiusZ: 34, height: 10 },
-  { x: 22, z: -96, radiusX: 42, radiusZ: 24, height: 8 },
+  { x: -103, z: 73, radiusX: 27, radiusZ: 19, height: 7.4, rotation: -0.28, seed: 1.7 },
+  { x: -111, z: -49, radiusX: 24, radiusZ: 26, height: 7.0, rotation: 0.22, seed: 3.1 },
+  { x: 76, z: 75, radiusX: 25, radiusZ: 18, height: 8.0, rotation: 0.36, seed: 4.8 },
+  { x: 137, z: -66, radiusX: 25, radiusZ: 22, height: 6.8, rotation: -0.18, seed: 6.2 },
+  { x: -29, z: -97, radiusX: 27, radiusZ: 18, height: 6.2, rotation: 0.15, seed: 8.4 },
+  { x: 30, z: 119, radiusX: 19, radiusZ: 13, height: 4.8, rotation: -0.42, seed: 10.1 },
+]
+
+const terrainClearances: TerrainClearance[] = [
+  { x: 62, z: 104, radius: 13 }, { x: -55, z: 91, radius: 12 },
+  { x: -118, z: -4, radius: 13 }, { x: 111, z: -72, radius: 13 },
+  { x: 20, z: -108, radius: 14 }, { x: 116, z: 34, radius: 13 },
+  { x: 202, z: -58, radius: 13 }, { x: -72, z: 64, radius: 8 },
+  { x: 92, z: -58, radius: 8 }, { x: 211, z: -48, radius: 8 },
+  { x: 43, z: 69, radius: 8 }, { x: 70, z: 136, radius: 9 },
+  { x: 184, z: -58, radius: 8 }, { x: -151, z: -18, radius: 8 },
+  { x: -50, z: 72, radius: 6 }, { x: 105, z: 31, radius: 6 },
+  { x: 58, z: 112, radius: 6 }, { x: 70, z: 145, radius: 7 },
+  { x: -6, z: 32, radius: 8 }, { x: 39, z: -20, radius: 7 },
+  { x: -44, z: 17, radius: 7 }, { x: 17, z: -37, radius: 8 },
+  { x: 45, z: 22, radius: 7 },
+  // Authored Dock Town footprint and named road exits.
+  { x: 61, z: 96, radius: 48 },
+  { x: 104, z: 108, radius: 40 },
+  { x: 83, z: 61, radius: 37 },
+  { x: 23, z: 108, radius: 25 },
 ]
 
 export type TerrainBuildContext = {
   scene: THREE.Scene
-  materials: EnvironmentMaterials
+  materials: EnvironmentMaterials & {
+    island: THREE.MeshStandardMaterial
+    water: THREE.MeshStandardMaterial
+  }
 }
 
 export type TerrainWorld = {
@@ -75,17 +109,44 @@ export function isLandAt(x: number, z: number): boolean {
   return isMainLandAt(x, z) || offshore
 }
 
+function clearanceMultiplierAt(x: number, z: number): number {
+  let multiplier = 1
+  for (const zone of terrainClearances) {
+    const distance = Math.hypot(x - zone.x, z - zone.z)
+    if (distance <= zone.radius) return 0
+    if (distance < zone.radius + 7) {
+      const blend = (distance - zone.radius) / 7
+      multiplier = Math.min(multiplier, blend * blend * (3 - 2 * blend))
+    }
+  }
+  return multiplier
+}
+
+function hillHeightAt(hill: Hill, x: number, z: number): number {
+  const dx = x - hill.x
+  const dz = z - hill.z
+  const cosine = Math.cos(hill.rotation)
+  const sine = Math.sin(hill.rotation)
+  const localX = dx * cosine + dz * sine
+  const localZ = -dx * sine + dz * cosine
+  const normalizedX = localX / hill.radiusX
+  const normalizedZ = localZ / hill.radiusZ
+  const angle = Math.atan2(normalizedZ, normalizedX)
+  const edgeWobble =
+    1 +
+    Math.sin(angle * 3 + hill.seed) * 0.075 +
+    Math.sin(angle * 5 - hill.seed * 0.63) * 0.038
+  const distance = Math.hypot(normalizedX, normalizedZ) / edgeWobble
+  if (distance >= 1) return 0
+  const broadSlope = Math.pow(1 - distance * distance, 1.72)
+  const erosion = 0.94 + Math.sin(angle * 2.2 + hill.seed) * 0.035
+  return broadSlope * hill.height * erosion * clearanceMultiplierAt(x, z)
+}
+
 export function terrainHeightAt(x: number, z: number): number {
   if (!isLandAt(x, z)) return 0
   let height = 0
-  for (const hill of hills) {
-    const nx = (x - hill.x) / hill.radiusX
-    const nz = (z - hill.z) / hill.radiusZ
-    const distance = nx * nx + nz * nz
-    if (distance >= 1) continue
-    const profile = Math.pow(1 - distance, 1.65)
-    height = Math.max(height, profile * hill.height)
-  }
+  for (const hill of hills) height = Math.max(height, hillHeightAt(hill, x, z))
   return height
 }
 
@@ -140,7 +201,10 @@ function createRiverRibbon(points: THREE.Vector2[], width: number, material: THR
 
 function addBridge(
   scene: THREE.Scene,
-  materials: EnvironmentMaterials,
+  materials: EnvironmentMaterials & {
+    island: THREE.MeshStandardMaterial
+    water: THREE.MeshStandardMaterial
+  },
   x: number,
   z: number,
   length: number,
@@ -163,7 +227,10 @@ function addBridge(
 
 function addField(
   scene: THREE.Scene,
-  materials: EnvironmentMaterials,
+  materials: EnvironmentMaterials & {
+    island: THREE.MeshStandardMaterial
+    water: THREE.MeshStandardMaterial
+  },
   x: number,
   z: number,
   width: number,
@@ -208,21 +275,70 @@ function addField(
   }
 }
 
-function addHillMeshes(scene: THREE.Scene, materials: EnvironmentMaterials): void {
+function addHillMeshes(scene: THREE.Scene, materials: TerrainBuildContext['materials']): void {
   const hillMaterial = materials.island.clone()
   hillMaterial.color.setHex(0x372b21)
+  hillMaterial.flatShading = true
+  hillMaterial.side = THREE.DoubleSide
+
+  const rings = 7
+  const segments = 16
   for (const hill of hills) {
-    const geometry = new THREE.SphereGeometry(1, 14, 7, 0, Math.PI * 2, 0, Math.PI / 2)
+    const positions: number[] = []
+    const indices: number[] = []
+    const cosine = Math.cos(hill.rotation)
+    const sine = Math.sin(hill.rotation)
+
+    positions.push(hill.x, terrainHeightAt(hill.x, hill.z) + 0.018, hill.z)
+    for (let ring = 1; ring <= rings; ring += 1) {
+      const radial = ring / rings
+      for (let segment = 0; segment < segments; segment += 1) {
+        const angle = (segment / segments) * Math.PI * 2
+        const edgeWobble =
+          1 +
+          Math.sin(angle * 3 + hill.seed) * 0.075 +
+          Math.sin(angle * 5 - hill.seed * 0.63) * 0.038
+        const localX = Math.cos(angle) * hill.radiusX * radial * edgeWobble
+        const localZ = Math.sin(angle) * hill.radiusZ * radial * edgeWobble
+        const worldX = hill.x + localX * cosine - localZ * sine
+        const worldZ = hill.z + localX * sine + localZ * cosine
+        const surfaceY = terrainHeightAt(worldX, worldZ)
+        positions.push(worldX, surfaceY + (ring === rings ? 0.012 : 0.018), worldZ)
+      }
+    }
+
+    for (let segment = 0; segment < segments; segment += 1) {
+      const next = (segment + 1) % segments
+      indices.push(0, 1 + next, 1 + segment)
+    }
+    for (let ring = 1; ring < rings; ring += 1) {
+      const innerStart = 1 + (ring - 1) * segments
+      const outerStart = 1 + ring * segments
+      for (let segment = 0; segment < segments; segment += 1) {
+        const next = (segment + 1) % segments
+        const inner = innerStart + segment
+        const innerNext = innerStart + next
+        const outer = outerStart + segment
+        const outerNext = outerStart + next
+        indices.push(inner, innerNext, outer, innerNext, outerNext, outer)
+      }
+    }
+
+    const geometry = new THREE.BufferGeometry()
+    geometry.setAttribute('position', new THREE.Float32BufferAttribute(positions, 3))
+    geometry.setIndex(indices)
+    geometry.computeVertexNormals()
     const mesh = new THREE.Mesh(geometry, hillMaterial)
-    mesh.position.set(hill.x, 0, hill.z)
-    mesh.scale.set(hill.radiusX, hill.height, hill.radiusZ)
+    mesh.renderOrder = 1
     scene.add(mesh)
   }
 }
 
-function addRoadNetwork(scene: THREE.Scene, materials: EnvironmentMaterials): void {
+function addRoadNetwork(scene: THREE.Scene, materials: EnvironmentMaterials & {
+    island: THREE.MeshStandardMaterial
+    water: THREE.MeshStandardMaterial
+  }): void {
   const paths: THREE.Vector2[][] = [
-    [new THREE.Vector2(0, 44), new THREE.Vector2(5, 78), new THREE.Vector2(28, 106), new THREE.Vector2(64, 118)],
     [new THREE.Vector2(42, 4), new THREE.Vector2(76, 7), new THREE.Vector2(108, 24), new THREE.Vector2(139, 37)],
     [new THREE.Vector2(-42, 12), new THREE.Vector2(-72, 7), new THREE.Vector2(-102, -7), new THREE.Vector2(-142, -18)],
     [new THREE.Vector2(-18, -45), new THREE.Vector2(-24, -72), new THREE.Vector2(-5, -101), new THREE.Vector2(28, -113)],
@@ -235,7 +351,7 @@ function addRoadNetwork(scene: THREE.Scene, materials: EnvironmentMaterials): vo
     }
   }
 
-  addBridge(scene, materials, 54, 83, 17, 0.2)
+  addBridge(scene, materials, 141, 81, 17, 0.08)
   addBridge(scene, materials, -92, -11, 16, -0.35)
   addBridge(scene, materials, 13, -86, 18, Math.PI / 2)
 }
@@ -274,11 +390,11 @@ export function buildExpandedTerrain(context: TerrainBuildContext): TerrainWorld
   riverMaterial.polygonOffsetFactor = -5
   riverMaterial.polygonOffsetUnits = -5
   scene.add(createRiverRibbon([
-    new THREE.Vector2(78, 133),
-    new THREE.Vector2(64, 102),
-    new THREE.Vector2(70, 78),
-    new THREE.Vector2(52, 54),
-    new THREE.Vector2(58, 28),
+    new THREE.Vector2(149, 132),
+    new THREE.Vector2(141, 106),
+    new THREE.Vector2(145, 82),
+    new THREE.Vector2(137, 55),
+    new THREE.Vector2(141, 28),
   ], 8.5, riverMaterial))
   scene.add(createRiverRibbon([
     new THREE.Vector2(-151, -4),
@@ -317,7 +433,8 @@ export function buildExpandedTerrain(context: TerrainBuildContext): TerrainWorld
 
   const districtAt = (x: number, z: number): string => {
     if ((x - 205) ** 2 + (z + 58) ** 2 < 30 ** 2) return 'BLACKWATER OUTPOST'
-    if (z > 105 && x > 35) return 'NORTH DOCKS'
+    if (z > 122 && x > 25) return 'NORTH DOCKS'
+    if (x > 4 && x < 136 && z > 46 && z <= 122) return 'DOCK TOWN'
     if (z > 73 && x < 18) return 'ASH FIELDS'
     if (x < -96 && z > 8) return 'WESTERN RIDGE'
     if (x < -92 && z < 4) return 'DRAINAGE WORKS'
@@ -337,3 +454,4 @@ export function buildExpandedTerrain(context: TerrainBuildContext): TerrainWorld
     districtAt,
   }
 }
+

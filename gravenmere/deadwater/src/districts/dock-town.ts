@@ -1,11 +1,18 @@
 import * as THREE from 'three'
 import type { EnvironmentMaterials } from '../environment'
-import { terrainHeightAt } from '../terrain-v5'
+import {
+  ATLAS_TILES,
+  forestAtlasTexture,
+  mapGeometryToAtlas,
+} from '../texture-atlas'
 import type { Driveable, VehicleKind, WalkableZone } from '../world-objects-v5'
+import { terrainHeightAt } from './dock-town-terrain'
 import {
   ADMIN_BUILDING_POSITION,
   DOCK_TOWN_ROADS,
+  IMPASSABLE_FOREST,
   TRANSMISSION_FIELD,
+  // DEADWATER_DOCK_TOWN_SCALE_V9
   WATER_TOWER_POSITION,
   type PlannedRoad,
 } from './dock-town-plan'
@@ -145,9 +152,24 @@ function createMaterials(base: EnvironmentMaterials): DockTownMaterials {
     concrete: patternMaterial('#55504a', '#2a2826', 'concrete'),
     glass,
     roof: base.blackMetal,
-    wood: new THREE.MeshStandardMaterial({ color: 0x3f2a21, roughness: 1 }),
-    leaves: new THREE.MeshStandardMaterial({ color: 0x263425, roughness: 1, flatShading: true }),
-    deadLeaves: new THREE.MeshStandardMaterial({ color: 0x3c3022, roughness: 1, flatShading: true }),
+    wood: new THREE.MeshStandardMaterial({
+      color: 0xd8d1c8,
+      map: forestAtlasTexture,
+      roughness: 1,
+      flatShading: true,
+    }),
+    leaves: new THREE.MeshStandardMaterial({
+      color: 0xc5d0c9,
+      map: forestAtlasTexture,
+      roughness: 1,
+      flatShading: true,
+    }),
+    deadLeaves: new THREE.MeshStandardMaterial({
+      color: 0xc3b8aa,
+      map: forestAtlasTexture,
+      roughness: 1,
+      flatShading: true,
+    }),
     grass: new THREE.MeshStandardMaterial({ color: 0x343625, roughness: 1 }),
     cable: new THREE.MeshStandardMaterial({ color: 0x171716, roughness: 0.7, metalness: 0.65 }),
   }
@@ -387,7 +409,9 @@ function addWaterTower(context: DockTownContext, materials: DockTownMaterials): 
   group.add(tank)
   group.add(cylinder(1.5, 3.45, 1.5, 16, context.materials.darkRust, 0, 16.15, 0))
   group.add(box(5.1, 3.55, 0.18, smileMaterial(), 0, 13.25, -3.52))
-  group.add(box(1.1, 10.8, 0.12, materials.wood, 3.0, 6.1, 0))
+  const towerTimber = box(1.1, 10.8, 0.12, materials.wood, 3.0, 6.1, 0)
+  mapGeometryToAtlas(towerTimber.geometry, ATLAS_TILES.topLeft)
+  group.add(towerTimber)
   context.scene.add(group)
   context.addCollider(x, z, 6.6, 6.6, 0.18)
 }
@@ -445,11 +469,21 @@ function addTreeMass(
       })
     }
   }
-  const trunkGeometry = new THREE.CylinderGeometry(0.18, 0.28, 3.8, 6)
-  const canopyGeometry = new THREE.ConeGeometry(1.45, 3.4, 7)
+  const trunkGeometry = mapGeometryToAtlas(
+    new THREE.CylinderGeometry(0.18, 0.28, 3.8, 6),
+    ATLAS_TILES.topLeft,
+  )
+  const livingGeometry = mapGeometryToAtlas(
+    new THREE.ConeGeometry(1.45, 3.4, 7),
+    ATLAS_TILES.topRight,
+  )
+  const deadGeometry = mapGeometryToAtlas(
+    new THREE.ConeGeometry(1.45, 3.4, 7),
+    ATLAS_TILES.bottomLeft,
+  )
   const trunks = new THREE.InstancedMesh(trunkGeometry, materials.wood, positions.length)
-  const living = new THREE.InstancedMesh(canopyGeometry, materials.leaves, positions.length)
-  const dead = new THREE.InstancedMesh(canopyGeometry, materials.deadLeaves, positions.length)
+  const living = new THREE.InstancedMesh(livingGeometry, materials.leaves, positions.length)
+  const dead = new THREE.InstancedMesh(deadGeometry, materials.deadLeaves, positions.length)
   const dummy = new THREE.Object3D()
   let livingIndex = 0
   let deadIndex = 0
@@ -480,6 +514,320 @@ function addTreeMass(
   context.scene.add(trunks, living, dead)
 }
 
+function addImpassableBurningForest(
+  context: DockTownContext,
+  materials: DockTownMaterials,
+): Array<{ material: THREE.MeshStandardMaterial; phase: number }> {
+  // DEADWATER_FOREST_LANDMASS_V12
+  const { x, z, polygon } = IMPASSABLE_FOREST
+  const random = seededRandom(712991)
+
+  const pointInsidePolygon = (px: number, pz: number): boolean => {
+    let inside = false
+    for (let current = 0, previous = polygon.length - 1; current < polygon.length; previous = current, current += 1) {
+      const currentPoint = polygon[current]
+      const previousPoint = polygon[previous]
+      const intersects =
+        currentPoint.y > pz !== previousPoint.y > pz &&
+        px <
+          ((previousPoint.x - currentPoint.x) * (pz - currentPoint.y)) /
+            (previousPoint.y - currentPoint.y + Number.EPSILON) +
+          currentPoint.x
+      if (intersects) inside = !inside
+    }
+    return inside
+  }
+
+  const trees: Array<{ x: number; z: number; scale: number; rotation: number; dead: boolean }> = []
+
+  // Distribute the visible tree wall around the full jagged road-facing perimeter,
+  // not around a circle or a rectangle.
+  for (let edgeIndex = 0; edgeIndex < polygon.length; edgeIndex += 1) {
+    const start = polygon[edgeIndex]
+    const end = polygon[(edgeIndex + 1) % polygon.length]
+    const edgeLength = start.distanceTo(end)
+    const samples = Math.max(4, Math.ceil(edgeLength / 2.35))
+    for (let sample = 0; sample < samples; sample += 1) {
+      const progress = (sample + 0.2 + random() * 0.6) / samples
+      const px = THREE.MathUtils.lerp(start.x, end.x, progress)
+      const pz = THREE.MathUtils.lerp(start.y, end.y, progress)
+      const tangentX = end.x - start.x
+      const tangentZ = end.y - start.y
+      const tangentLength = Math.max(0.001, Math.hypot(tangentX, tangentZ))
+      const inwardX = -tangentZ / tangentLength
+      const inwardZ = tangentX / tangentLength
+      const inwardDistance = 0.7 + random() * 3.2
+      trees.push({
+        x: px + inwardX * inwardDistance,
+        z: pz + inwardZ * inwardDistance,
+        scale: 0.88 + random() * 0.58,
+        rotation: random() * Math.PI,
+        dead: random() < 0.16,
+      })
+    }
+  }
+
+  // A smaller number of genuine interior trees preserves parallax between the
+  // perimeter and the cheap deep-forest layers.
+  let attempts = 0
+  while (trees.length < 138 && attempts < 1200) {
+    attempts += 1
+    const px = 13 + random() * 58
+    const pz = 79 + random() * 57
+    if (!pointInsidePolygon(px, pz)) continue
+    trees.push({
+      x: px,
+      z: pz,
+      scale: 0.82 + random() * 0.7,
+      rotation: random() * Math.PI,
+      dead: random() < 0.2,
+    })
+  }
+
+  const treeCount = trees.length
+  const trunkMaterial = materials.wood.clone()
+  trunkMaterial.color.setHex(0xb7afa5)
+  const foliageMaterial = materials.leaves.clone()
+  foliageMaterial.color.setHex(0xb5c2ba)
+  const deadMaterial = materials.deadLeaves.clone()
+  deadMaterial.color.setHex(0xb2a89b)
+
+  const trunkGeometry = mapGeometryToAtlas(
+    new THREE.CylinderGeometry(0.23, 0.43, 8.6, 6),
+    ATLAS_TILES.topLeft,
+  )
+  const lowerLivingGeometry = mapGeometryToAtlas(
+    new THREE.ConeGeometry(2.5, 4.5, 7),
+    ATLAS_TILES.topRight,
+  )
+  const middleLivingGeometry = mapGeometryToAtlas(
+    new THREE.ConeGeometry(2.04, 4.0, 7),
+    ATLAS_TILES.topRight,
+  )
+  const crownLivingGeometry = mapGeometryToAtlas(
+    new THREE.ConeGeometry(1.46, 3.55, 7),
+    ATLAS_TILES.topRight,
+  )
+  const lowerDeadGeometry = mapGeometryToAtlas(
+    new THREE.ConeGeometry(2.5, 4.5, 7),
+    ATLAS_TILES.bottomLeft,
+  )
+  const middleDeadGeometry = mapGeometryToAtlas(
+    new THREE.ConeGeometry(2.04, 4.0, 7),
+    ATLAS_TILES.bottomLeft,
+  )
+  const crownDeadGeometry = mapGeometryToAtlas(
+    new THREE.ConeGeometry(1.46, 3.55, 7),
+    ATLAS_TILES.bottomLeft,
+  )
+  const trunks = new THREE.InstancedMesh(trunkGeometry, trunkMaterial, treeCount)
+  const lowerLiving = new THREE.InstancedMesh(lowerLivingGeometry, foliageMaterial, treeCount)
+  const middleLiving = new THREE.InstancedMesh(middleLivingGeometry, foliageMaterial, treeCount)
+  const crownLiving = new THREE.InstancedMesh(crownLivingGeometry, foliageMaterial, treeCount)
+  const lowerDead = new THREE.InstancedMesh(lowerDeadGeometry, deadMaterial, treeCount)
+  const middleDead = new THREE.InstancedMesh(middleDeadGeometry, deadMaterial, treeCount)
+  const crownDead = new THREE.InstancedMesh(crownDeadGeometry, deadMaterial, treeCount)
+  const dummy = new THREE.Object3D()
+  let livingIndex = 0
+  let deadIndex = 0
+  let trunkIndex = 0
+
+  for (const tree of trees) {
+    const ground = terrainHeightAt(tree.x, tree.z)
+    dummy.position.set(tree.x, ground + 4.3 * tree.scale, tree.z)
+    dummy.rotation.set(0, tree.rotation, (random() - 0.5) * 0.038)
+    dummy.scale.set(tree.scale, tree.scale, tree.scale)
+    dummy.updateMatrix()
+    trunks.setMatrixAt(trunkIndex, dummy.matrix)
+    trunkIndex += 1
+
+    const targetLower = tree.dead ? lowerDead : lowerLiving
+    const targetMiddle = tree.dead ? middleDead : middleLiving
+    const targetCrown = tree.dead ? crownDead : crownLiving
+    const targetIndex = tree.dead ? deadIndex : livingIndex
+
+    dummy.rotation.set(0, tree.rotation, 0)
+    dummy.position.y = ground + 6.5 * tree.scale
+    dummy.scale.set(tree.scale, tree.scale, tree.scale)
+    dummy.updateMatrix()
+    targetLower.setMatrixAt(targetIndex, dummy.matrix)
+
+    dummy.position.y = ground + 8.85 * tree.scale
+    dummy.scale.set(tree.scale * 0.94, tree.scale * 0.94, tree.scale * 0.94)
+    dummy.updateMatrix()
+    targetMiddle.setMatrixAt(targetIndex, dummy.matrix)
+
+    dummy.position.y = ground + 10.95 * tree.scale
+    dummy.scale.set(tree.scale * 0.9, tree.scale * 0.9, tree.scale * 0.9)
+    dummy.updateMatrix()
+    targetCrown.setMatrixAt(targetIndex, dummy.matrix)
+
+    if (tree.dead) deadIndex += 1
+    else livingIndex += 1
+  }
+
+  trunks.count = trunkIndex
+  lowerLiving.count = livingIndex
+  middleLiving.count = livingIndex
+  crownLiving.count = livingIndex
+  lowerDead.count = deadIndex
+  middleDead.count = deadIndex
+  crownDead.count = deadIndex
+  for (const mesh of [trunks, lowerLiving, middleLiving, crownLiving, lowerDead, middleDead, crownDead]) {
+    mesh.instanceMatrix.needsUpdate = true
+    context.scene.add(mesh)
+  }
+
+  // A transparent cluster texture is used only deep inside the polygon. Several
+  // crossed panels at different positions create depth without forming a shell.
+  const clusterCanvas = document.createElement('canvas')
+  clusterCanvas.width = 1024
+  clusterCanvas.height = 512
+  const draw = clusterCanvas.getContext('2d')!
+  draw.clearRect(0, 0, 1024, 512)
+  const clusterRandom = seededRandom(96112)
+
+  const drawClusterTree = (treeX: number, baseY: number, height: number, widthPx: number, shade: string): void => {
+    draw.fillStyle = shade
+    draw.fillRect(treeX - widthPx * 0.055, baseY - height * 0.48, widthPx * 0.11, height * 0.5)
+    for (let tier = 0; tier < 6; tier += 1) {
+      const progress = tier / 5
+      const tierY = baseY - height + progress * height * 0.79
+      const tierWidth = widthPx * (0.28 + progress * 0.72)
+      draw.beginPath()
+      draw.moveTo(treeX, tierY - height * 0.075)
+      draw.lineTo(treeX - tierWidth, tierY + height * 0.13)
+      draw.lineTo(treeX - tierWidth * 0.32, tierY + height * 0.1)
+      draw.lineTo(treeX + tierWidth * 0.38, tierY + height * 0.08)
+      draw.lineTo(treeX + tierWidth, tierY + height * 0.14)
+      draw.closePath()
+      draw.fill()
+    }
+  }
+
+  for (let index = 0; index < 24; index += 1) {
+    const treeX = index * 44 + (clusterRandom() - 0.5) * 34
+    const height = 205 + clusterRandom() * 245
+    const baseY = 489 + clusterRandom() * 18
+    drawClusterTree(
+      treeX,
+      baseY,
+      height,
+      36 + clusterRandom() * 46,
+      index % 4 === 0 ? '#1d281f' : index % 3 === 0 ? '#121d16' : '#0b1510',
+    )
+  }
+
+  const clusterTexture = new THREE.CanvasTexture(clusterCanvas)
+  clusterTexture.colorSpace = THREE.SRGBColorSpace
+  clusterTexture.minFilter = THREE.LinearMipmapLinearFilter
+  clusterTexture.magFilter = THREE.LinearFilter
+  clusterTexture.generateMipmaps = true
+  const clusterMaterial = new THREE.MeshStandardMaterial({
+    map: clusterTexture,
+    transparent: true,
+    alphaTest: 0.14,
+    side: THREE.DoubleSide,
+    roughness: 1,
+    metalness: 0,
+    depthWrite: true,
+  })
+
+  const clusterPanels = [
+    { px: 34, pz: 99, width: 31, height: 20, rotation: 0.08 },
+    { px: 47, pz: 110, width: 34, height: 22, rotation: -0.16 },
+    { px: 31, pz: 119, width: 31, height: 19, rotation: 0.22 },
+    { px: 51, pz: 94, width: 30, height: 20, rotation: Math.PI / 2 + 0.12 },
+    { px: 27, pz: 106, width: 32, height: 21, rotation: Math.PI / 2 - 0.1 },
+    { px: 45, pz: 122, width: 29, height: 20, rotation: Math.PI / 3 },
+    { px: 39, pz: 106, width: 28, height: 23, rotation: -Math.PI / 4 },
+  ]
+  for (let index = 0; index < clusterPanels.length; index += 1) {
+    const panelInfo = clusterPanels[index]
+    const panel = new THREE.Mesh(new THREE.PlaneGeometry(panelInfo.width, panelInfo.height), clusterMaterial)
+    panel.position.set(
+      panelInfo.px,
+      terrainHeightAt(panelInfo.px, panelInfo.pz) + panelInfo.height / 2 - 0.25,
+      panelInfo.pz,
+    )
+    panel.rotation.y = panelInfo.rotation
+    if (index % 2 === 1) panel.scale.x = -1
+    context.scene.add(panel)
+  }
+
+  // The forest floor follows the jagged authored perimeter rather than exposing a
+  // circular or rectangular base.
+  const floorShape = new THREE.Shape()
+  floorShape.moveTo(polygon[0].x - x, polygon[0].y - z)
+  for (let index = 1; index < polygon.length; index += 1) {
+    floorShape.lineTo(polygon[index].x - x, polygon[index].y - z)
+  }
+  floorShape.closePath()
+  const forestFloorMaterial = new THREE.MeshStandardMaterial({
+    color: 0x191a13,
+    roughness: 1,
+    side: THREE.DoubleSide,
+  })
+  const forestFloor = new THREE.Mesh(new THREE.ShapeGeometry(floorShape), forestFloorMaterial)
+  forestFloor.rotation.x = Math.PI / 2
+  forestFloor.position.set(x, terrainHeightAt(x, z) + 0.055, z)
+  context.scene.add(forestFloor)
+
+  // A few small low-intensity glows sit deep behind several tree layers. They are
+  // intentionally not tall enough to read as exposed flame walls.
+  const glowCanvas = document.createElement('canvas')
+  glowCanvas.width = 256
+  glowCanvas.height = 256
+  const glowDraw = glowCanvas.getContext('2d')!
+  glowDraw.clearRect(0, 0, 256, 256)
+  const radial = glowDraw.createRadialGradient(128, 196, 3, 128, 196, 76)
+  radial.addColorStop(0, 'rgba(255,128,54,0.74)')
+  radial.addColorStop(0.35, 'rgba(171,55,23,0.28)')
+  radial.addColorStop(0.75, 'rgba(65,20,12,0.07)')
+  radial.addColorStop(1, 'rgba(0,0,0,0)')
+  glowDraw.fillStyle = radial
+  glowDraw.fillRect(0, 0, 256, 256)
+  const glowTexture = new THREE.CanvasTexture(glowCanvas)
+  glowTexture.colorSpace = THREE.SRGBColorSpace
+
+  const glowMaterials: Array<{ material: THREE.MeshStandardMaterial; phase: number }> = []
+  const glowSpots = [
+    { px: 32, pz: 104, rotation: 0.32, phase: 0.4 },
+    { px: 48, pz: 112, rotation: -0.62, phase: 2.1 },
+    { px: 38, pz: 122, rotation: 1.05, phase: 4.3 },
+    { px: 51, pz: 97, rotation: 0.74, phase: 5.6 },
+  ]
+  for (const spot of glowSpots) {
+    const glowMaterial = new THREE.MeshStandardMaterial({
+      map: glowTexture,
+      emissive: 0xff5424,
+      emissiveMap: glowTexture,
+      emissiveIntensity: 0.2,
+      transparent: true,
+      alphaTest: 0.05,
+      side: THREE.DoubleSide,
+      roughness: 1,
+      depthWrite: false,
+    })
+    const glow = new THREE.Mesh(new THREE.PlaneGeometry(5.0, 3.5), glowMaterial)
+    glow.position.set(spot.px, terrainHeightAt(spot.px, spot.pz) + 1.65, spot.pz)
+    glow.rotation.y = spot.rotation
+    glow.renderOrder = 1
+    context.scene.add(glow)
+    glowMaterials.push({ material: glowMaterial, phase: spot.phase })
+  }
+
+  // Several overlapping collision blocks approximate the irregular polygon and
+  // leave the named surrounding roads open.
+  context.addCollider(40, 106, 38, 46, 0.8)
+  context.addCollider(29, 111, 23, 36, 0.8)
+  context.addCollider(55, 104, 20, 31, 0.8)
+  context.addCollider(43, 124, 32, 15, 0.8)
+  context.addCollider(40, 89, 35, 12, 0.8)
+
+  return glowMaterials
+}
+
 function cableBetween(
   start: THREE.Vector3,
   end: THREE.Vector3,
@@ -508,7 +856,9 @@ function addUtilityPoles(context: DockTownContext, materials: DockTownMaterials)
     const group = new THREE.Group()
     group.position.set(point.x, ground, point.z)
     group.rotation.z = (index % 3 - 1) * 0.025
-    group.add(cylinder(0.15, 0.23, 7.2, 7, materials.wood, 0, 3.6, 0))
+    const pole = cylinder(0.15, 0.23, 7.2, 7, materials.wood, 0, 3.6, 0)
+    mapGeometryToAtlas(pole.geometry, ATLAS_TILES.topLeft)
+    group.add(pole)
     group.add(box(2.5, 0.16, 0.16, context.materials.darkRust, 0, 6.65, 0))
     group.add(cylinder(0.08, 0.08, 0.34, 6, context.materials.metal, -0.85, 6.92, 0))
     group.add(cylinder(0.08, 0.08, 0.34, 6, context.materials.metal, 0.85, 6.92, 0))
@@ -630,21 +980,43 @@ function addVehicle(
   }
 }
 
+function addBoundaryBarricades(
+  context: DockTownContext,
+  materials: DockTownMaterials,
+): void {
+  const addGate = (x: number, z: number, depth: number): void => {
+    const group = new THREE.Group()
+    group.position.set(x, terrainHeightAt(x, z), z)
+    for (const offset of [-depth * 0.34, 0, depth * 0.34]) {
+      group.add(box(0.9, 1.1, depth * 0.24, materials.concrete, 0, 0.55, offset))
+    }
+    group.add(box(0.28, 1.8, depth, context.materials.darkRust, 0, 1.15, 0))
+    group.add(box(0.34, 0.24, depth, context.materials.warning, 0, 2.0, 0))
+    context.scene.add(group)
+    context.addCollider(x, z, 1.2, depth, 0.22)
+  }
+
+  // The road stubs end physically inside this build. Adjacent districts are
+  // separate maps rather than scenery placed within walking distance.
+  addGate(-8.4, 132.1, 10.8)
+  addGate(138.2, 79.2, 17.5)
+}
+
 export function buildDockTownDistrict(context: DockTownContext): DockTownDistrict {
   const materials = createMaterials(context.materials)
   for (const road of DOCK_TOWN_ROADS) addRoad(context, materials, road)
 
   // Compact downtown: taller street walls and a few purposeful interiors.
-  addClosedBuilding(context, materials, 70, 89, 12, 14, 4, 'HARBOR HOUSE', materials.brick)
-  addClosedBuilding(context, materials, 86, 90, 13, 15, 5, 'MARINER HOTEL', materials.concrete)
+  addClosedBuilding(context, materials, 82, 89, 12, 14, 4, 'HARBOR HOUSE', materials.brick)
+  addClosedBuilding(context, materials, 98, 90, 13, 15, 5, 'MARINER HOTEL', materials.concrete)
   addEnterableBuilding(context, materials, 58, 87, 11, 12, 3, 'HARBOR SUPPLY', materials.painted)
-  addEnterableBuilding(context, materials, 82, 111, 13, 13, 3, 'DOCK EXCHANGE', materials.brick)
-  addClosedBuilding(context, materials, 99, 91, 11, 13, 3, 'TIDE BUILDING', materials.painted)
+  addEnterableBuilding(context, materials, 88, 112, 13, 13, 3, 'DOCK EXCHANGE', materials.brick)
+  addClosedBuilding(context, materials, 112, 91, 11, 13, 3, 'TIDE BUILDING', materials.painted)
 
   // Working edge and warehouses reached through the wooded corridor.
-  addEnterableBuilding(context, materials, 22, 113, 17, 15, 2, 'WAREHOUSE ONE', materials.concrete)
-  addClosedBuilding(context, materials, 34, 118, 15, 12, 2, 'NET & CABLE', materials.brick)
-  addClosedBuilding(context, materials, 18, 94, 14, 12, 2, 'COLD STORAGE', materials.painted)
+  addEnterableBuilding(context, materials, 0, 106, 17, 15, 2, 'WAREHOUSE ONE', materials.concrete)
+  addClosedBuilding(context, materials, 7, 122, 15, 12, 2, 'NET & CABLE', materials.brick)
+  addClosedBuilding(context, materials, 0, 89, 14, 12, 2, 'COLD STORAGE', materials.painted)
 
   // Administrative anchor beside the ruined transmission field.
   addEnterableBuilding(
@@ -669,22 +1041,22 @@ export function buildDockTownDistrict(context: DockTownContext): DockTownDistric
   addHouse(context, materials, 92, 68, 8.0, 8.5, 1)
   addHouse(context, materials, 118, 71, 7.5, 8.2, 1)
 
-  // Wooded side of Main Street. Corridors are intentionally left around
-  // Neighborhood Road and Warehouse Lane instead of making the whole forest open.
+  // The inaccessible forest is inside Dock Town, not on its outer rim. It
+  // occupies the land between four named roads and forces navigation around it.
+  const forestFire = addImpassableBurningForest(context, materials)
+
+  // Smaller tree belts continue the forest illusion toward the ruined power
+  // field without creating another fully blocked region.
   addTreeMass(context, materials, [
-    { x: 15, z: 61, width: 18, depth: 24, count: 18, seed: 1201 },
-    { x: 38, z: 60, width: 17, depth: 18, count: 17, seed: 1202 },
-    { x: 51, z: 52, width: 18, depth: 15, count: 14, seed: 1203 },
-    { x: 126, z: 118, width: 18, depth: 22, count: 18, seed: 1204 },
-    { x: 112, z: 129, width: 25, depth: 9, count: 13, seed: 1205 },
+    { x: 128, z: 118, width: 19, depth: 23, count: 28, seed: 1204 },
+    { x: 112, z: 132, width: 28, depth: 10, count: 20, seed: 1205 },
+    { x: 18, z: 67, width: 18, depth: 16, count: 18, seed: 1206 },
   ])
-  context.addCollider(14, 61, 15, 21, 0.2)
-  context.addCollider(38, 59, 13, 14, 0.2)
-  context.addCollider(51, 51, 15, 12, 0.2)
-  context.addCollider(131, 119, 10, 20, 0.2)
+  context.addCollider(132, 119, 10, 20, 0.2)
 
   addUtilityPoles(context, materials)
   addTransmissionField(context, materials)
+  addBoundaryBarricades(context, materials)
 
   const vehicles = [
     addVehicle(context, 'docktown-pickup', 'DOCK TOWN PICKUP', 'truck', 31, 88, 0.25),
@@ -694,6 +1066,10 @@ export function buildDockTownDistrict(context: DockTownContext): DockTownDistric
   return {
     vehicles,
     walkableZones: [],
-    update: () => undefined,
+    update: (_dt, elapsed) => {
+      for (const pocket of forestFire) {
+        pocket.material.emissiveIntensity = 1.05 + Math.sin(elapsed * 3.2 + pocket.phase) * 0.34
+      }
+    },
   }
 }

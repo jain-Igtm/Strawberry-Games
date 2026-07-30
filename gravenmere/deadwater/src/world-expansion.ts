@@ -1,9 +1,8 @@
 import * as THREE from 'three'
 import type { EnvironmentMaterials, WeaponPickup } from './environment'
 import { buildDockTownDistrict } from './districts/dock-town'
-import { buildExpandedTerrain, type TerrainWorld } from './terrain-v5'
+import { buildDockTownTerrain, type TerrainWorld } from './districts/dock-town-terrain'
 import {
-  buildWorldObjects,
   type Driveable,
   type QuestPickup,
   type TowerAccess,
@@ -13,7 +12,10 @@ import {
 
 export type ExpandedWorldContext = {
   scene: THREE.Scene
-  materials: EnvironmentMaterials
+  materials: EnvironmentMaterials & {
+    island: THREE.MeshStandardMaterial
+    water: THREE.MeshStandardMaterial
+  }
   shotTargets: THREE.Object3D[]
   addCollider: (x: number, z: number, width: number, depth: number, padding?: number) => void
 }
@@ -30,14 +32,28 @@ export type ExpandedWorld = TerrainWorld & {
   update: (dt: number, elapsed: number) => void
 }
 
+function createInactiveUpgradeMachine(): UpgradeMachine {
+  const group = new THREE.Group()
+  group.position.set(-10_000, -10_000, -10_000)
+  const core = new THREE.Mesh(
+    new THREE.BoxGeometry(0.01, 0.01, 0.01),
+    new THREE.MeshBasicMaterial({ visible: false }),
+  )
+  group.add(core)
+  return {
+    group,
+    position: group.position,
+    core,
+  }
+}
+
 export function buildWorldExpansion(context: ExpandedWorldContext): ExpandedWorld {
-  const terrain = buildExpandedTerrain({
+  const terrain = buildDockTownTerrain({
     scene: context.scene,
     materials: context.materials,
   })
-  const objects = buildWorldObjects(context)
   const dockTown = buildDockTownDistrict(context)
-  const walkableZones = [...objects.walkableZones, ...dockTown.walkableZones]
+  const walkableZones = dockTown.walkableZones
 
   const isInWalkableZone = (x: number, z: number): boolean => {
     return walkableZones.some((zone) => (
@@ -59,16 +75,15 @@ export function buildWorldExpansion(context: ExpandedWorldContext): ExpandedWorl
 
   return {
     ...terrain,
-    towers: objects.towers,
-    questPickups: objects.questPickups,
-    vehicles: [...objects.vehicles, ...dockTown.vehicles],
-    upgradeMachine: objects.upgradeMachine,
-    weaponPickups: objects.weaponPickups,
+    towers: [],
+    questPickups: [],
+    vehicles: dockTown.vehicles,
+    upgradeMachine: createInactiveUpgradeMachine(),
+    weaponPickups: [],
     walkableZones,
     isWalkableAt,
     isNearLand,
     update: (dt: number, elapsed: number): void => {
-      objects.update(dt, elapsed)
       dockTown.update(dt, elapsed)
     },
   }

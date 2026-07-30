@@ -2,11 +2,13 @@
 
 Ashfall: Deadwater is a phone-first first-person zombie survival shooter built beside World Explorer in the Gravenmere project branch. It shares the same mobile-first priorities—landscape play, a left movement joystick, right-side drag look, large touch actions, offline assets, and an installable Capacitor Android build—without replacing the World Explorer game.
 
-## Island design
+## Dock Town map
 
-Deadwater is a broad industrial island designed around movement rather than room defense. The central yard, refinery field, warehouse road, turbine quarter, shipbreaker yard, intake shore, diagonal service roads, and outer ring remain connected by multiple routes. The intake pier is an intentionally visible dead end; the rest of the island favors loops and wide bypasses.
+This build contains Dock Town only. Its authored road network connects the neighborhood, downtown, warehouse edge, water tower, harbor administration field, and ruined transmission corridor. A huge irregular forest occupies the district interior, forcing the player around it by road. Its dense interior is deliberately inaccessible and burns behind several layers of trees.
 
-The visual language is original but loosely inspired by grimy apocalyptic wave shooters: ash-dark sky, orange firelight, rusty metal, concrete service roads, tanks, pipes, containers, cranes, black water, and drifting embers. The map contains no trees.
+Adjacent districts are separate future maps. Both road stubs are physically barricaded, and no Shipyard geometry or direct cross-map route is loaded in Dock Town.
+
+The low-poly geometry now uses compact authored WebP atlases for the carbine, zombies, conifers, bark, and dead foliage, plus a panoramic ash-storm sky. Existing building geometry and facade materials remain unchanged.
 
 ## Combat
 
@@ -14,8 +16,8 @@ The visual language is original but loosely inspired by grimy apocalyptic wave s
 - Touch fire, reload, sprint, movement, and drag-look controls
 - Desktop WASD, mouse look, Shift, left-click, and R controls
 - Headshots, hit markers, kills, points, health, ammo, reserve ammo, and reload timing
-- Procedural gunfire, empty-click, and zombie audio with no downloaded sound assets
-- Low-poly procedural zombies built entirely from game geometry
+- Recorded zombie voices and sirens packaged for offline play
+- Low-poly zombies with a shared skin and clothing atlas
 - Inter-wave health and ammunition recovery
 - Endless waves with increasing enemy count, health, speed, damage, and spawn pressure
 - Mobile zombie cap to preserve frame rate while later waves continue scaling through enemy strength
