@@ -91,10 +91,27 @@ export const DOCK_TOWN_EXITS = {
 } as const
 
 export const IMPASSABLE_FOREST = {
-  x: 39,
+  x: 40,
   z: 106,
-  width: 36,
-  depth: 44,
+  width: 58,
+  depth: 58,
+  // An intentionally irregular landmass filling most of the interior between
+  // the four surrounding roads. This is not an ellipse or a decorative edge.
+  polygon: points(
+    [21, 84],
+    [37, 81],
+    [53, 83],
+    [63, 91],
+    [66, 104],
+    [62, 114],
+    [69, 124],
+    [58, 131],
+    [42, 134],
+    [27, 130],
+    [18, 121],
+    [15, 108],
+    [18, 96],
+  ),
 } as const
 
 export const WATER_TOWER_POSITION = new THREE.Vector2(67, 106)
