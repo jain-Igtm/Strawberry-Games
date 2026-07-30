@@ -9,6 +9,7 @@ on:
   push:
     branches:
       - main
+      - agent/deadwater-zombies
     paths:
       - "gravenmere/deadwater/**"
       - ".github/workflows/deadwater-android.yml"
