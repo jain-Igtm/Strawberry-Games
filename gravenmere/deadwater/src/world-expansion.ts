@@ -1,5 +1,6 @@
 import * as THREE from 'three'
 import type { EnvironmentMaterials, WeaponPickup } from './environment'
+import { buildDockTownDistrict } from './districts/dock-town'
 import { buildExpandedTerrain, type TerrainWorld } from './terrain-v5'
 import {
   buildWorldObjects,
@@ -35,9 +36,11 @@ export function buildWorldExpansion(context: ExpandedWorldContext): ExpandedWorl
     materials: context.materials,
   })
   const objects = buildWorldObjects(context)
+  const dockTown = buildDockTownDistrict(context)
+  const walkableZones = [...objects.walkableZones, ...dockTown.walkableZones]
 
   const isInWalkableZone = (x: number, z: number): boolean => {
-    return objects.walkableZones.some((zone) => (
+    return walkableZones.some((zone) => (
       x >= zone.minX && x <= zone.maxX && z >= zone.minZ && z <= zone.maxZ
     ))
   }
@@ -58,12 +61,15 @@ export function buildWorldExpansion(context: ExpandedWorldContext): ExpandedWorl
     ...terrain,
     towers: objects.towers,
     questPickups: objects.questPickups,
-    vehicles: objects.vehicles,
+    vehicles: [...objects.vehicles, ...dockTown.vehicles],
     upgradeMachine: objects.upgradeMachine,
     weaponPickups: objects.weaponPickups,
-    walkableZones: objects.walkableZones,
+    walkableZones,
     isWalkableAt,
     isNearLand,
-    update: objects.update,
+    update: (dt: number, elapsed: number): void => {
+      objects.update(dt, elapsed)
+      dockTown.update(dt, elapsed)
+    },
   }
 }
