@@ -2,11 +2,11 @@
 
 Ashfall: Deadwater is a phone-first first-person zombie survival shooter built beside World Explorer in the Gravenmere project branch. It shares the same mobile-first priorities—landscape play, a left movement joystick, right-side drag look, large touch actions, offline assets, and an installable Capacitor Android build—without replacing the World Explorer game.
 
-## Dock Town map
+## Town map
 
-This build contains Dock Town only. Its authored road network connects the neighborhood, downtown, warehouse edge, water tower, harbor administration field, and ruined transmission corridor. A huge irregular forest occupies the district interior, forcing the player around it by road. Its dense interior is deliberately inaccessible and burns behind several layers of trees.
+This build contains the Town map only. It follows the hand-drawn block plan: three neighborhood rows in the southwest, a burning inaccessible forest in the southeast, St. Agnes Hospital and its ER across Main Street, an enterable bar with a working points-based fuel station behind it, a dense water-tower block, three close shopping rows with connecting alleys, and two enterable factories beside the paved Shipyard Road bend.
 
-Adjacent districts are separate future maps. Both road stubs are physically barricaded, and no Shipyard geometry or direct cross-map route is loaded in Dock Town.
+The Shipyard, harbor and beach remain separate future maps. Every outward road is physically barricaded in this build. Fallout hills and a mushroom cloud remain visible beyond the factory road while the recorded civil-defense siren continues to sound from that direction.
 
 The low-poly geometry now uses compact authored WebP atlases for the carbine, zombies, conifers, bark, and dead foliage, plus a panoramic ash-storm sky. Existing building geometry and facade materials remain unchanged.
 
@@ -18,6 +18,7 @@ The low-poly geometry now uses compact authored WebP atlases for the carbine, zo
 - Headshots, hit markers, kills, points, health, ammo, reserve ammo, and reload timing
 - Recorded zombie voices and sirens packaged for offline play
 - Low-poly zombies with a shared skin and clothing atlas
+- Driveable vehicles with fuel consumption and a 300-point gas-station refill
 - Inter-wave health and ammunition recovery
 - Endless waves with increasing enemy count, health, speed, damage, and spawn pressure
 - Mobile zombie cap to preserve frame rate while later waves continue scaling through enemy strength

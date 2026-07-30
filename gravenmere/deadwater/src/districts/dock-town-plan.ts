@@ -13,127 +13,142 @@ const points = (...coordinates: Array<[number, number]>): THREE.Vector2[] => (
 )
 
 /**
- * Authored Dock Town road skeleton.
+ * Town map reconstructed from the hand-drawn block plan.
  *
- * These are intentionally stable connection points. Later maps can meet the
- * boundary roads without shifting Dock Town to make room.
- *
- * The impassable forest is deliberately inside the district rather than along
- * its outer boundary. Harbor Road, Warehouse Lane, Main Street and Water Tower
- * Curve wrap around it, forcing a real road journey around the forest instead
- * of allowing a straight cross-country walk.
+ * X runs west to east and Z runs south to north. The roads below are full
+ * paved streets, not paths. Their control points are kept as stable map seams
+ * so the future Shipyard can meet Shipyard Road without being loaded here.
  */
 export const DOCK_TOWN_ROADS: PlannedRoad[] = [
   {
-    id: 'harbor-road',
-    label: 'Harbor Road',
-    width: 9.4,
-    sidewalks: false,
-    points: points([-8, 132], [8, 134], [24, 136], [42, 136], [60, 132], [82, 127], [102, 125], [120, 124]),
-  },
-  {
-    id: 'water-tower-curve',
-    label: 'Water Tower Curve',
-    width: 7.6,
-    sidewalks: true,
-    points: points([63, 84], [66, 94], [66, 105], [68, 116], [75, 126]),
-  },
-  {
     id: 'main-street',
     label: 'Main Street',
-    width: 10.2,
+    width: 10.8,
     sidewalks: true,
-    points: points([8, 78], [24, 76], [43, 76], [64, 79], [93, 78], [134, 75]),
+    points: points([-7, 72], [24, 72], [54, 72], [82, 72], [106, 72], [132, 72], [178, 72]),
   },
   {
-    id: 'downtown-loop',
-    label: 'Downtown Loop',
+    id: 'water-tower-avenue',
+    label: 'Water Tower Avenue',
+    width: 9.2,
+    sidewalks: true,
+    points: points([82, 5], [82, 34], [82, 72], [82, 103], [82, 136], [82, 159]),
+  },
+  {
+    id: 'hospital-avenue',
+    label: 'Hospital Avenue',
+    width: 9.4,
+    sidewalks: true,
+    points: points([124, 72], [124, 92], [124, 112], [124, 136], [124, 159]),
+  },
+  {
+    id: 'shopping-street',
+    label: 'Shopping Street',
+    width: 8.8,
+    sidewalks: true,
+    points: points([82, 112], [104, 112], [124, 112], [150, 112], [180, 112]),
+  },
+  {
+    id: 'market-street',
+    label: 'Market Street',
+    width: 8.8,
+    sidewalks: true,
+    points: points([82, 136], [104, 136], [124, 136], [150, 136], [180, 136]),
+  },
+  {
+    id: 'shipyard-road',
+    label: 'Shipyard Road',
+    width: 9.4,
+    sidewalks: false,
+    points: points([82, 104], [70, 111], [59, 123], [46, 137], [28, 149], [-7, 157]),
+  },
+  {
+    id: 'neighborhood-west',
+    label: 'Willow Street',
     width: 7.2,
     sidewalks: true,
-    points: points([62, 80], [69, 88], [74, 99], [84, 107], [98, 102], [103, 90], [94, 79]),
+    points: points([20, 4], [20, 34], [20, 72]),
   },
   {
-    id: 'warehouse-lane',
-    label: 'Warehouse Lane',
-    width: 6.5,
-    sidewalks: false,
-    points: points([20, 77], [14, 88], [10, 101], [12, 114], [20, 126], [27, 135]),
+    id: 'neighborhood-center',
+    label: 'Ash Street',
+    width: 7.2,
+    sidewalks: true,
+    points: points([50, 4], [50, 34], [50, 72]),
   },
   {
-    id: 'neighborhood-road',
-    label: 'Neighborhood Road',
-    width: 6.6,
-    sidewalks: false,
-    points: points([66, 79], [73, 68], [88, 59], [106, 60], [127, 70]),
+    id: 'neighborhood-cross',
+    label: 'Foundry Lane',
+    width: 7.0,
+    sidewalks: true,
+    points: points([3, 34], [20, 34], [50, 34], [82, 34]),
   },
   {
-    id: 'admin-road',
-    label: 'Administration Road',
-    width: 7.4,
+    id: 'hospital-drive',
+    label: 'Emergency Drive',
+    width: 6.8,
     sidewalks: false,
-    points: points([92, 124], [101, 115], [109, 104], [120, 91], [134, 82]),
+    points: points([134, 72], [138, 84], [148, 96], [168, 101]),
   },
 ]
 
 export const DOCK_TOWN_LIMITS = {
-  minX: -8,
-  maxX: 140,
-  minZ: 44,
-  maxZ: 138,
+  minX: -12,
+  maxX: 184,
+  minZ: 0,
+  maxZ: 166,
 } as const
 
 export const DOCK_TOWN_BOUNDARY = points(
-  [-12, 70],
-  [3, 49],
-  [34, 43],
-  [72, 42],
-  [111, 46],
-  [141, 66],
-  [144, 92],
-  [139, 122],
-  [121, 140],
-  [74, 143],
-  [22, 143],
-  [-12, 136],
+  [-8, 2],
+  [178, 2],
+  [184, 25],
+  [184, 96],
+  [181, 148],
+  [151, 163],
+  [91, 163],
+  [58, 160],
+  [24, 169],
+  [-10, 159],
+  [-12, 119],
+  [-10, 66],
 )
 
 export const DOCK_TOWN_EXITS = {
-  westHarbor: new THREE.Vector2(-8, 132),
-  harbor: new THREE.Vector2(120, 124),
-  hospital: new THREE.Vector2(134, 75),
-  outskirts: new THREE.Vector2(134, 82),
-  farmAndTown: new THREE.Vector2(8, 78),
+  shipyardRoad: new THREE.Vector2(-7, 157),
+  westMain: new THREE.Vector2(-7, 72),
+  eastMain: new THREE.Vector2(178, 72),
+  northMarket: new THREE.Vector2(180, 136),
 } as const
 
 export const IMPASSABLE_FOREST = {
-  x: 40,
-  z: 106,
-  width: 58,
-  depth: 58,
-  // An intentionally irregular landmass filling most of the interior between
-  // the four surrounding roads. This is not an ellipse or a decorative edge.
+  x: 147,
+  z: 35,
+  width: 76,
+  depth: 65,
   polygon: points(
-    [21, 84],
-    [37, 81],
-    [53, 83],
-    [63, 91],
-    [66, 104],
-    [62, 114],
-    [69, 124],
-    [58, 131],
-    [42, 134],
-    [27, 130],
-    [18, 121],
-    [15, 108],
-    [18, 96],
+    [106, 5],
+    [147, 3],
+    [177, 11],
+    [183, 29],
+    [181, 49],
+    [174, 64],
+    [154, 68],
+    [132, 64],
+    [113, 57],
+    [105, 39],
   ),
 } as const
 
-export const WATER_TOWER_POSITION = new THREE.Vector2(67, 106)
-export const ADMIN_BUILDING_POSITION = new THREE.Vector2(98, 116)
-export const TRANSMISSION_FIELD = {
-  x: 120,
-  z: 113,
-  width: 31,
-  depth: 28,
+export const WATER_TOWER_POSITION = new THREE.Vector2(61, 100)
+export const HOSPITAL_POSITION = new THREE.Vector2(151, 92)
+export const BAR_POSITION = new THREE.Vector2(108, 84)
+export const FUEL_STATION_POSITION = new THREE.Vector2(101, 99)
+export const PLAYER_START = new THREE.Vector2(87, 67)
+
+export const FALLOUT_HILLS = {
+  x: -46,
+  z: 166,
+  cloudX: -56,
+  cloudZ: 184,
 } as const

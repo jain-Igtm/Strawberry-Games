@@ -4,6 +4,7 @@ import { buildDockTownDistrict } from './districts/dock-town'
 import { buildDockTownTerrain, type TerrainWorld } from './districts/dock-town-terrain'
 import {
   type Driveable,
+  type FuelStation,
   type QuestPickup,
   type TowerAccess,
   type UpgradeMachine,
@@ -24,6 +25,7 @@ export type ExpandedWorld = TerrainWorld & {
   towers: TowerAccess[]
   questPickups: QuestPickup[]
   vehicles: Driveable[]
+  fuelStation: FuelStation
   upgradeMachine: UpgradeMachine
   weaponPickups: WeaponPickup[]
   walkableZones: WalkableZone[]
@@ -78,6 +80,7 @@ export function buildWorldExpansion(context: ExpandedWorldContext): ExpandedWorl
     towers: [],
     questPickups: [],
     vehicles: dockTown.vehicles,
+    fuelStation: dockTown.fuelStation,
     upgradeMachine: createInactiveUpgradeMachine(),
     weaponPickups: [],
     walkableZones,

@@ -7,20 +7,20 @@
       content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover"
     />
     <meta name="theme-color" content="#120a08" />
-    <title>Ashfall: Deadwater</title>
+    <title>Ashfall: Town</title>
   </head>
   <body>
     <main id="app">
-      <canvas id="world" aria-label="Ashfall Deadwater game world"></canvas>
+      <canvas id="world" aria-label="Ashfall Town game world"></canvas>
 
       <section id="start-screen" class="screen screen--visible">
         <div class="screen__smoke"></div>
         <div class="screen__copy">
-          <span class="eyebrow">DOCK TOWN AFTER THE LAST EVACUATION</span>
+          <span class="eyebrow">THE TOWN AFTER THE LAST EVACUATION</span>
           <h1>ASHFALL<br /><em>DEADWATER</em></h1>
           <p>
-            Keep moving. The roads bend around a sealed forest that is still burning inside.
-            Every wave is larger, faster, and harder to kill.
+            Main Street separates St. Agnes Hospital from a sealed forest still burning
+            inside. The sirens carry over the factories from the fallout hills.
           </p>
           <button id="start-button" class="primary-button">BEGIN WAVE ONE</button>
           <small>Landscape recommended · headphones optional · progress is run-based</small>
@@ -29,7 +29,7 @@
 
       <section id="game-over-screen" class="screen" aria-hidden="true">
         <div class="screen__copy screen__copy--compact">
-          <span class="eyebrow">DOCK TOWN TOOK ANOTHER</span>
+          <span class="eyebrow">THE TOWN TOOK ANOTHER</span>
           <h2>RUN ENDED</h2>
           <p id="final-score">Wave 1 · 0 kills · 0 points</p>
           <button id="restart-button" class="primary-button">TRY AGAIN</button>
@@ -38,13 +38,13 @@
 
       <div id="rotate-message" aria-hidden="true">
         <strong>TURN YOUR PHONE SIDEWAYS</strong>
-        <span>Deadwater is tuned for landscape controls.</span>
+        <span>Ashfall is tuned for landscape controls.</span>
       </div>
 
       <section id="hud" aria-hidden="true">
         <header class="hud-top">
           <div class="brand-block">
-            <span>ASHFALL · DOCK TOWN</span>
+            <span>ASHFALL · TOWN</span>
             <strong id="district-name">MAIN STREET</strong>
           </div>
           <div class="wave-block">

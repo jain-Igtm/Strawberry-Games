@@ -34,6 +34,15 @@ export type Driveable = {
   turnRate: number
   repaired: boolean
   enterRadius: number
+  fuel: number
+  startingFuel: number
+  fuelCapacity: number
+}
+
+export type FuelStation = {
+  position: THREE.Vector3
+  radius: number
+  cost: number
 }
 
 export type UpgradeMachine = {
@@ -363,6 +372,9 @@ function addVehicle(
     turnRate: kind === 'boat' ? 1.15 : kind === 'buggy' ? 1.8 : 1.35,
     repaired: kind !== 'boat',
     enterRadius: kind === 'boat' ? 4.2 : 3.2,
+    fuel: kind === 'boat' ? 100 : 62,
+    startingFuel: kind === 'boat' ? 100 : 62,
+    fuelCapacity: 100,
   }
 }
 
@@ -533,4 +545,3 @@ export function buildWorldObjects(context: ObjectBuildContext): BuiltWorldObject
     update,
   }
 }
-

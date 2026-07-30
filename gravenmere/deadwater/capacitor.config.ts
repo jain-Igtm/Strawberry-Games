@@ -2,7 +2,7 @@ import type { CapacitorConfig } from '@capacitor/cli'
 
 const config: CapacitorConfig = {
   appId: 'com.jainigtm.deadwater',
-  appName: 'Ashfall Deadwater',
+  appName: 'Ashfall',
   webDir: 'dist',
   android: {
     backgroundColor: '#120a08',

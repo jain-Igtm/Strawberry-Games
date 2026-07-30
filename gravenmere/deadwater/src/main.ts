@@ -19,6 +19,7 @@ import {
   weaponDamageMultiplier,
 } from './expansion-rules'
 import { buildWorldExpansion } from './world-expansion'
+import { PLAYER_START } from './districts/dock-town-plan'
 import type { Driveable, TowerAccess } from './world-objects-v5'
 import { WEAPONS, type WeaponId } from './weapons'
 import { createRoundedZombieVisual } from './zombie-model'
@@ -154,7 +155,7 @@ ui.hud.append(vehicleStatus)
 const isTouch = matchMedia('(pointer: coarse)').matches || 'ontouchstart' in window
 const scene = new THREE.Scene()
 scene.background = new THREE.Color(0x170c09)
-scene.fog = new THREE.FogExp2(0x2a130d, 0.0092)
+scene.fog = new THREE.FogExp2(0x2a130d, 0.0074)
 
 const camera = new THREE.PerspectiveCamera(69, innerWidth / innerHeight, 0.06, 360)
 camera.rotation.order = 'YXZ'
@@ -169,7 +170,7 @@ renderer.setPixelRatio(Math.min(devicePixelRatio || 1, isTouch ? 0.95 : 1.55))
 renderer.setSize(innerWidth, innerHeight)
 renderer.outputColorSpace = THREE.SRGBColorSpace
 renderer.toneMapping = THREE.ACESFilmicToneMapping
-renderer.toneMappingExposure = 0.92
+renderer.toneMappingExposure = 1.12
 configureAtlasTextures(renderer)
 installAshfallSky(scene, renderer)
 
@@ -184,7 +185,7 @@ const spawnPoints: THREE.Vector3[] = []
 const keys = new Set<string>()
 
 const player = {
-  position: new THREE.Vector3(76, 1.82, 80),
+  position: new THREE.Vector3(PLAYER_START.x, 1.82, PLAYER_START.y),
   yaw: Math.PI,
   pitch: -0.03,
   radius: 0.5,
@@ -305,18 +306,19 @@ function addCollider(x: number, z: number, width: number, depth: number, padding
 }
 
 function buildDockTownAtmosphere(): void {
-  const hemi = new THREE.HemisphereLight(0x66717a, 0x17100d, 1.35)
+  const hemi = new THREE.HemisphereLight(0x78838b, 0x17100d, 1.78)
   scene.add(hemi)
-  const firelight = new THREE.DirectionalLight(0xff7950, 1.45)
+  const firelight = new THREE.DirectionalLight(0xff7950, 1.65)
   firelight.position.set(-24, 42, 18)
   scene.add(firelight)
-  const overcast = new THREE.DirectionalLight(0x8294a2, 0.72)
+  const overcast = new THREE.DirectionalLight(0x8fa4b3, 1.08)
   overcast.position.set(75, 28, 34)
   scene.add(overcast)
+  scene.add(new THREE.AmbientLight(0x6f7478, 0.58))
 
   const ocean = new THREE.Mesh(new THREE.PlaneGeometry(560, 560), mats.water)
   ocean.rotation.x = -Math.PI / 2
-  ocean.position.set(64, -0.9, 91)
+  ocean.position.set(86, -0.9, 82)
   scene.add(ocean)
 }
 
@@ -498,7 +500,7 @@ function applyWeaponVisual(): void {
   weaponLabel.textContent = definition.name
 }
 
-const BRIGHTNESS_LEVELS = [0.72, 0.92, 1.14, 1.34] as const
+const BRIGHTNESS_LEVELS = [0.86, 1.12, 1.38, 1.66] as const
 const BRIGHTNESS_LABELS = ['DARK', 'STANDARD', 'BRIGHT', 'VERY BRIGHT'] as const
 const SENSITIVITY_LABELS = ['NORMAL', 'FAST', 'VERY FAST'] as const
 
@@ -623,6 +625,10 @@ function resetExpansionProgress(): void {
     pickup.active = true
     pickup.group.visible = true
   }
+  for (const vehicle of expandedWorld.vehicles) {
+    vehicle.fuel = vehicle.startingFuel
+    vehicle.group.userData.emptyFuelWarned = false
+  }
   const boat = expandedWorld.vehicles.find((vehicle) => vehicle.kind === 'boat')
   if (boat) boat.repaired = false
   updateQuestStrip()
@@ -641,6 +647,39 @@ function nearestVehicle(): Driveable | null {
     }
   }
   return nearest
+}
+
+function vehicleFuelPercent(vehicle: Driveable): number {
+  return Math.round((vehicle.fuel / vehicle.fuelCapacity) * 100)
+}
+
+function vehicleAtFuelStation(vehicle: Driveable): boolean {
+  const station = expandedWorld.fuelStation
+  const dx = vehicle.group.position.x - station.position.x
+  const dz = vehicle.group.position.z - station.position.z
+  return dx * dx + dz * dz <= station.radius * station.radius
+}
+
+function updateVehicleStatus(vehicle: Driveable): void {
+  vehicleStatus.textContent =
+    vehicle.label + ' · FUEL ' + vehicleFuelPercent(vehicle) + '% · USE TO EXIT'
+}
+
+function refuelCurrentVehicle(): boolean {
+  const vehicle = state.vehicle
+  if (!vehicle || !vehicleAtFuelStation(vehicle) || vehicle.fuel >= vehicle.fuelCapacity - 0.5) return false
+  const cost = expandedWorld.fuelStation.cost
+  if (state.score < cost) {
+    showToast('REFUEL REQUIRES ' + cost + ' POINTS', 1.8)
+    return true
+  }
+  state.score -= cost
+  vehicle.fuel = vehicle.fuelCapacity
+  vehicle.group.userData.emptyFuelWarned = false
+  updateVehicleStatus(vehicle)
+  updateHud()
+  showToast('TANK FILLED · ' + cost + ' POINTS', 1.8)
+  return true
 }
 
 function nearestQuestPickup() {
@@ -679,7 +718,7 @@ function enterVehicle(vehicle: Driveable): void {
   state.fireHeld = false
   setScoped(false)
   soundscape.enterVehicle(vehicle.kind)
-  vehicleStatus.textContent = vehicle.label + ' · USE TO EXIT'
+  updateVehicleStatus(vehicle)
   vehicleStatus.classList.add('visible')
   gun.visible = false
 }
@@ -710,6 +749,7 @@ function performInteraction(): void {
   if (state.interactionCooldown > 0 || state.gameOver) return
   state.interactionCooldown = 0.25
   if (state.vehicle) {
+    if (refuelCurrentVehicle()) return
     exitVehicle()
     return
   }
@@ -768,7 +808,11 @@ function performInteraction(): void {
 function updateInteractionPrompt(): void {
   let text = ''
   if (state.vehicle) {
-    text = 'USE · EXIT ' + state.vehicle.label
+    if (vehicleAtFuelStation(state.vehicle) && state.vehicle.fuel < state.vehicle.fuelCapacity - 0.5) {
+      text = 'USE · REFUEL · ' + expandedWorld.fuelStation.cost + ' PTS'
+    } else {
+      text = 'USE · EXIT ' + state.vehicle.label
+    }
   } else if (state.elevatedTower) {
     text = 'USE · DESCEND'
   } else {
@@ -1126,7 +1170,11 @@ function endRun(): void {
 
 function resetRun(): void {
   clearZombies()
-  player.position.set(76, expandedWorld.heightAt(76, 80) + 1.7, 80)
+  player.position.set(
+    PLAYER_START.x,
+    expandedWorld.heightAt(PLAYER_START.x, PLAYER_START.y) + 1.7,
+    PLAYER_START.y,
+  )
   player.yaw = Math.PI
   player.pitch = -0.03
   state.gameOver = false
@@ -1183,7 +1231,11 @@ function updatePlayer(dt: number): void {
 
   if (state.vehicle) {
     const vehicle = state.vehicle
-    const targetSpeed = forward * vehicle.maxSpeed
+    const targetSpeed = vehicle.fuel > 0 ? forward * vehicle.maxSpeed : 0
+    if (vehicle.fuel <= 0 && Math.abs(forward) > 0.05 && !vehicle.group.userData.emptyFuelWarned) {
+      vehicle.group.userData.emptyFuelWarned = true
+      showToast('OUT OF FUEL · FIND THE LAST STOP', 2.1)
+    }
     vehicle.speed = THREE.MathUtils.damp(vehicle.speed, targetSpeed, 4.2, dt)
     if (Math.abs(forward) < 0.02) vehicle.speed = THREE.MathUtils.damp(vehicle.speed, 0, 2.7, dt)
     const steeringStrength = THREE.MathUtils.clamp(Math.abs(vehicle.speed) / Math.max(1, vehicle.maxSpeed), 0.18, 1)
@@ -1223,6 +1275,10 @@ function updatePlayer(dt: number): void {
     } else {
       vehicle.speed *= -0.12
     }
+    if (vehicle.fuel > 0 && Math.abs(vehicle.speed) > 0.08) {
+      vehicle.fuel = Math.max(0, vehicle.fuel - Math.abs(vehicle.speed) * dt * 0.024)
+      if (vehicle.fuel === 0) vehicle.group.userData.emptyFuelWarned = false
+    }
     vehicle.group.position.y = vehicle.kind === 'boat'
       ? -0.02
       : expandedWorld.heightAt(vehicle.group.position.x, vehicle.group.position.z) + 0.1
@@ -1247,6 +1303,7 @@ function updatePlayer(dt: number): void {
       vehicle.group.position.z,
     )
     soundscape.updateVehicle(vehicle.kind, vehicle.speed / vehicle.maxSpeed)
+    updateVehicleStatus(vehicle)
     ui.district.textContent = expandedWorld.districtAt(player.position.x, player.position.z)
     emberCloud.position.set(player.position.x, 0, player.position.z)
     ashCloud.position.set(player.position.x, 0, player.position.z)

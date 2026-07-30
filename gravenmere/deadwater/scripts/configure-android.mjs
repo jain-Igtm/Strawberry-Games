@@ -80,8 +80,8 @@ background = background.replace(/#[0-9A-Fa-f]{6}/, '#1A0D09')
 writeFileSync(backgroundPath, background)
 
 let buildGradle = readFileSync(buildGradlePath, 'utf8')
-buildGradle = buildGradle.replace(/versionCode \d+/, 'versionCode 1')
-buildGradle = buildGradle.replace(/versionName "[^"]+"/, 'versionName "0.1.0"')
+buildGradle = buildGradle.replace(/versionCode \d+/, 'versionCode 14')
+buildGradle = buildGradle.replace(/versionName "[^"]+"/, 'versionName "0.14.0"')
 writeFileSync(buildGradlePath, buildGradle)
 
-console.log('Configured landscape, fullscreen Ashfall Deadwater Android 0.1.0 (1) project.')
+console.log('Configured landscape, fullscreen Ashfall Android 0.14.0 (14) project.')

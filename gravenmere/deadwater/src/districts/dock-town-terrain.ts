@@ -1,6 +1,6 @@
 import * as THREE from 'three'
 import type { EnvironmentMaterials } from '../environment'
-import { DOCK_TOWN_BOUNDARY } from './dock-town-plan'
+import { DOCK_TOWN_BOUNDARY, WATER_TOWER_POSITION } from './dock-town-plan'
 
 export type TerrainBuildContext = {
   scene: THREE.Scene
@@ -69,13 +69,15 @@ function createDistrictLand(material: THREE.Material): THREE.Mesh {
 }
 
 function districtAt(x: number, z: number): string {
-  if (Math.hypot(x - 67, z - 106) < 13) return 'WATER TOWER'
-  if (z >= 122) return 'HARBOR ROAD'
-  if (x <= 30 && z >= 82) return 'WAREHOUSE QUARTER'
-  if (x >= 107 && z >= 96) return 'ADMIN FIELD'
-  if (z <= 74 && x >= 60) return 'SOUTH NEIGHBORHOOD'
-  if (x >= 62 && z >= 76 && z <= 119) return 'DOWNTOWN'
-  return 'DOCK TOWN'
+  if (z < 68 && x < 96) return 'SOUTH NEIGHBORHOOD'
+  if (z < 69 && x >= 100) return 'BURNING TREELINE'
+  if (x >= 128 && z >= 73 && z < 109) return 'ST. AGNES HOSPITAL'
+  if (x >= 87 && x < 122 && z >= 74 && z < 109) return 'BAR DISTRICT'
+  if (Math.hypot(x - WATER_TOWER_POSITION.x, z - WATER_TOWER_POSITION.y) < 15) return 'WATER TOWER'
+  if (z >= 108 && x >= 87) return 'SHOPPING DISTRICT'
+  if (z >= 108 && x < 78) return 'SMALL FACTORIES'
+  if (z >= 96 && x < 88) return 'SHIPYARD ROAD'
+  return 'MAIN STREET'
 }
 
 export function buildDockTownTerrain(context: TerrainBuildContext): TerrainWorld {
@@ -85,20 +87,28 @@ export function buildDockTownTerrain(context: TerrainBuildContext): TerrainWorld
   context.scene.add(createDistrictLand(landMaterial))
 
   const spawnCoordinates: Array<[number, number]> = [
-    [-3, 83],
-    [-5, 111],
-    [4, 132],
-    [28, 138],
-    [73, 138],
-    [108, 132],
-    [132, 116],
-    [138, 92],
-    [131, 72],
-    [112, 55],
-    [91, 48],
-    [64, 48],
-    [35, 54],
-    [10, 68],
+    // The southeast group sits immediately behind the visible treeline so
+    // zombies appear to emerge from the burning forest onto Main Street.
+    [116, 63],
+    [129, 66],
+    [143, 67],
+    [158, 67],
+    [173, 64],
+    // Other entrances keep waves circulating through streets and interiors.
+    [177, 91],
+    [177, 121],
+    [171, 150],
+    [143, 158],
+    [106, 158],
+    [71, 156],
+    [36, 160],
+    [2, 151],
+    [-5, 119],
+    [-5, 80],
+    [3, 49],
+    [5, 14],
+    [39, 6],
+    [72, 6],
   ]
   const spawnPoints = spawnCoordinates
     .filter(([x, z]) => isLandAt(x, z))
