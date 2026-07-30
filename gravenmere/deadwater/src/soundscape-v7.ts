@@ -1,14 +1,13 @@
 import * as THREE from 'three'
+import type { WeaponId } from './weapons'
 import { DeadwaterSoundscapeV5 } from './soundscape-v5'
 
 type SampleSet = {
   zombies: AudioBuffer[]
-  civilDefenseSiren: AudioBuffer | null
 }
 
 const EMPTY_SAMPLES: SampleSet = {
   zombies: [],
-  civilDefenseSiren: null,
 }
 
 export class DeadwaterSoundscapeV7 extends DeadwaterSoundscapeV5 {
@@ -17,7 +16,6 @@ export class DeadwaterSoundscapeV7 extends DeadwaterSoundscapeV5 {
   private nextZombieSampleAt = 0
   private sirenTimer = 76 + Math.random() * 54
   private openingSirenPlayed = false
-  private openingFallbackPlayed = false
   private active = false
 
   preload(): void {
@@ -30,36 +28,41 @@ export class DeadwaterSoundscapeV7 extends DeadwaterSoundscapeV5 {
     super.start()
     this.active = true
     if (!this.openingSirenPlayed) {
-      this.openingSirenPlayed = this.playCivilDefenseSiren(true)
+      this.openingSirenPlayed = true
+      this.playCivilDefenseSiren(true)
     }
-    if (!this.openingSirenPlayed && !this.openingFallbackPlayed) {
-      this.openingFallbackPlayed = true
-      this.playImmediateCivilDefenseSiren()
-    }
-    void this.loadSamples().then(() => {
-      if (this.openingSirenPlayed) return
-      if (context.state === 'suspended') void context.resume()
-      this.openingSirenPlayed = this.playCivilDefenseSiren(true)
-    })
   }
 
-  private playImmediateCivilDefenseSiren(): void {
+  override gunshot(weaponId: WeaponId): void {
+    super.gunshot(weaponId)
+    if (typeof navigator === 'undefined' || typeof navigator.vibrate !== 'function') return
+    const duration = weaponId === 'shotgun'
+      ? 12
+      : weaponId === 'marksman' || weaponId === 'harpoon'
+        ? 8
+        : 5
+    navigator.vibrate(duration)
+  }
+
+  private playCivilDefenseSiren(opening = false): void {
     const context = this.ensure()
     const filter = context.createBiquadFilter()
     const master = context.createGain()
     const sweep = context.createOscillator()
     const sweepDepth = context.createGain()
+    const panner = context.createStereoPanner()
     const start = context.currentTime
-    const duration = 8.5
+    const duration = opening ? 8.5 : 7.6
 
     filter.type = 'lowpass'
-    filter.frequency.value = 1850
+    filter.frequency.value = opening ? 1850 : 1650
     filter.Q.value = 0.72
+    panner.pan.value = opening ? -0.08 : -0.24
     master.gain.setValueAtTime(0.0001, start)
-    master.gain.exponentialRampToValueAtTime(0.052, start + 0.42)
-    master.gain.setValueAtTime(0.052, start + duration - 1.15)
+    master.gain.exponentialRampToValueAtTime(opening ? 0.052 : 0.031, start + 0.42)
+    master.gain.setValueAtTime(opening ? 0.052 : 0.031, start + duration - 1.15)
     master.gain.exponentialRampToValueAtTime(0.0001, start + duration)
-    filter.connect(master).connect(context.destination)
+    filter.connect(panner).connect(master).connect(context.destination)
 
     sweep.type = 'sine'
     sweep.frequency.value = 0.135
@@ -98,15 +101,13 @@ export class DeadwaterSoundscapeV7 extends DeadwaterSoundscapeV5 {
   private loadSamples(): Promise<void> {
     if (this.sampleLoad) return this.sampleLoad
     this.sampleLoad = (async () => {
-      const [zombieOne, zombieTwo, zombieThree, civilDefenseSiren] = await Promise.all([
+      const [zombieOne, zombieTwo, zombieThree] = await Promise.all([
         this.decode('/audio-v7/zombie-groan-1.ogg'),
         this.decode('/audio-v7/zombie-groan-2.ogg'),
         this.decode('/audio-v7/zombie-groan-3.ogg'),
-        this.decode('/audio-v7/civil-defense-siren.ogg'),
       ])
       this.samples = {
         zombies: [zombieOne, zombieTwo, zombieThree].filter((entry): entry is AudioBuffer => Boolean(entry)),
-        civilDefenseSiren,
       }
     })()
     return this.sampleLoad
@@ -181,41 +182,11 @@ export class DeadwaterSoundscapeV7 extends DeadwaterSoundscapeV5 {
     this.playBuffer(sample, 0.09, 0.68 + Math.random() * 0.16, offset, Math.min(1.3, sample.duration - offset), 2300)
   }
 
-  private playCivilDefenseSiren(opening = false): boolean {
-    const sample = this.samples.civilDefenseSiren
-    if (!sample) return false
-    const duration = Math.min(
-      sample.duration,
-      opening ? 29 : 23 + Math.random() * 14,
-    )
-    const maximumOffset = Math.max(0, sample.duration - duration)
-    const offset = opening
-      ? Math.min(0.35, maximumOffset)
-      : maximumOffset > 0
-        ? Math.random() * maximumOffset
-        : 0
-    this.playBuffer(
-      sample,
-      opening ? 0.082 : 0.033,
-      opening ? 0.985 : 0.96 + Math.random() * 0.035,
-      offset,
-      duration,
-      opening ? 4100 : 3500,
-      opening ? -0.18 : -0.34,
-      opening ? 1.05 : 1.4,
-    )
-    return true
-  }
-
   override update(dt: number): void {
     if (!this.active) return
     this.sirenTimer -= dt
     if (this.sirenTimer > 0) return
-    void this.loadSamples()
-    if (!this.playCivilDefenseSiren()) {
-      this.sirenTimer = 0.5
-      return
-    }
+    this.playCivilDefenseSiren(false)
     this.sirenTimer = 72 + Math.random() * 78
   }
 }
