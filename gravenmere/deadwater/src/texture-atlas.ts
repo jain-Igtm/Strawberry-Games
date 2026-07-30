@@ -1,9 +1,6 @@
 import * as THREE from 'three'
-import {
-  GAMEPLAY_ATLAS_V16,
-  SMOKE_ATLAS_V16,
-  ZOMBIE_ATLAS_V16,
-} from './generated-textures-v16'
+import { GAMEPLAY_ATLAS_V16 } from './generated-textures-v16'
+import { CASTLE_ROMEO_JPEG_V17 } from './generated-assets-v17'
 
 export type AtlasTile = Readonly<{
   u: number
@@ -59,9 +56,8 @@ function loadAtlas(source: string): THREE.Texture {
 
 export const gameplayAtlasTexture = loadAtlas(GAMEPLAY_ATLAS_V16)
 export const gunAtlasTexture = gameplayAtlasTexture
-export const zombieAtlasTexture = loadAtlas(ZOMBIE_ATLAS_V16)
 export const forestAtlasTexture = loadAtlas('forest-atlas.webp')
-export const smokeAtlasTexture = loadAtlas(SMOKE_ATLAS_V16)
+export const mushroomCloudTexture = loadAtlas(CASTLE_ROMEO_JPEG_V17)
 
 export function mapGeometryToAtlas<T extends THREE.BufferGeometry>(
   geometry: T,
@@ -84,9 +80,8 @@ export function configureAtlasTextures(renderer: THREE.WebGLRenderer): void {
   const anisotropy = Math.min(4, renderer.capabilities.getMaxAnisotropy())
   for (const texture of [
     gameplayAtlasTexture,
-    zombieAtlasTexture,
     forestAtlasTexture,
-    smokeAtlasTexture,
+    mushroomCloudTexture,
   ]) {
     texture.anisotropy = anisotropy
     texture.needsUpdate = true

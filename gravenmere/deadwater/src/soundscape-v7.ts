@@ -15,11 +15,17 @@ export class DeadwaterSoundscapeV7 extends DeadwaterSoundscapeV5 {
   private samples: SampleSet = EMPTY_SAMPLES
   private sampleLoad: Promise<void> | null = null
   private nextZombieSampleAt = 0
-  private sirenTimer = 34 + Math.random() * 30
+  private sirenTimer = 76 + Math.random() * 54
+  private openingSirenPlayed = false
+  private active = false
 
   override start(): void {
     super.start()
-    void this.loadSamples()
+    this.active = true
+    void this.loadSamples().then(() => {
+      if (this.openingSirenPlayed) return
+      this.openingSirenPlayed = this.playCivilDefenseSiren(true)
+    })
   }
 
   private async decode(path: string): Promise<AudioBuffer | null> {
@@ -119,18 +125,41 @@ export class DeadwaterSoundscapeV7 extends DeadwaterSoundscapeV5 {
     this.playBuffer(sample, 0.09, 0.68 + Math.random() * 0.16, offset, Math.min(1.3, sample.duration - offset), 2300)
   }
 
+  private playCivilDefenseSiren(opening = false): boolean {
+    const sample = this.samples.civilDefenseSiren
+    if (!sample) return false
+    const duration = Math.min(
+      sample.duration,
+      opening ? 29 : 23 + Math.random() * 14,
+    )
+    const maximumOffset = Math.max(0, sample.duration - duration)
+    const offset = opening
+      ? Math.min(0.35, maximumOffset)
+      : maximumOffset > 0
+        ? Math.random() * maximumOffset
+        : 0
+    this.playBuffer(
+      sample,
+      opening ? 0.052 : 0.033,
+      opening ? 0.985 : 0.96 + Math.random() * 0.035,
+      offset,
+      duration,
+      opening ? 4100 : 3500,
+      opening ? -0.18 : -0.34,
+      opening ? 1.05 : 1.4,
+    )
+    return true
+  }
+
   override update(dt: number): void {
+    if (!this.active) return
     this.sirenTimer -= dt
     if (this.sirenTimer > 0) return
-    this.sirenTimer = 72 + Math.random() * 78
     void this.loadSamples()
-    const sample = this.samples.civilDefenseSiren
-    if (!sample) return
-
-    const duration = Math.min(sample.duration, 23 + Math.random() * 14)
-    const maximumOffset = Math.max(0, sample.duration - duration)
-    const offset = maximumOffset > 0 ? Math.random() * maximumOffset : 0
-    // Slightly left-biased and filtered to suggest the fallout hills beyond the western boundary.
-    this.playBuffer(sample, 0.033, 0.96 + Math.random() * 0.035, offset, duration, 3500, -0.34, 1.4)
+    if (!this.playCivilDefenseSiren()) {
+      this.sirenTimer = 0.5
+      return
+    }
+    this.sirenTimer = 72 + Math.random() * 78
   }
 }

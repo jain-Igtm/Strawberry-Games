@@ -1,295 +1,226 @@
 import * as THREE from 'three'
-import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js'
-import {
-  ATLAS_TILES,
-  mapGeometryToAtlas,
-  zombieAtlasTexture,
-  type AtlasTile,
-} from './texture-atlas'
+import { GLTFLoader, type GLTF } from 'three/examples/jsm/loaders/GLTFLoader.js'
+import { clone as cloneSkeleton } from 'three/examples/jsm/utils/SkeletonUtils.js'
+import { QUATERNIUS_ZOMBIE_GLB_V17 } from './generated-assets-v17'
 
-export type ZombieModelMaterials = {
-  skin: THREE.MeshStandardMaterial
-  cloth: THREE.MeshStandardMaterial
-  clothAlt: THREE.MeshStandardMaterial
-  rust: THREE.MeshStandardMaterial
-  warning: THREE.MeshStandardMaterial
-  ember: THREE.MeshBasicMaterial
-}
-
-export type ZombieRig = {
-  head: THREE.Bone
-  leftArm: THREE.Bone
-  rightArm: THREE.Bone
-  leftLeg: THREE.Bone
-  rightLeg: THREE.Bone
-}
+export type ZombieAnimationState = 'walk' | 'run' | 'attack' | 'death'
 
 export type ZombieVisual = {
   group: THREE.Group
   parts: THREE.Mesh[]
-  mesh: THREE.SkinnedMesh
-  rig: ZombieRig
+  mixer: THREE.AnimationMixer
+  actions: Record<ZombieAnimationState, THREE.AnimationAction>
+  animationState: ZombieAnimationState
+  animationAccumulator: number
+  disposed: boolean
 }
 
-type PartTransform = {
-  position: THREE.Vector3
-  rotation?: THREE.Euler
-  scale?: THREE.Vector3
+type ZombieAsset = {
+  scene: THREE.Group
+  clips: Record<ZombieAnimationState, THREE.AnimationClip>
+  groundOffset: number
 }
 
-function skinGeometry(
-  geometry: THREE.BufferGeometry,
-  tile: AtlasTile,
-  boneIndex: number,
-  transform: PartTransform,
-): THREE.BufferGeometry {
-  // BufferGeometryUtils requires every merged source to agree on indexed vs
-  // non-indexed storage. Three's primitive constructors mix the two forms
-  // (notably IcosahedronGeometry versus Cylinder/CapsuleGeometry), which caused
-  // a synchronous module-load exception before the Start listener attached.
-  const compatibleGeometry = geometry.index ? geometry.toNonIndexed() : geometry
-  if (compatibleGeometry !== geometry) geometry.dispose()
-  mapGeometryToAtlas(compatibleGeometry, tile)
-  const quaternion = new THREE.Quaternion().setFromEuler(
-    transform.rotation ?? new THREE.Euler(),
-  )
-  compatibleGeometry.applyMatrix4(new THREE.Matrix4().compose(
-    transform.position,
-    quaternion,
-    transform.scale ?? new THREE.Vector3(1, 1, 1),
-  ))
+let zombieAsset: ZombieAsset | null = null
+let zombieAssetFailed = false
 
-  const vertexCount = compatibleGeometry.getAttribute('position').count
-  const indices = new Uint16Array(vertexCount * 4)
-  const weights = new Float32Array(vertexCount * 4)
-  for (let index = 0; index < vertexCount; index += 1) {
-    indices[index * 4] = boneIndex
-    weights[index * 4] = 1
-  }
-  compatibleGeometry.setAttribute('skinIndex', new THREE.Uint16BufferAttribute(indices, 4))
-  compatibleGeometry.setAttribute('skinWeight', new THREE.Float32BufferAttribute(weights, 4))
-  return compatibleGeometry
+function findClip(
+  animations: THREE.AnimationClip[],
+  name: string,
+): THREE.AnimationClip {
+  const clip = THREE.AnimationClip.findByName(animations, name)
+  if (!clip) throw new Error(`Missing zombie animation: ${name}`)
+  return clip
 }
 
-function buildSharedZombieGeometry(): THREE.BufferGeometry {
-  const parts: THREE.BufferGeometry[] = [
-    skinGeometry(
-      new THREE.CylinderGeometry(0.31, 0.4, 0.86, 7, 1),
-      ATLAS_TILES.topRight,
-      0,
-      {
-        position: new THREE.Vector3(0, 1.38, 0.02),
-        rotation: new THREE.Euler(0.1, 0, 0),
-        scale: new THREE.Vector3(1, 1, 0.78),
-      },
-    ),
-    skinGeometry(
-      new THREE.IcosahedronGeometry(0.31, 1),
-      ATLAS_TILES.bottomLeft,
-      0,
-      {
-        position: new THREE.Vector3(0, 0.94, 0),
-        scale: new THREE.Vector3(1, 0.62, 0.76),
-      },
-    ),
-    skinGeometry(
-      new THREE.CylinderGeometry(0.09, 0.13, 0.28, 7),
-      ATLAS_TILES.topLeft,
-      1,
-      {
-        position: new THREE.Vector3(0.015, 1.84, 0.08),
-        rotation: new THREE.Euler(0.18, 0, 0),
-      },
-    ),
-    skinGeometry(
-      new THREE.IcosahedronGeometry(0.255, 1),
-      ATLAS_TILES.topLeft,
-      1,
-      {
-        position: new THREE.Vector3(0.025, 2.08, 0.12),
-        rotation: new THREE.Euler(-0.08, 0, 0.04),
-        scale: new THREE.Vector3(0.92, 1.08, 0.9),
-      },
-    ),
-    skinGeometry(
-      new THREE.IcosahedronGeometry(0.16, 0),
-      ATLAS_TILES.topLeft,
-      1,
-      {
-        position: new THREE.Vector3(0.035, 1.9, 0.18),
-        rotation: new THREE.Euler(-0.08, 0, 0.05),
-        scale: new THREE.Vector3(1, 0.58, 0.82),
-      },
-    ),
-    skinGeometry(
-      new THREE.IcosahedronGeometry(0.09, 0),
-      ATLAS_TILES.bottomRight,
-      1,
-      {
-        position: new THREE.Vector3(-0.12, 2.14, 0.31),
-        scale: new THREE.Vector3(1.35, 0.72, 0.24),
-      },
-    ),
-    skinGeometry(
-      new THREE.IcosahedronGeometry(0.105, 0),
-      ATLAS_TILES.bottomRight,
-      0,
-      {
-        position: new THREE.Vector3(0.15, 1.45, 0.3),
-        scale: new THREE.Vector3(1, 1.5, 0.24),
-      },
-    ),
-    skinGeometry(
-      new THREE.CapsuleGeometry(0.105, 0.68, 2, 6),
-      ATLAS_TILES.topLeft,
-      2,
-      {
-        position: new THREE.Vector3(-0.43, 1.28, 0.08),
-        rotation: new THREE.Euler(-0.46, 0, -0.11),
-      },
-    ),
-    skinGeometry(
-      new THREE.IcosahedronGeometry(0.115, 0),
-      ATLAS_TILES.topLeft,
-      2,
-      {
-        position: new THREE.Vector3(-0.5, 0.82, 0.28),
-        scale: new THREE.Vector3(0.72, 1.08, 0.58),
-      },
-    ),
-    skinGeometry(
-      new THREE.CapsuleGeometry(0.105, 0.7, 2, 6),
-      ATLAS_TILES.topLeft,
-      3,
-      {
-        position: new THREE.Vector3(0.43, 1.27, 0.09),
-        rotation: new THREE.Euler(-0.52, 0, 0.11),
-      },
-    ),
-    skinGeometry(
-      new THREE.IcosahedronGeometry(0.115, 0),
-      ATLAS_TILES.topLeft,
-      3,
-      {
-        position: new THREE.Vector3(0.5, 0.81, 0.3),
-        scale: new THREE.Vector3(0.72, 1.08, 0.58),
-      },
-    ),
-    skinGeometry(
-      new THREE.CapsuleGeometry(0.12, 0.7, 2, 6),
-      ATLAS_TILES.bottomLeft,
-      4,
-      {
-        position: new THREE.Vector3(-0.16, 0.54, 0),
-        rotation: new THREE.Euler(0, 0, -0.025),
-      },
-    ),
-    skinGeometry(
-      new THREE.CapsuleGeometry(0.105, 0.22, 2, 5),
-      ATLAS_TILES.bottomLeft,
-      4,
-      {
-        position: new THREE.Vector3(-0.16, 0.105, -0.14),
-        rotation: new THREE.Euler(Math.PI / 2, 0, 0),
-      },
-    ),
-    skinGeometry(
-      new THREE.CapsuleGeometry(0.12, 0.7, 2, 6),
-      ATLAS_TILES.bottomLeft,
-      5,
-      {
-        position: new THREE.Vector3(0.16, 0.54, 0.01),
-        rotation: new THREE.Euler(0, 0, 0.035),
-      },
-    ),
-    skinGeometry(
-      new THREE.CapsuleGeometry(0.105, 0.22, 2, 5),
-      ATLAS_TILES.bottomLeft,
-      5,
-      {
-        position: new THREE.Vector3(0.16, 0.105, -0.14),
-        rotation: new THREE.Euler(Math.PI / 2, 0, 0),
-      },
-    ),
-  ]
-
-  const merged = mergeGeometries(parts, false)
-  for (const part of parts) part.dispose()
-  if (!merged) throw new Error('Unable to merge the shared zombie geometry')
-  merged.computeBoundingBox()
-  merged.computeBoundingSphere()
-  merged.userData.sharedZombieGeometry = true
-  return merged
+function removeRootMotion(clip: THREE.AnimationClip): THREE.AnimationClip {
+  const clean = clip.clone()
+  clean.tracks = clean.tracks.filter((track) => {
+    const rootPosition =
+      track.name === 'Root.position' ||
+      track.name === 'CharacterArmature.position'
+    return !rootPosition
+  })
+  clean.resetDuration()
+  return clean
 }
 
-const sharedZombieGeometry = buildSharedZombieGeometry()
-
-function createRig(): { root: THREE.Bone; bones: THREE.Bone[]; rig: ZombieRig } {
-  const root = new THREE.Bone()
-  root.name = 'zombie-root'
-
-  const head = new THREE.Bone()
-  head.name = 'head'
-  head.position.set(0, 1.84, 0.08)
-
-  const leftArm = new THREE.Bone()
-  leftArm.name = 'left-arm'
-  leftArm.position.set(-0.34, 1.62, 0.03)
-
-  const rightArm = new THREE.Bone()
-  rightArm.name = 'right-arm'
-  rightArm.position.set(0.34, 1.62, 0.03)
-
-  const leftLeg = new THREE.Bone()
-  leftLeg.name = 'left-leg'
-  leftLeg.position.set(-0.16, 0.96, 0)
-
-  const rightLeg = new THREE.Bone()
-  rightLeg.name = 'right-leg'
-  rightLeg.position.set(0.16, 0.96, 0)
-
-  root.add(head, leftArm, rightArm, leftLeg, rightLeg)
+function prepareZombieAsset(gltf: GLTF): ZombieAsset {
+  const bounds = new THREE.Box3().setFromObject(gltf.scene)
+  const groundOffset = Number.isFinite(bounds.min.y) ? -bounds.min.y : 0
   return {
-    root,
-    bones: [root, head, leftArm, rightArm, leftLeg, rightLeg],
-    rig: { head, leftArm, rightArm, leftLeg, rightLeg },
+    scene: gltf.scene,
+    groundOffset,
+    clips: {
+      walk: removeRootMotion(findClip(gltf.animations, 'Walk')),
+      run: removeRootMotion(findClip(gltf.animations, 'Run')),
+      attack: removeRootMotion(findClip(gltf.animations, 'Idle_Attack')),
+      death: removeRootMotion(findClip(gltf.animations, 'Death')),
+    },
   }
 }
 
-export function createRoundedZombieVisual(base: ZombieModelMaterials): ZombieVisual {
-  const material = (Math.random() > 0.5 ? base.cloth : base.clothAlt).clone()
-  material.map = zombieAtlasTexture
-  material.color.setHex(0xd2cec5)
-  material.color.offsetHSL(
-    (Math.random() - 0.5) * 0.025,
-    -0.08,
-    (Math.random() - 0.5) * 0.055,
-  )
-  material.roughness = 0.98
-  material.metalness = 0
-  material.flatShading = false
+export const zombieAssetReady: Promise<boolean> =
+  typeof window === 'undefined'
+    ? Promise.resolve(false)
+    : new Promise((resolve) => {
+        const loader = new GLTFLoader()
+        try {
+          loader.load(
+            QUATERNIUS_ZOMBIE_GLB_V17,
+            (gltf) => {
+              try {
+                zombieAsset = prepareZombieAsset(gltf)
+                resolve(true)
+              } catch {
+                zombieAssetFailed = true
+                resolve(false)
+              }
+            },
+            undefined,
+            () => {
+              zombieAssetFailed = true
+              resolve(false)
+            },
+          )
+        } catch {
+          zombieAssetFailed = true
+          resolve(false)
+        }
+      })
 
-  const { root, bones, rig } = createRig()
-  const mesh = new THREE.SkinnedMesh(sharedZombieGeometry, material)
-  mesh.name = 'textured-zombie'
-  mesh.castShadow = false
-  mesh.receiveShadow = false
-  mesh.frustumCulled = true
-  mesh.add(root)
-  mesh.bind(new THREE.Skeleton(bones))
-  mesh.normalizeSkinWeights()
-  mesh.userData.sharedGeometry = true
+export function isZombieAssetReady(): boolean {
+  return zombieAsset !== null
+}
+
+export function didZombieAssetFail(): boolean {
+  return zombieAssetFailed
+}
+
+function cloneZombieMaterial(
+  source: THREE.Material,
+  tint: number,
+): THREE.Material {
+  const material = source.clone()
+  if (material instanceof THREE.MeshStandardMaterial) {
+    material.color.offsetHSL(
+      tint * 0.015,
+      -0.035 + Math.abs(tint) * 0.02,
+      tint * 0.035,
+    )
+    material.roughness = 0.96
+    material.metalness = 0
+    material.flatShading = false
+  }
+  return material
+}
+
+export function createTexturedZombieVisual(): ZombieVisual | null {
+  const asset = zombieAsset
+  if (!asset) return null
+
+  const model = cloneSkeleton(asset.scene) as THREE.Group
+  const parts: THREE.Mesh[] = []
+  const tint = Math.random() - 0.5
+  model.traverse((object) => {
+    if (!(object instanceof THREE.Mesh)) return
+    object.material = Array.isArray(object.material)
+      ? object.material.map((material) => cloneZombieMaterial(material, tint))
+      : cloneZombieMaterial(object.material, tint)
+    object.castShadow = false
+    object.receiveShadow = false
+    object.frustumCulled = true
+    parts.push(object)
+  })
+
+  // The source character is intentionally stocky. This non-uniform presentation
+  // scale restores adult proportions without changing its authored mesh,
+  // texture, rig, or animation.
+  model.position.y = asset.groundOffset
+  model.rotation.y = Math.PI
+  model.scale.set(0.78, 1.55, 0.78)
 
   const group = new THREE.Group()
+  group.name = 'cc0-textured-zombie'
   group.userData.flashActive = false
-  group.add(mesh)
-  group.rotation.x = 0.025 + Math.random() * 0.055
-  group.rotation.z = (Math.random() - 0.5) * 0.055
+  group.add(model)
+
+  const mixer = new THREE.AnimationMixer(model)
+  const actions = {
+    walk: mixer.clipAction(asset.clips.walk),
+    run: mixer.clipAction(asset.clips.run),
+    attack: mixer.clipAction(asset.clips.attack),
+    death: mixer.clipAction(asset.clips.death),
+  }
+  actions.death.setLoop(THREE.LoopOnce, 1)
+  actions.death.clampWhenFinished = true
+  const animationState: ZombieAnimationState =
+    Math.random() < 0.32 ? 'run' : 'walk'
+  const initial = actions[animationState]
+  initial.play()
+  initial.time = Math.random() * Math.max(0.01, initial.getClip().duration)
 
   return {
     group,
-    parts: [mesh],
-    mesh,
-    rig,
+    parts,
+    mixer,
+    actions,
+    animationState,
+    animationAccumulator: Math.random() * 0.035,
+    disposed: false,
+  }
+}
+
+export function setZombieAnimation(
+  visual: ZombieVisual,
+  next: ZombieAnimationState,
+  playbackRate = 1,
+): void {
+  if (visual.disposed) return
+  const nextAction = visual.actions[next]
+  nextAction.setEffectiveTimeScale(playbackRate)
+  if (visual.animationState === next) return
+
+  const previous = visual.actions[visual.animationState]
+  nextAction.reset().setEffectiveTimeScale(playbackRate).play()
+  if (next === 'death') {
+    previous.fadeOut(0.1)
+    nextAction.fadeIn(0.08)
+  } else {
+    previous.crossFadeTo(nextAction, 0.16, true)
+  }
+  visual.animationState = next
+}
+
+export function advanceZombieAnimation(
+  visual: ZombieVisual,
+  dt: number,
+  distanceToPlayer: number,
+): void {
+  if (visual.disposed) return
+  visual.animationAccumulator += dt
+  const interval =
+    visual.animationState === 'death'
+      ? 1 / 30
+      : distanceToPlayer > 58
+        ? 1 / 12
+        : distanceToPlayer > 30
+          ? 1 / 20
+          : 1 / 30
+  if (visual.animationAccumulator < interval) return
+  visual.mixer.update(Math.min(0.12, visual.animationAccumulator))
+  visual.animationAccumulator = 0
+}
+
+export function disposeZombieVisual(visual: ZombieVisual): void {
+  if (visual.disposed) return
+  visual.disposed = true
+  visual.mixer.stopAllAction()
+  visual.mixer.uncacheRoot(visual.group.children[0])
+  for (const part of visual.parts) {
+    const materials = Array.isArray(part.material)
+      ? part.material
+      : [part.material]
+    for (const material of materials) material.dispose()
   }
 }

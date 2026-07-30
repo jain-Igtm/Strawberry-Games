@@ -1,7 +1,10 @@
 import * as THREE from 'three'
 import { afterEach, describe, expect, it } from 'vitest'
 import { buildWorldExpansion } from './world-expansion'
-import { createRoundedZombieVisual } from './zombie-model'
+import {
+  CASTLE_ROMEO_JPEG_V17,
+  QUATERNIUS_ZOMBIE_GLB_V17,
+} from './generated-assets-v17'
 
 const originalDocument = globalThis.document
 
@@ -80,19 +83,11 @@ describe('production startup geometry', () => {
     expect(expansion.vehicles.length).toBeGreaterThan(0)
   })
 
-  it('constructs a one-draw zombie rig', () => {
-    const material = (color: number) => new THREE.MeshStandardMaterial({ color })
-    const visual = createRoundedZombieVisual({
-      skin: material(0x777166),
-      cloth: material(0x222222),
-      clothAlt: material(0x442222),
-      rust: material(0x663322),
-      warning: material(0xaa6622),
-      ember: new THREE.MeshBasicMaterial({ color: 0xff6622 }),
-    })
-
-    expect(visual.parts).toHaveLength(1)
-    expect(visual.mesh.skeleton.bones).toHaveLength(6)
-    expect(visual.mesh.geometry.boundingSphere).not.toBeNull()
+  it('packages the real-photo cloud and optimized animated zombie offline', () => {
+    expect(CASTLE_ROMEO_JPEG_V17.startsWith('data:image/jpeg;base64,/9j/')).toBe(true)
+    expect(QUATERNIUS_ZOMBIE_GLB_V17.startsWith('data:model/gltf-binary;base64,')).toBe(true)
+    const header = atob(QUATERNIUS_ZOMBIE_GLB_V17.split(',')[1].slice(0, 8))
+    expect(header.slice(0, 4)).toBe('glTF')
+    expect(QUATERNIUS_ZOMBIE_GLB_V17.length).toBeLessThan(500_000)
   })
 })

@@ -5,7 +5,7 @@ import {
   forestAtlasTexture,
   gameplayAtlasTexture,
   mapGeometryToAtlas,
-  smokeAtlasTexture,
+  mushroomCloudTexture,
 } from '../texture-atlas'
 import type {
   Driveable,
@@ -1034,73 +1034,53 @@ function addFalloutHillsAndCloud(
     context.scene.add(mesh)
   }
 
-  // One instanced, camera-facing draw replaces the old stack of lit polyhedra.
-  // Brightness in the compact grayscale atlas becomes alpha in the fragment
-  // shader, so the much larger cloud is cheaper than the previous small one.
-  const smokeSpecs: Array<[number, number, number, number, number, number]> = []
-  for (let level = 0; level < 13; level += 1) {
-    const progress = level / 12
-    smokeSpecs.push([
-      Math.sin(level * 1.73) * (2.5 + progress * 6.5),
-      13 + level * 9.2,
-      Math.cos(level * 1.31) * 3.8,
-      14 + progress * 15,
-      19 + progress * 18,
-      [2, 6, 8, 11][level % 4],
-    ])
-  }
-  const capOffsets: Array<[number, number, number, number, number, number]> = [
-    [-58, 121, 5, 36, 23, 7], [-46, 134, -4, 42, 25, 3],
-    [-33, 146, 4, 44, 28, 9], [-18, 153, -3, 48, 30, 1],
-    [0, 158, 2, 52, 31, 4], [19, 154, -4, 49, 29, 10],
-    [36, 146, 3, 45, 27, 0], [51, 134, -2, 40, 24, 12],
-    [63, 121, 4, 34, 22, 15], [-42, 116, -2, 38, 20, 13],
-    [-24, 126, 4, 45, 23, 14], [-7, 132, -5, 49, 25, 5],
-    [13, 131, 5, 48, 24, 6], [31, 125, -4, 43, 22, 7],
-    [46, 115, 3, 36, 19, 15], [-28, 164, -2, 36, 22, 0],
-    [-9, 171, 2, 40, 24, 1], [12, 169, -1, 39, 23, 4],
-    [31, 160, 3, 35, 21, 10],
-  ]
-  smokeSpecs.push(...capOffsets)
-
-  const smokeGeometry = new THREE.PlaneGeometry(1, 1)
-  smokeGeometry.setAttribute(
-    'atlasTile',
-    new THREE.InstancedBufferAttribute(
-      new Float32Array(smokeSpecs.map((spec) => spec[5])),
-      1,
-    ),
-  )
+  // One billboarded historical photograph replaces 32 separate smoke puffs.
+  // The source is the public-domain 1954 Castle Romeo nuclear test image. The
+  // shader crops the original and derives alpha from its dark background, so
+  // the texture remains an actual blast photograph without a rectangular edge.
+  const cloudGeometry = new THREE.PlaneGeometry(204, 154)
   const smokeMaterial = new THREE.ShaderMaterial({
     uniforms: {
-      smokeMap: { value: smokeAtlasTexture },
+      mushroomMap: { value: mushroomCloudTexture },
     },
     vertexShader: `
-      attribute float atlasTile;
-      varying vec2 vAtlasUv;
+      varying vec2 vPhotoUv;
+      varying vec2 vPlaneUv;
       void main() {
-        vec4 center = modelViewMatrix * instanceMatrix * vec4(0.0, 0.0, 0.0, 1.0);
-        float width = length(instanceMatrix[0].xyz);
-        float height = length(instanceMatrix[1].xyz);
-        center.xy += position.xy * vec2(width, height);
+        vec4 center = modelViewMatrix * vec4(0.0, 0.0, 0.0, 1.0);
+        center.xy += position.xy;
         gl_Position = projectionMatrix * center;
-        float column = mod(atlasTile, 4.0);
-        float row = floor(atlasTile / 4.0);
-        vAtlasUv = (uv + vec2(column, 3.0 - row)) * 0.25;
+        vPlaneUv = uv;
+        vPhotoUv = vec2(
+          mix(0.11, 0.89, uv.x),
+          mix(0.23, 0.68, uv.y)
+        );
       }
     `,
     fragmentShader: `
-      uniform sampler2D smokeMap;
-      varying vec2 vAtlasUv;
+      uniform sampler2D mushroomMap;
+      varying vec2 vPhotoUv;
+      varying vec2 vPlaneUv;
       void main() {
-        vec3 sampleColor = texture2D(smokeMap, vAtlasUv).rgb;
-        float brightness = max(sampleColor.r, max(sampleColor.g, sampleColor.b));
-        float mask = smoothstep(0.012, 0.42, brightness);
+        vec3 photo = texture2D(mushroomMap, vPhotoUv).rgb;
+        float luminance = dot(photo, vec3(0.2126, 0.7152, 0.0722));
+        vec2 capPoint = (vPlaneUv - vec2(0.5, 0.66)) / vec2(0.47, 0.41);
+        float capSupport = 1.0 - smoothstep(0.84, 1.0, length(capPoint));
+        float stemWidth = mix(0.18, 0.075, smoothstep(0.0, 0.36, vPlaneUv.y));
+        float stemSupport =
+          (1.0 - smoothstep(stemWidth, stemWidth + 0.055, abs(vPlaneUv.x - 0.5))) *
+          (1.0 - smoothstep(0.37, 0.46, vPlaneUv.y));
+        float blastShape = max(capSupport, stemSupport);
+        float mask = smoothstep(0.12, 0.42, luminance);
+        mask = max(mask, smoothstep(0.035, 0.16, luminance) * blastShape * 0.68);
+        float edgeX = smoothstep(0.0, 0.075, vPlaneUv.x) *
+          smoothstep(0.0, 0.075, 1.0 - vPlaneUv.x);
+        float edgeY = smoothstep(0.0, 0.07, vPlaneUv.y) *
+          smoothstep(0.0, 0.07, 1.0 - vPlaneUv.y);
+        mask *= edgeX * edgeY;
         if (mask < 0.018) discard;
-        vec3 darkAsh = vec3(0.105, 0.082, 0.075);
-        vec3 lightAsh = vec3(0.47, 0.405, 0.37);
-        vec3 color = mix(darkAsh, lightAsh, smoothstep(0.08, 0.82, brightness));
-        gl_FragColor = vec4(color, mask * 0.9);
+        vec3 ashPhoto = mix(photo * vec3(0.78, 0.74, 0.72), photo, 0.72);
+        gl_FragColor = vec4(ashPhoto, mask * 0.94);
       }
     `,
     transparent: true,
@@ -1108,18 +1088,9 @@ function addFalloutHillsAndCloud(
     side: THREE.DoubleSide,
     toneMapped: false,
   })
-  const cloud = new THREE.InstancedMesh(smokeGeometry, smokeMaterial, smokeSpecs.length)
-  cloud.position.set(FALLOUT_HILLS.cloudX, 0, FALLOUT_HILLS.cloudZ)
-  for (let index = 0; index < smokeSpecs.length; index += 1) {
-    const [px, py, pz, width, height] = smokeSpecs[index]
-    instancePosition.set(px, py, pz)
-    instanceRotation.identity()
-    instanceScale.set(width, height, 1)
-    instanceMatrix.compose(instancePosition, instanceRotation, instanceScale)
-    cloud.setMatrixAt(index, instanceMatrix)
-  }
-  cloud.instanceMatrix.setUsage(THREE.StaticDrawUsage)
-  cloud.computeBoundingSphere()
+  const cloud = new THREE.Mesh(cloudGeometry, smokeMaterial)
+  cloud.position.set(FALLOUT_HILLS.cloudX, 78, FALLOUT_HILLS.cloudZ)
+  cloud.frustumCulled = true
   context.scene.add(cloud)
 
   const warning = box(16, 2.2, 0.22, signMaterial('ROAD CLOSED · FALLOUT'), -2, 4.2, 184)

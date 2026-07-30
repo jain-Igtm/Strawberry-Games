@@ -26,7 +26,18 @@ import { buildWorldExpansion } from './world-expansion'
 import { DOCK_TOWN_LIMITS, PLAYER_START } from './districts/dock-town-plan'
 import type { Driveable, TowerAccess } from './world-objects-v5'
 import { WEAPONS, type WeaponId } from './weapons'
-import { createRoundedZombieVisual, type ZombieRig } from './zombie-model'
+import {
+  advanceZombieAnimation,
+  createTexturedZombieVisual,
+  disposeZombieVisual,
+  setZombieAnimation,
+  type ZombieVisual,
+} from './zombie-model'
+import {
+  circleIntersectsBounds,
+  lerpRadians,
+  moveCircleSwept,
+} from './zombie-navigation'
 import {
   ATLAS_TILES,
   configureAtlasTextures,
@@ -57,18 +68,20 @@ type Collider = {
 type Zombie = {
   group: THREE.Group
   parts: THREE.Mesh[]
-  rig: ZombieRig
+  visual: ZombieVisual
   health: number
   maxHealth: number
   speed: number
+  radius: number
   damage: number
   attackDelay: number
   attackTimer: number
-  phase: number
   flashTimer: number
   stuckTimer: number
-  lastX: number
-  lastZ: number
+  velocityX: number
+  velocityZ: number
+  avoidanceSign: number
+  runner: boolean
   dead: boolean
 }
 
@@ -187,12 +200,15 @@ const clock = new THREE.Clock()
 const raycaster = new THREE.Raycaster()
 raycaster.far = 220
 const localHitPoint = new THREE.Vector3()
+const shotAim = new THREE.Vector2()
 const colliders: Collider[] = []
 const colliderGrid = new Map<number, Collider[]>()
 const COLLIDER_GRID_SIZE = 12
 let colliderIndexReady = false
 const shotTargets: THREE.Object3D[] = []
 const zombies: Zombie[] = []
+const zombieBuckets = new Map<number, Zombie[]>()
+const activeZombieBuckets: Zombie[][] = []
 const animatedFires: Array<{ flame: THREE.Mesh; glow: THREE.PointLight; phase: number }> = []
 const spawnPoints: THREE.Vector3[] = []
 const keys = new Set<string>()
@@ -289,9 +305,6 @@ const mats = {
   warning: new THREE.MeshStandardMaterial({ color: 0x9a5a22, roughness: 0.85, metalness: 0.2 }),
   water: new THREE.MeshStandardMaterial({ color: 0x101a1c, roughness: 0.3, metalness: 0.18, transparent: true, opacity: 0.92 }),
   ember: new THREE.MeshBasicMaterial({ color: 0xff6b28, transparent: true, opacity: 0.88 }),
-  zombieSkin: new THREE.MeshStandardMaterial({ color: 0x70695a, roughness: 1 }),
-  zombieCloth: new THREE.MeshStandardMaterial({ color: 0x292c29, roughness: 1 }),
-  zombieClothAlt: new THREE.MeshStandardMaterial({ color: 0x4a2720, roughness: 1 }),
 }
 
 function box(
@@ -1006,17 +1019,9 @@ function updateWeaponPickups(dt: number, elapsed: number): void {
 applyWeaponVisual()
 
 function circleHitsCollider(x: number, z: number, radius: number): boolean {
-  const test = (collider: Collider): boolean => {
-    const closestX = THREE.MathUtils.clamp(x, collider.minX, collider.maxX)
-    const closestZ = THREE.MathUtils.clamp(z, collider.minZ, collider.maxZ)
-    const dx = x - closestX
-    const dz = z - closestZ
-    return dx * dx + dz * dz < radius * radius
-  }
-
   if (!colliderIndexReady) {
     for (const collider of colliders) {
-      if (test(collider)) return true
+      if (circleIntersectsBounds(x, z, radius, collider)) return true
     }
     return false
   }
@@ -1030,7 +1035,7 @@ function circleHitsCollider(x: number, z: number, radius: number): boolean {
       const bucket = colliderGrid.get(colliderGridKey(cellX, cellZ))
       if (!bucket) continue
       for (const collider of bucket) {
-        if (test(collider)) return true
+        if (circleIntersectsBounds(x, z, radius, collider)) return true
       }
     }
   }
@@ -1194,17 +1199,12 @@ function sampleNavigationDirection(
   return navDirection.normalize()
 }
 
-function recoverZombieToNavigation(zombie: Zombie): boolean {
-  const current = navigationCellAt(zombie.group.position.x, zombie.group.position.z)
-  const open = nearestReachableNavigationCell(current, 8)
-  if (open < 0) return false
-  navigationCellCenter(open, navDirection)
-  zombie.group.position.x = navDirection.x
-  zombie.group.position.z = navDirection.y
-  zombie.lastX = navDirection.x
-  zombie.lastZ = navDirection.y
-  zombie.stuckTimer = 0
-  return true
+function worldWalkableProbe(x: number, z: number, radius: number): boolean {
+  return insideIsland(x, z, radius)
+}
+
+function worldColliderProbe(x: number, z: number, radius: number): boolean {
+  return circleHitsCollider(x, z, radius)
 }
 
 function movePlayer(dx: number, dz: number): void {
@@ -1219,31 +1219,45 @@ function movePlayer(dx: number, dz: number): void {
 }
 
 function moveZombie(zombie: Zombie, dx: number, dz: number): boolean {
-  const radius = 0.44
-  let moved = false
-  const nextX = zombie.group.position.x + dx
-  if (insideIsland(nextX, zombie.group.position.z, radius) && !circleHitsCollider(nextX, zombie.group.position.z, radius)) {
-    zombie.group.position.x = nextX
-    moved = true
+  return moveCircleSwept(
+    zombie.group.position,
+    dx,
+    dz,
+    zombie.radius,
+    worldWalkableProbe,
+    worldColliderProbe,
+  )
+}
+
+function nudgeZombieAlongWall(
+  zombie: Zombie,
+  flowX: number,
+  flowZ: number,
+): boolean {
+  const step = Math.min(0.36, zombie.speed * 0.075)
+  let tangentX = -flowZ * zombie.avoidanceSign
+  let tangentZ = flowX * zombie.avoidanceSign
+  let moved = moveZombie(zombie, tangentX * step, tangentZ * step)
+  if (!moved) {
+    zombie.avoidanceSign *= -1
+    tangentX = -tangentX
+    tangentZ = -tangentZ
+    moved = moveZombie(zombie, tangentX * step, tangentZ * step)
   }
-  const nextZ = zombie.group.position.z + dz
-  if (insideIsland(zombie.group.position.x, nextZ, radius) && !circleHitsCollider(zombie.group.position.x, nextZ, radius)) {
-    zombie.group.position.z = nextZ
-    moved = true
+  if (moved) {
+    zombie.velocityX = tangentX
+    zombie.velocityZ = tangentZ
+    zombie.stuckTimer = 0.24
+  } else {
+    zombie.stuckTimer = 0.62
   }
   return moved
 }
 
-function createZombie(position: THREE.Vector3): Zombie {
+function createZombie(position: THREE.Vector3): Zombie | null {
   const tuning = tuningForWave(state.wave)
-  const visual = createRoundedZombieVisual({
-    skin: mats.zombieSkin,
-    cloth: mats.zombieCloth,
-    clothAlt: mats.zombieClothAlt,
-    rust: mats.rust,
-    warning: mats.warning,
-    ember: mats.ember,
-  })
+  const visual = createTexturedZombieVisual()
+  if (!visual) return null
   const group = visual.group
   const scale = 0.9 + Math.random() * 0.2
   group.position.copy(position)
@@ -1253,21 +1267,28 @@ function createZombie(position: THREE.Vector3): Zombie {
   const zombie: Zombie = {
     group,
     parts: visual.parts,
-    rig: visual.rig,
+    visual,
     health: tuning.health,
     maxHealth: tuning.health,
     speed: tuning.speed * (0.94 + Math.random() * 0.24) * (runner ? 1.3 : 1),
+    radius: 0.44 * scale,
     damage: tuning.damage,
     attackDelay: tuning.attackDelay,
     attackTimer: Math.random() * 0.4,
-    phase: Math.random() * Math.PI * 2,
     flashTimer: 0,
     stuckTimer: 0,
-    lastX: position.x,
-    lastZ: position.z,
+    velocityX: 0,
+    velocityZ: 0,
+    avoidanceSign: Math.random() < 0.5 ? -1 : 1,
+    runner,
     dead: false,
   }
 
+  setZombieAnimation(
+    visual,
+    runner ? 'run' : 'walk',
+    runner ? 0.95 + Math.random() * 0.12 : 0.86 + Math.random() * 0.12,
+  )
   for (const part of visual.parts) {
     part.userData.zombie = zombie
     shotTargets.push(part)
@@ -1282,10 +1303,8 @@ function removeZombie(zombie: Zombie): void {
   for (const part of zombie.parts) {
     const targetIndex = shotTargets.indexOf(part)
     if (targetIndex >= 0) shotTargets.splice(targetIndex, 1)
-    const material = part.material
-    if (Array.isArray(material)) material.forEach((entry) => entry.dispose())
-    else material.dispose()
   }
+  disposeZombieVisual(zombie.visual)
   const zombieIndex = zombies.indexOf(zombie)
   if (zombieIndex >= 0) zombies.splice(zombieIndex, 1)
 }
@@ -1509,7 +1528,8 @@ function fireWeapon(): void {
   for (let pellet = 0; pellet < weapon.pellets; pellet += 1) {
     const spreadX = (Math.random() - 0.5) * weapon.spread
     const spreadY = (Math.random() - 0.5) * weapon.spread
-    raycaster.setFromCamera(new THREE.Vector2(spreadX, spreadY), camera)
+    shotAim.set(spreadX, spreadY)
+    raycaster.setFromCamera(shotAim, camera)
     const hit = raycaster.intersectObjects(shotTargets, false)[0]
     if (!hit) continue
     const zombie = hit.object.userData.zombie as Zombie | undefined
@@ -1517,7 +1537,7 @@ function fireWeapon(): void {
     hitSomething = true
     localHitPoint.copy(hit.point)
     zombie.group.worldToLocal(localHitPoint)
-    const headshot = localHitPoint.y > 1.78
+    const headshot = localHitPoint.y > 1.43
     const waveBonus = Math.floor((state.wave - 1) / 6) * 2
     const damage =
       (weapon.damage + waveBonus) *
@@ -1532,10 +1552,10 @@ function fireWeapon(): void {
       killedSomething = true
       state.kills += 1
       soundscape.zombieDeath()
-      zombie.group.rotation.z = (Math.random() - 0.5) * 0.55
+      setZombieAnimation(zombie.visual, 'death', 1)
       setTimeout(() => {
         if (zombies.includes(zombie)) removeZombie(zombie)
-      }, 150)
+      }, 900)
     }
   }
   if (hitSomething) showHit(killedSomething)
@@ -1762,22 +1782,30 @@ function updatePlayer(dt: number): void {
   updateInteractionPrompt()
 }
 
-function updateZombies(dt: number, elapsed: number): void {
+function updateZombies(dt: number, _elapsed: number): void {
   rebuildNavigationFlow()
   const cellSize = 3.1
-  const buckets = new Map<number, Zombie[]>()
+  for (const bucket of activeZombieBuckets) bucket.length = 0
+  activeZombieBuckets.length = 0
   for (const zombie of zombies) {
     if (zombie.dead) continue
     const cellX = Math.floor(zombie.group.position.x / cellSize)
     const cellZ = Math.floor(zombie.group.position.z / cellSize)
     const key = (cellX + 256) * 1024 + cellZ + 256
-    const bucket = buckets.get(key)
-    if (bucket) bucket.push(zombie)
-    else buckets.set(key, [zombie])
+    let bucket = zombieBuckets.get(key)
+    if (!bucket) {
+      bucket = []
+      zombieBuckets.set(key, bucket)
+    }
+    if (bucket.length === 0) activeZombieBuckets.push(bucket)
+    bucket.push(zombie)
   }
 
   for (const zombie of zombies) {
-    if (zombie.dead) continue
+    if (zombie.dead) {
+      advanceZombieAnimation(zombie.visual, dt, 0)
+      continue
+    }
     zombie.attackTimer -= dt
     zombie.flashTimer = Math.max(0, zombie.flashTimer - dt)
     const deltaX = player.position.x - zombie.group.position.x
@@ -1795,13 +1823,15 @@ function updateZombies(dt: number, elapsed: number): void {
         directionX,
         directionZ,
       )
+      const flowX = flow.x
+      const flowZ = flow.y
       let separationX = 0
       let separationZ = 0
       const cellX = Math.floor(zombie.group.position.x / cellSize)
       const cellZ = Math.floor(zombie.group.position.z / cellSize)
       for (let offsetX = -1; offsetX <= 1; offsetX += 1) {
         for (let offsetZ = -1; offsetZ <= 1; offsetZ += 1) {
-          const nearby = buckets.get(
+          const nearby = zombieBuckets.get(
             (cellX + offsetX + 256) * 1024 + cellZ + offsetZ + 256,
           )
           if (!nearby) continue
@@ -1817,46 +1847,75 @@ function updateZombies(dt: number, elapsed: number): void {
           }
         }
       }
-      const sway = Math.sin(elapsed * 1.6 + zombie.phase) * 0.12
-      const desiredX = flow.x + separationX * 0.18 - flow.y * sway
-      const desiredZ = flow.y + separationZ * 0.18 + flow.x * sway
+      const separationLength = Math.hypot(separationX, separationZ)
+      if (separationLength > 1.2) {
+        separationX = (separationX / separationLength) * 1.2
+        separationZ = (separationZ / separationLength) * 1.2
+      }
+      const desiredX = flowX + separationX * 0.16
+      const desiredZ = flowZ + separationZ * 0.16
       const desiredLength = Math.hypot(desiredX, desiredZ) || 1
+      const targetX = desiredX / desiredLength
+      const targetZ = desiredZ / desiredLength
+      const steering = 1 - Math.exp(-dt * (zombie.stuckTimer > 0.35 ? 11 : 7.5))
+      if (Math.hypot(zombie.velocityX, zombie.velocityZ) < 0.01) {
+        zombie.velocityX = targetX
+        zombie.velocityZ = targetZ
+      } else {
+        zombie.velocityX += (targetX - zombie.velocityX) * steering
+        zombie.velocityZ += (targetZ - zombie.velocityZ) * steering
+        const velocityLength = Math.hypot(zombie.velocityX, zombie.velocityZ) || 1
+        zombie.velocityX /= velocityLength
+        zombie.velocityZ /= velocityLength
+      }
       const previousX = zombie.group.position.x
       const previousZ = zombie.group.position.z
       const moved = moveZombie(
         zombie,
-        (desiredX / desiredLength) * zombie.speed * dt,
-        (desiredZ / desiredLength) * zombie.speed * dt,
+        zombie.velocityX * zombie.speed * dt,
+        zombie.velocityZ * zombie.speed * dt,
       )
-      const movement = Math.hypot(
+      let movement = Math.hypot(
         zombie.group.position.x - previousX,
         zombie.group.position.z - previousZ,
       )
-      if (!moved || movement < zombie.speed * dt * 0.12) {
+      if (!moved || movement < zombie.speed * dt * 0.1) {
         zombie.stuckTimer += dt
       } else {
         zombie.stuckTimer = Math.max(0, zombie.stuckTimer - dt * 2.2)
-        zombie.lastX = zombie.group.position.x
-        zombie.lastZ = zombie.group.position.z
       }
-      if (zombie.stuckTimer > 1.15) recoverZombieToNavigation(zombie)
-      zombie.group.lookAt(player.position.x, zombie.group.position.y, player.position.z)
+      if (zombie.stuckTimer > 0.62) {
+        nudgeZombieAlongWall(zombie, flowX, flowZ)
+        movement = Math.hypot(
+          zombie.group.position.x - previousX,
+          zombie.group.position.z - previousZ,
+        )
+      }
+      if (movement > 0.001) {
+        const movementX = zombie.group.position.x - previousX
+        const movementZ = zombie.group.position.z - previousZ
+        const targetYaw = Math.atan2(-movementX, -movementZ)
+        zombie.group.rotation.y = lerpRadians(
+          zombie.group.rotation.y,
+          targetYaw,
+          1 - Math.exp(-dt * 10),
+        )
+      }
+      setZombieAnimation(
+        zombie.visual,
+        zombie.runner ? 'run' : 'walk',
+        THREE.MathUtils.clamp(zombie.speed / (zombie.runner ? 4.6 : 3.35), 0.78, 1.35),
+      )
     } else if (!state.elevatedTower && zombie.attackTimer <= 0) {
       zombie.attackTimer = zombie.attackDelay
       soundscape.zombieAttack()
       damagePlayer(zombie.damage)
     }
 
-    const walk = elapsed * zombie.speed * 4.1 + zombie.phase
+    if (distance <= 1.22) setZombieAnimation(zombie.visual, 'attack', 0.94)
     zombie.group.position.y =
-      expandedWorld.heightAt(zombie.group.position.x, zombie.group.position.z) +
-      Math.abs(Math.sin(walk)) * 0.035
-    zombie.rig.leftArm.rotation.x = -0.24 + Math.sin(walk) * 0.42
-    zombie.rig.rightArm.rotation.x = -0.28 - Math.sin(walk) * 0.42
-    zombie.rig.leftLeg.rotation.x = Math.sin(walk) * 0.32
-    zombie.rig.rightLeg.rotation.x = -Math.sin(walk) * 0.32
-    zombie.rig.head.rotation.y = Math.sin(walk * 0.37 + zombie.phase) * 0.12
-    zombie.rig.head.rotation.z = Math.sin(walk * 0.23 + zombie.phase) * 0.055
+      expandedWorld.heightAt(zombie.group.position.x, zombie.group.position.z)
+    advanceZombieAnimation(zombie.visual, dt, distance)
 
     const flashing = zombie.flashTimer > 0
     if (Boolean(zombie.group.userData.flashActive) !== flashing) {
@@ -1886,9 +1945,16 @@ function updateWave(dt: number): void {
   if (!state.waveActive) return
   state.spawnTimer -= dt
   if (state.pendingSpawns > 0 && state.spawnTimer <= 0 && zombies.length < (isTouch ? 40 : 60)) {
-    createZombie(nearestSpawnPoint())
-    state.pendingSpawns -= 1
-    state.spawnTimer = spawnIntervalForWave(state.wave)
+    const zombie = createZombie(nearestSpawnPoint())
+    if (zombie) {
+      state.pendingSpawns -= 1
+      state.spawnTimer = spawnIntervalForWave(state.wave)
+    } else {
+      // The embedded GLB normally finishes parsing on the title screen. If the
+      // player starts instantly, keep the wave alive for the few frames needed
+      // to finish without ever showing the rejected placeholder model.
+      state.spawnTimer = 0.08
+    }
   }
   if (state.pendingSpawns === 0 && zombies.length === 0) finishWave()
 }
@@ -1968,12 +2034,9 @@ function updateJoystick(event: PointerEvent): void {
 
 ui.joystick.addEventListener('pointerdown', (event) => {
   event.preventDefault()
+  if (joystickPointer !== null) return
   joystickPointer = event.pointerId
-  ui.joystick.setPointerCapture(event.pointerId)
   updateJoystick(event)
-})
-ui.joystick.addEventListener('pointermove', (event) => {
-  if (event.pointerId === joystickPointer) updateJoystick(event)
 })
 function endJoystick(event: PointerEvent): void {
   if (event.pointerId !== joystickPointer) return
@@ -1982,20 +2045,18 @@ function endJoystick(event: PointerEvent): void {
   touchMove.y = 0
   ui.joystickKnob.style.transform = 'translate(0, 0)'
 }
-ui.joystick.addEventListener('pointerup', endJoystick)
-ui.joystick.addEventListener('pointercancel', endJoystick)
 
 let lookPointer: number | null = null
 let lookX = 0
 let lookY = 0
 ui.lookPad.addEventListener('pointerdown', (event) => {
   event.preventDefault()
+  if (lookPointer !== null) return
   lookPointer = event.pointerId
   lookX = event.clientX
   lookY = event.clientY
-  ui.lookPad.setPointerCapture(event.pointerId)
 })
-ui.lookPad.addEventListener('pointermove', (event) => {
+function updateLook(event: PointerEvent): void {
   if (event.pointerId !== lookPointer) return
   const dx = event.clientX - lookX
   const dy = event.clientY - lookY
@@ -2011,29 +2072,51 @@ ui.lookPad.addEventListener('pointermove', (event) => {
     player.pitch -= dy * 0.0042 * lookScale
     player.pitch = THREE.MathUtils.clamp(player.pitch, -1.18, 1.04)
   }
-})
+}
 function endLook(event: PointerEvent): void {
   if (event.pointerId === lookPointer) lookPointer = null
 }
-ui.lookPad.addEventListener('pointerup', endLook)
-ui.lookPad.addEventListener('pointercancel', endLook)
 
 ui.sprintButton.addEventListener('pointerdown', (event) => {
   event.preventDefault()
   performInteraction()
 })
 
+let firePointer: number | null = null
 ui.fireButton.addEventListener('pointerdown', (event) => {
   event.preventDefault()
+  if (firePointer !== null) return
+  firePointer = event.pointerId
   state.fireHeld = true
-  ui.fireButton.setPointerCapture(event.pointerId)
   fireWeapon()
 })
-function endFire(): void {
+function endFire(event: PointerEvent): void {
+  if (event.pointerId !== firePointer) return
+  firePointer = null
   state.fireHeld = false
 }
-ui.fireButton.addEventListener('pointerup', endFire)
-ui.fireButton.addEventListener('pointercancel', endFire)
+
+// WebView pointer capture can serialize separate fingers onto one control. A
+// single document-level router keeps movement, look, and fire IDs independent,
+// allowing all three actions to remain live at the same time.
+document.addEventListener('pointermove', (event) => {
+  if (
+    event.pointerId !== joystickPointer &&
+    event.pointerId !== lookPointer
+  ) return
+  event.preventDefault()
+  if (event.pointerId === joystickPointer) updateJoystick(event)
+  if (event.pointerId === lookPointer) updateLook(event)
+}, { passive: false })
+
+function endTouchPointer(event: PointerEvent): void {
+  endJoystick(event)
+  endLook(event)
+  endFire(event)
+}
+document.addEventListener('pointerup', endTouchPointer)
+document.addEventListener('pointercancel', endTouchPointer)
+
 ui.reloadButton.addEventListener('pointerdown', (event) => {
   event.preventDefault()
   beginReload()
@@ -2119,6 +2202,12 @@ addEventListener('mouseup', (event) => {
 addEventListener('contextmenu', (event) => event.preventDefault())
 addEventListener('blur', () => {
   state.fireHeld = false
+  firePointer = null
+  lookPointer = null
+  joystickPointer = null
+  touchMove.x = 0
+  touchMove.y = 0
+  ui.joystickKnob.style.transform = 'translate(0, 0)'
   keys.clear()
 })
 document.addEventListener('visibilitychange', () => {
