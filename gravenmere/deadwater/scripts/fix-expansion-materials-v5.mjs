@@ -10,16 +10,12 @@ const materialType = `EnvironmentMaterials & {
   }`
 
 let terrain = readFileSync(terrainPath, 'utf8')
-if (!terrain.includes('island: THREE.MeshStandardMaterial')) {
-  terrain = terrain.replace('materials: EnvironmentMaterials', `materials: ${materialType}`)
-  writeFileSync(terrainPath, terrain)
-}
+terrain = terrain.replaceAll('materials: EnvironmentMaterials', `materials: ${materialType}`)
+writeFileSync(terrainPath, terrain)
 
 let world = readFileSync(worldPath, 'utf8')
-if (!world.includes('island: THREE.MeshStandardMaterial')) {
-  world = world.replace('materials: EnvironmentMaterials', `materials: ${materialType}`)
-  writeFileSync(worldPath, world)
-}
+world = world.replaceAll('materials: EnvironmentMaterials', `materials: ${materialType}`)
+writeFileSync(worldPath, world)
 
 let main = readFileSync(mainPath, 'utf8')
 const start = main.indexOf('const expandedWorld = buildWorldExpansion({')
