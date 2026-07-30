@@ -10,6 +10,9 @@ import {
 
 export type ZombieAnimationState = 'walk' | 'run' | 'attack' | 'death'
 
+export const ZOMBIE_DISPLAY_HEIGHT = 2.02
+export const ZOMBIE_FORWARD_YAW = -Math.PI / 2
+
 export type ZombieVisual = {
   group: THREE.Group
   mixerRoot: THREE.Group
@@ -88,7 +91,9 @@ function prepareZombieAsset(
   const bounds = new THREE.Box3().setFromObject(walk.scene)
   const size = bounds.getSize(new THREE.Vector3())
   const modelScale =
-    Number.isFinite(size.y) && size.y > 0.01 ? 1.76 / size.y : 1
+    Number.isFinite(size.y) && size.y > 0.01
+      ? ZOMBIE_DISPLAY_HEIGHT / size.y
+      : 1
   const modelCenter = bounds.getCenter(new THREE.Vector3())
   modelCenter.y = bounds.min.y
   const walkClip = animationFrom(walk, 'Walk')
@@ -203,10 +208,9 @@ export function createTexturedZombieVisual(): ZombieVisual | null {
     -asset.modelCenter.z * asset.modelScale,
   )
   const facing = new THREE.Group()
-  // Pixelhouse authored the character's forward axis along +X. Three.js agents
-  // move along local -Z, so a quarter turn keeps the gait facing its travel
-  // direction instead of presenting a side-on "waddle".
-  facing.rotation.y = Math.PI / 2
+  // Pixelhouse's visible front points along -X. Three.js agents travel along
+  // local -Z, so this quarter turn makes the chest and face lead the movement.
+  facing.rotation.y = ZOMBIE_FORWARD_YAW
   facing.add(model)
 
   const group = new THREE.Group()

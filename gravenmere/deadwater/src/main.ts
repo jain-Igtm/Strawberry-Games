@@ -31,6 +31,7 @@ import {
   createTexturedZombieVisual,
   disposeZombieVisual,
   setZombieAnimation,
+  ZOMBIE_DISPLAY_HEIGHT,
   type ZombieVisual,
 } from './zombie-model'
 import {
@@ -1278,7 +1279,7 @@ function createZombie(position: THREE.Vector3): Zombie | null {
   const visual = createTexturedZombieVisual()
   if (!visual) return null
   const group = visual.group
-  const scale = 0.9 + Math.random() * 0.2
+  const scale = 0.98 + Math.random() * 0.1
   group.position.copy(position)
   group.scale.setScalar(scale)
   const runner = Math.random() < Math.min(0.52, 0.2 + state.wave * 0.025)
@@ -1557,7 +1558,7 @@ function fireWeapon(): void {
     hitSomething = true
     localHitPoint.copy(hit.point)
     zombie.group.worldToLocal(localHitPoint)
-    const headshot = localHitPoint.y > 1.43
+    const headshot = localHitPoint.y > ZOMBIE_DISPLAY_HEIGHT * 0.8
     const waveBonus = Math.floor((state.wave - 1) / 6) * 2
     const damage =
       (weapon.damage + waveBonus) *

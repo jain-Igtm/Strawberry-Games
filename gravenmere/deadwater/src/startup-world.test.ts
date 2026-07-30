@@ -8,6 +8,10 @@ import {
   PIXELHOUSE_ZOMBIE_DIFFUSE_WEBP_V18,
   PIXELHOUSE_ZOMBIE_WALK_GLB_V18,
 } from './generated-assets-v18'
+import {
+  ZOMBIE_DISPLAY_HEIGHT,
+  ZOMBIE_FORWARD_YAW,
+} from './zombie-model'
 
 const originalDocument = globalThis.document
 
@@ -87,6 +91,8 @@ describe('production startup geometry', () => {
   })
 
   it('packages the post-blast plume and grounded animated zombie offline', () => {
+    expect(ZOMBIE_DISPLAY_HEIGHT).toBeGreaterThanOrEqual(2)
+    expect(ZOMBIE_FORWARD_YAW).toBe(-Math.PI / 2)
     expect(DISSIPATING_PLUME_WEBP_V18.startsWith('data:image/webp;base64,UklG')).toBe(true)
     expect(PIXELHOUSE_ZOMBIE_DIFFUSE_WEBP_V18.startsWith('data:image/webp;base64,UklG')).toBe(true)
     for (const glb of [

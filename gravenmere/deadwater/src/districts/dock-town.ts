@@ -1123,18 +1123,20 @@ function addFalloutHillsAndCloud(
           smoothstep(0.04, 0.15, vPlaneUv.y) *
           (1.0 - smoothstep(0.69, 0.78, vPlaneUv.y));
         float blastShape = max(capSupport, stemSupport);
-        float localContrast = smoothstep(0.48, 0.76, luminance);
-        float mask = localContrast * blastShape;
-        mask = max(mask, smoothstep(0.36, 0.62, luminance) * blastShape * 0.58);
+        float smokeDetail = smoothstep(0.28, 0.76, luminance);
+        float mask = blastShape * mix(0.32, 1.0, smokeDetail);
         float edgeX = smoothstep(0.0, 0.075, vPlaneUv.x) *
           smoothstep(0.0, 0.075, 1.0 - vPlaneUv.x);
         float edgeY = smoothstep(0.0, 0.07, vPlaneUv.y) *
           smoothstep(0.0, 0.07, 1.0 - vPlaneUv.y);
         mask *= edgeX * edgeY;
         if (mask < 0.018) discard;
-        float smokeDetail = smoothstep(0.38, 0.9, luminance);
-        vec3 charcoal = mix(vec3(0.075, 0.078, 0.082), vec3(0.23, 0.225, 0.22), smokeDetail);
-        gl_FragColor = vec4(charcoal, mask * 0.82);
+        vec3 charcoal = mix(
+          vec3(0.105, 0.11, 0.118),
+          vec3(0.39, 0.385, 0.38),
+          smokeDetail
+        );
+        gl_FragColor = vec4(charcoal, mask * 0.96);
       }
     `,
     transparent: true,

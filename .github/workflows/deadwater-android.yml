@@ -99,4 +99,4 @@ jobs:
             Ashfall-Deadwater.apk \
             Ashfall-Deadwater.apk.sha256 \
             --title "Ashfall: Deadwater Android build ${GITHUB_RUN_NUMBER}" \
-            --notes "Install Ashfall-Deadwater.apk on Android. Version 0.18.0 focuses on grounded zombies, collision recovery, the post-blast plume, sirens, the sourced hospital layout, doorway headers, traffic-control orientation, and mobile performance."
+            --notes "Install Ashfall-Deadwater.apk on Android. Version 0.18.1 corrects zombie height and forward orientation, and strengthens the static post-blast plume's visibility without changing its charcoal treatment."
