@@ -14,10 +14,11 @@ describe('Deadwater wave rules', () => {
     expect(zombiesForWave(100)).toBe(54)
   })
 
-  it('starts with durable zombies and makes them tougher and faster over time', () => {
+  it('starts with durable, mobile zombies and scales them over time', () => {
     const early = tuningForWave(1)
     const late = tuningForWave(12)
     expect(early.health).toBeGreaterThanOrEqual(140)
+    expect(early.speed).toBeGreaterThan(2.4)
     expect(late.health).toBeGreaterThan(early.health)
     expect(late.speed).toBeGreaterThan(early.speed)
     expect(late.damage).toBeGreaterThan(early.damage)
