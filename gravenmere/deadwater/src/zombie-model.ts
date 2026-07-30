@@ -23,102 +23,129 @@ function mesh(geometry: THREE.BufferGeometry, material: THREE.Material): THREE.M
   return result
 }
 
+function capsule(radius: number, length: number, material: THREE.Material, segments = 6): THREE.Mesh {
+  return mesh(new THREE.CapsuleGeometry(radius, length, 3, segments), material)
+}
+
 export function createRoundedZombieVisual(base: ZombieModelMaterials): ZombieVisual {
   const group = new THREE.Group()
   group.userData.flashActive = false
 
   const skin = base.skin.clone()
-  skin.color.offsetHSL((Math.random() - 0.5) * 0.045, -0.08, (Math.random() - 0.5) * 0.09)
-  const cloth = (Math.random() > 0.46 ? base.cloth : base.clothAlt).clone()
-  cloth.color.offsetHSL((Math.random() - 0.5) * 0.035, -0.05, (Math.random() - 0.5) * 0.055)
+  skin.color.offsetHSL((Math.random() - 0.5) * 0.05, -0.12, (Math.random() - 0.5) * 0.1)
+  const cloth = (Math.random() > 0.48 ? base.cloth : base.clothAlt).clone()
+  cloth.color.offsetHSL((Math.random() - 0.5) * 0.04, -0.08, (Math.random() - 0.5) * 0.06)
   const darkCloth = cloth.clone()
-  darkCloth.color.multiplyScalar(0.62)
+  darkCloth.color.multiplyScalar(0.55)
   const wound = base.rust.clone()
-  wound.color.setHex(0x4f120f)
-  wound.roughness = 0.86
+  wound.color.setHex(0x40100d)
+  wound.roughness = 0.94
   const accent = base.warning.clone()
-  accent.color.offsetHSL((Math.random() - 0.5) * 0.05, -0.25, -0.2)
+  accent.color.offsetHSL((Math.random() - 0.5) * 0.05, -0.34, -0.24)
   const eyeMaterial = base.ember.clone()
-  eyeMaterial.opacity = 0.82
+  eyeMaterial.opacity = 0.5
 
   const parts: THREE.Mesh[] = []
   const headshotParts = new Set<THREE.Mesh>()
+  const variant = Math.floor(Math.random() * 3)
+  const lean = 0.11 + Math.random() * 0.11
+  const shoulderTilt = (Math.random() - 0.5) * 0.18
 
-  const body = mesh(new THREE.CapsuleGeometry(0.34, 0.42, 4, 8), cloth)
-  body.position.set(0, 1.19, 0)
-  body.scale.set(1.03, 1, 0.72)
-  body.rotation.x = 0.09
+  // Keep the first five entries stable: the animation loop expects arms at 3 and 4.
+  const body = mesh(new THREE.CylinderGeometry(0.28, 0.38, 0.92, 7), cloth)
+  body.position.set(0, 1.36, 0.02)
+  body.scale.z = 0.76
+  body.rotation.x = lean
+  body.rotation.z = shoulderTilt * 0.35
 
-  const head = mesh(new THREE.SphereGeometry(0.3, 10, 8), skin)
-  head.position.set(0.035, 1.94, 0.08)
-  head.scale.set(0.92, 1.08, 0.95)
+  const head = mesh(new THREE.IcosahedronGeometry(0.225, 1), skin)
+  head.position.set(0.035, 2.1, 0.15)
+  head.scale.set(0.9, 1.06, 0.92)
+  head.rotation.x = -0.1
   head.rotation.z = (Math.random() - 0.5) * 0.22
 
-  const jaw = mesh(new THREE.SphereGeometry(0.19, 8, 6), skin)
-  jaw.position.set(0.045, 1.72, 0.145)
-  jaw.scale.set(1.05, 0.58, 0.78)
-  jaw.rotation.z = 0.07 + (Math.random() - 0.5) * 0.08
+  const jaw = mesh(new THREE.IcosahedronGeometry(0.145, 1), skin)
+  jaw.position.set(0.045, 1.91, 0.2)
+  jaw.scale.set(1.02, 0.58, 0.8)
+  jaw.rotation.x = -0.08
+  jaw.rotation.z = 0.05 + (Math.random() - 0.5) * 0.08
 
-  const leftArm = mesh(new THREE.CapsuleGeometry(0.115, 0.63, 3, 7), skin)
-  leftArm.position.set(-0.48, 1.18, 0.04)
-  leftArm.rotation.x = -0.78
-  leftArm.rotation.z = -0.13
+  const leftArm = capsule(0.09, 0.76, skin)
+  leftArm.position.set(-0.42, 1.28, 0.08)
+  leftArm.rotation.x = variant === 1 ? -0.32 : -0.64
+  leftArm.rotation.z = -0.12 - Math.random() * 0.1
 
-  const rightArm = mesh(new THREE.CapsuleGeometry(0.115, 0.63, 3, 7), skin)
-  rightArm.position.set(0.48, 1.18, 0.04)
-  rightArm.rotation.x = -0.84
-  rightArm.rotation.z = 0.11
+  const rightArm = capsule(0.09, 0.79, skin)
+  rightArm.position.set(0.42, 1.26, 0.1)
+  rightArm.rotation.x = variant === 2 ? -0.2 : -0.72
+  rightArm.rotation.z = 0.1 + Math.random() * 0.12
 
-  const leftLeg = mesh(new THREE.CapsuleGeometry(0.135, 0.62, 3, 7), darkCloth)
-  leftLeg.position.set(-0.19, 0.47, 0.01)
-  leftLeg.rotation.z = -0.035
+  const leftLeg = capsule(0.105, 0.84, darkCloth)
+  leftLeg.position.set(-0.16, 0.55, 0)
+  leftLeg.rotation.z = -0.025
 
-  const rightLeg = mesh(new THREE.CapsuleGeometry(0.135, 0.62, 3, 7), darkCloth)
-  rightLeg.position.set(0.19, 0.47, 0.01)
-  rightLeg.rotation.z = 0.04
+  const rightLeg = capsule(0.105, 0.84, darkCloth)
+  rightLeg.position.set(0.16, 0.55, 0.015)
+  rightLeg.rotation.z = 0.035
 
-  const shoulders = mesh(new THREE.CapsuleGeometry(0.13, 0.56, 3, 8), cloth)
-  shoulders.position.set(0, 1.49, -0.005)
-  shoulders.rotation.z = Math.PI / 2
+  const shoulders = capsule(0.105, 0.62, cloth)
+  shoulders.position.set(0, 1.67, 0)
+  shoulders.rotation.z = Math.PI / 2 + shoulderTilt
+  shoulders.rotation.x = lean * 0.45
   shoulders.scale.z = 0.72
 
-  const pelvis = mesh(new THREE.SphereGeometry(0.34, 8, 6), darkCloth)
-  pelvis.position.set(0, 0.78, 0.02)
-  pelvis.scale.set(1, 0.62, 0.72)
+  const pelvis = mesh(new THREE.IcosahedronGeometry(0.28, 1), darkCloth)
+  pelvis.position.set(0, 0.93, 0.015)
+  pelvis.scale.set(1, 0.58, 0.72)
+  pelvis.rotation.x = lean * 0.25
 
-  const neck = mesh(new THREE.CylinderGeometry(0.12, 0.14, 0.28, 8), skin)
-  neck.position.set(0.02, 1.65, 0.03)
-  neck.rotation.x = 0.16
+  const neck = mesh(new THREE.CylinderGeometry(0.09, 0.12, 0.28, 7), skin)
+  neck.position.set(0.02, 1.83, 0.09)
+  neck.rotation.x = 0.28
 
-  const shirtShell = mesh(
-    new THREE.CylinderGeometry(0.35, 0.42, 0.75, 8, 1, true),
-    accent,
-  )
-  shirtShell.position.set(0, 1.18, 0)
-  shirtShell.scale.z = 0.74
-  shirtShell.rotation.x = 0.09
+  const shirtShell = mesh(new THREE.CylinderGeometry(0.29, 0.4, 0.78, 7, 1, true), accent)
+  shirtShell.position.set(0, 1.34, 0.025)
+  shirtShell.scale.z = 0.77
+  shirtShell.rotation.x = lean
+  shirtShell.rotation.z = shoulderTilt * 0.35
+  shirtShell.visible = variant !== 2
 
-  const leftFoot = mesh(new THREE.CapsuleGeometry(0.12, 0.22, 3, 7), darkCloth)
-  leftFoot.position.set(-0.19, 0.095, -0.13)
+  const leftHand = mesh(new THREE.IcosahedronGeometry(0.105, 0), skin)
+  leftHand.position.set(-0.49, 0.84, 0.31)
+  leftHand.scale.set(0.72, 1.08, 0.58)
+
+  const rightHand = mesh(new THREE.IcosahedronGeometry(0.105, 0), skin)
+  rightHand.position.set(0.5, 0.82, 0.33)
+  rightHand.scale.set(0.72, 1.08, 0.58)
+
+  const leftFoot = capsule(0.095, 0.23, darkCloth, 5)
+  leftFoot.position.set(-0.16, 0.095, -0.13)
   leftFoot.rotation.x = Math.PI / 2
 
-  const rightFoot = mesh(new THREE.CapsuleGeometry(0.12, 0.22, 3, 7), darkCloth)
-  rightFoot.position.set(0.19, 0.095, -0.13)
+  const rightFoot = capsule(0.095, 0.23, darkCloth, 5)
+  rightFoot.position.set(0.16, 0.095, -0.13)
   rightFoot.rotation.x = Math.PI / 2
 
-  const chestWound = mesh(new THREE.SphereGeometry(0.13, 7, 5), wound)
-  chestWound.position.set(-0.16, 1.23, 0.275)
-  chestWound.scale.set(1, 1.35, 0.32)
+  const chestWound = mesh(new THREE.IcosahedronGeometry(0.105, 0), wound)
+  chestWound.position.set(variant === 0 ? -0.15 : 0.16, 1.42, 0.29)
+  chestWound.scale.set(1, 1.55, 0.28)
 
-  const headWound = mesh(new THREE.SphereGeometry(0.11, 7, 5), wound)
-  headWound.position.set(-0.16, 2.04, 0.275)
-  headWound.scale.set(1.25, 0.8, 0.28)
+  const headWound = mesh(new THREE.IcosahedronGeometry(0.085, 0), wound)
+  headWound.position.set(-0.13, 2.16, 0.31)
+  headWound.scale.set(1.35, 0.75, 0.25)
+  headWound.visible = variant !== 1
 
-  const leftEye = mesh(new THREE.SphereGeometry(0.035, 6, 4), eyeMaterial)
-  leftEye.position.set(-0.072, 2.0, 0.35)
-  const rightEye = mesh(new THREE.SphereGeometry(0.035, 6, 4), eyeMaterial)
-  rightEye.position.set(0.13, 2.0, 0.35)
-  if (Math.random() < 0.42) rightEye.visible = false
+  const leftEye = mesh(new THREE.SphereGeometry(0.024, 5, 3), eyeMaterial)
+  leftEye.position.set(-0.06, 2.12, 0.355)
+  const rightEye = mesh(new THREE.SphereGeometry(0.024, 5, 3), eyeMaterial)
+  rightEye.position.set(0.095, 2.12, 0.355)
+  if (Math.random() < 0.62) rightEye.visible = false
+  if (Math.random() < 0.18) leftEye.visible = false
+
+  const tornSleeve = mesh(new THREE.CylinderGeometry(0.13, 0.115, 0.3, 6, 1, true), cloth)
+  tornSleeve.position.set(variant === 1 ? -0.42 : 0.42, 1.55, 0.07)
+  tornSleeve.rotation.z = variant === 1 ? -0.15 : 0.15
+  tornSleeve.rotation.x = -0.2
 
   group.add(
     body,
@@ -132,12 +159,15 @@ export function createRoundedZombieVisual(base: ZombieModelMaterials): ZombieVis
     pelvis,
     neck,
     shirtShell,
+    leftHand,
+    rightHand,
     leftFoot,
     rightFoot,
     chestWound,
     headWound,
     leftEye,
     rightEye,
+    tornSleeve,
   )
 
   parts.push(
@@ -152,19 +182,23 @@ export function createRoundedZombieVisual(base: ZombieModelMaterials): ZombieVis
     pelvis,
     neck,
     shirtShell,
+    leftHand,
+    rightHand,
     leftFoot,
     rightFoot,
     chestWound,
     headWound,
     leftEye,
     rightEye,
+    tornSleeve,
   )
+
   headshotParts.add(head)
   headshotParts.add(jaw)
   headshotParts.add(headWound)
   headshotParts.add(leftEye)
   headshotParts.add(rightEye)
 
-  group.rotation.x = 0.02 + Math.random() * 0.055
+  group.scale.y = 0.98 + Math.random() * 0.09
   return { group, parts, head, headshotParts }
 }
