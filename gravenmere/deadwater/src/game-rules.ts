@@ -14,7 +14,7 @@ export function tuningForWave(wave: number): ZombieTuning {
   const safeWave = Math.max(1, wave)
   return {
     health: Math.round(150 * Math.pow(1.11, safeWave - 1)),
-    speed: Math.min(3.45, 1.28 + safeWave * 0.085),
+    speed: Math.min(5.1, 2.45 + safeWave * 0.13),
     damage: Math.min(34, 8 + safeWave * 1.35),
     attackDelay: Math.max(0.38, 0.78 - safeWave * 0.018),
   }
