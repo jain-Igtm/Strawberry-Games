@@ -6,7 +6,7 @@ export class DeadwaterSoundscapeV5 extends DeadwaterSoundscape {
   private vehicleOscillator: OscillatorNode | null = null
   private vehicleGain: GainNode | null = null
 
-  private tone(
+  private v5Tone(
     type: OscillatorType,
     startFrequency: number,
     endFrequency: number,
@@ -33,45 +33,45 @@ export class DeadwaterSoundscapeV5 extends DeadwaterSoundscape {
     if (weaponId === 'lmg') {
       this.noiseBurst(0.02, 0.135, 2050, 'highpass', 0.5)
       this.noiseBurst(0.095, 0.12, 720, 'bandpass', 0.9)
-      this.tone('sine', 132, 49, 0.095, 0.11)
+      this.v5Tone('sine', 132, 49, 0.095, 0.11)
       return
     }
     if (weaponId === 'harpoon') {
       this.noiseBurst(0.055, 0.16, 1450, 'highpass', 0.55)
       this.noiseBurst(0.24, 0.12, 410, 'bandpass', 1.1)
-      this.tone('triangle', 108, 30, 0.34, 0.13)
-      this.tone('square', 680, 170, 0.08, 0.035, 0.02)
+      this.v5Tone('triangle', 108, 30, 0.34, 0.13)
+      this.v5Tone('square', 680, 170, 0.08, 0.035, 0.02)
       return
     }
     if (weaponId === 'arc') {
       this.noiseBurst(0.04, 0.09, 3300, 'highpass', 1.2)
-      this.tone('sawtooth', 940, 118, 0.19, 0.065)
-      this.tone('sine', 260, 74, 0.26, 0.075, 0.015)
+      this.v5Tone('sawtooth', 940, 118, 0.19, 0.065)
+      this.v5Tone('sine', 260, 74, 0.26, 0.075, 0.015)
       return
     }
     super.gunshot(weaponId)
   }
 
   switchWeapon(): void {
-    this.tone('triangle', 470, 260, 0.055, 0.026)
+    this.v5Tone('triangle', 470, 260, 0.055, 0.026)
     this.noiseBurst(0.035, 0.018, 1300, 'highpass', 0.7, 0.08)
   }
 
   questPickup(): void {
-    this.tone('triangle', 240, 620, 0.16, 0.04)
-    this.tone('sine', 410, 920, 0.2, 0.022, 0.08)
+    this.v5Tone('triangle', 240, 620, 0.16, 0.04)
+    this.v5Tone('sine', 410, 920, 0.2, 0.022, 0.08)
   }
 
   upgrade(): void {
     this.noiseBurst(0.42, 0.035, 520, 'bandpass', 2.4)
-    this.tone('sawtooth', 120, 360, 0.55, 0.045)
-    this.tone('sine', 310, 820, 0.42, 0.035, 0.2)
+    this.v5Tone('sawtooth', 120, 360, 0.55, 0.045)
+    this.v5Tone('sine', 310, 820, 0.42, 0.035, 0.2)
   }
 
   repairBoat(): void {
     this.noiseBurst(0.12, 0.035, 1600, 'highpass', 0.7)
-    this.tone('square', 210, 150, 0.06, 0.026, 0.18)
-    this.tone('triangle', 190, 420, 0.28, 0.04, 0.35)
+    this.v5Tone('square', 210, 150, 0.06, 0.026, 0.18)
+    this.v5Tone('triangle', 190, 420, 0.28, 0.04, 0.35)
   }
 
   enterVehicle(kind: VehicleKind): void {
@@ -86,7 +86,7 @@ export class DeadwaterSoundscapeV5 extends DeadwaterSoundscape {
     oscillator.start()
     this.vehicleOscillator = oscillator
     this.vehicleGain = gain
-    this.tone('triangle', kind === 'boat' ? 130 : 180, kind === 'boat' ? 62 : 90, 0.35, 0.035)
+    this.v5Tone('triangle', kind === 'boat' ? 130 : 180, kind === 'boat' ? 62 : 90, 0.35, 0.035)
   }
 
   updateVehicle(kind: VehicleKind, speedRatio: number): void {
