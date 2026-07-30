@@ -1,4 +1,9 @@
 import * as THREE from 'three'
+import {
+  GAMEPLAY_ATLAS_V16,
+  SMOKE_ATLAS_V16,
+  ZOMBIE_ATLAS_V16,
+} from './generated-textures-v16'
 
 export type AtlasTile = Readonly<{
   u: number
@@ -40,8 +45,9 @@ export const ATLAS_TILES = {
 const textureRoot = './assets/textures/'
 const loader = typeof document === 'undefined' ? null : new THREE.TextureLoader()
 
-function loadAtlas(name: string): THREE.Texture {
-  const texture = loader ? loader.load(textureRoot + name) : new THREE.Texture()
+function loadAtlas(source: string): THREE.Texture {
+  const url = source.startsWith('data:') ? source : textureRoot + source
+  const texture = loader ? loader.load(url) : new THREE.Texture()
   texture.colorSpace = THREE.SRGBColorSpace
   texture.wrapS = THREE.ClampToEdgeWrapping
   texture.wrapT = THREE.ClampToEdgeWrapping
@@ -51,9 +57,11 @@ function loadAtlas(name: string): THREE.Texture {
   return texture
 }
 
-export const gunAtlasTexture = loadAtlas('gun-atlas.webp')
-export const zombieAtlasTexture = loadAtlas('zombie-atlas.webp')
+export const gameplayAtlasTexture = loadAtlas(GAMEPLAY_ATLAS_V16)
+export const gunAtlasTexture = gameplayAtlasTexture
+export const zombieAtlasTexture = loadAtlas(ZOMBIE_ATLAS_V16)
 export const forestAtlasTexture = loadAtlas('forest-atlas.webp')
+export const smokeAtlasTexture = loadAtlas(SMOKE_ATLAS_V16)
 
 export function mapGeometryToAtlas<T extends THREE.BufferGeometry>(
   geometry: T,
@@ -74,7 +82,12 @@ export function mapGeometryToAtlas<T extends THREE.BufferGeometry>(
 
 export function configureAtlasTextures(renderer: THREE.WebGLRenderer): void {
   const anisotropy = Math.min(4, renderer.capabilities.getMaxAnisotropy())
-  for (const texture of [gunAtlasTexture, zombieAtlasTexture, forestAtlasTexture]) {
+  for (const texture of [
+    gameplayAtlasTexture,
+    zombieAtlasTexture,
+    forestAtlasTexture,
+    smokeAtlasTexture,
+  ]) {
     texture.anisotropy = anisotropy
     texture.needsUpdate = true
   }
