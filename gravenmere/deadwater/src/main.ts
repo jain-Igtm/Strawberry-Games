@@ -23,10 +23,10 @@ import {
   weaponMagazineSize,
 } from './expansion-rules'
 import { buildWorldExpansion } from './world-expansion'
-import { PLAYER_START } from './districts/dock-town-plan'
+import { DOCK_TOWN_LIMITS, PLAYER_START } from './districts/dock-town-plan'
 import type { Driveable, TowerAccess } from './world-objects-v5'
 import { WEAPONS, type WeaponId } from './weapons'
-import { createRoundedZombieVisual } from './zombie-model'
+import { createRoundedZombieVisual, type ZombieRig } from './zombie-model'
 import {
   ATLAS_TILES,
   configureAtlasTextures,
@@ -57,7 +57,7 @@ type Collider = {
 type Zombie = {
   group: THREE.Group
   parts: THREE.Mesh[]
-  head: THREE.Mesh
+  rig: ZombieRig
   health: number
   maxHealth: number
   speed: number
@@ -66,6 +66,9 @@ type Zombie = {
   attackTimer: number
   phase: number
   flashTimer: number
+  stuckTimer: number
+  lastX: number
+  lastZ: number
   dead: boolean
 }
 
@@ -171,7 +174,8 @@ const renderer = new THREE.WebGLRenderer({
   antialias: !isTouch,
   powerPreference: 'high-performance',
 })
-renderer.setPixelRatio(Math.min(devicePixelRatio || 1, isTouch ? 0.95 : 1.55))
+let renderPixelRatio = Math.min(devicePixelRatio || 1, isTouch ? 0.92 : 1.55)
+renderer.setPixelRatio(renderPixelRatio)
 renderer.setSize(innerWidth, innerHeight)
 renderer.outputColorSpace = THREE.SRGBColorSpace
 renderer.toneMapping = THREE.ACESFilmicToneMapping
@@ -182,12 +186,29 @@ installAshfallSky(scene, renderer)
 const clock = new THREE.Clock()
 const raycaster = new THREE.Raycaster()
 raycaster.far = 220
+const localHitPoint = new THREE.Vector3()
 const colliders: Collider[] = []
+const colliderGrid = new Map<number, Collider[]>()
+const COLLIDER_GRID_SIZE = 12
+let colliderIndexReady = false
 const shotTargets: THREE.Object3D[] = []
 const zombies: Zombie[] = []
 const animatedFires: Array<{ flame: THREE.Mesh; glow: THREE.PointLight; phase: number }> = []
 const spawnPoints: THREE.Vector3[] = []
 const keys = new Set<string>()
+
+const NAV_CELL_SIZE = 1.8
+const NAV_COLUMNS = Math.ceil(
+  (DOCK_TOWN_LIMITS.maxX - DOCK_TOWN_LIMITS.minX) / NAV_CELL_SIZE,
+) + 1
+const NAV_ROWS = Math.ceil(
+  (DOCK_TOWN_LIMITS.maxZ - DOCK_TOWN_LIMITS.minZ) / NAV_CELL_SIZE,
+) + 1
+const navBlocked = new Uint8Array(NAV_COLUMNS * NAV_ROWS)
+const navDistance = new Int32Array(NAV_COLUMNS * NAV_ROWS)
+const navQueue = new Int32Array(NAV_COLUMNS * NAV_ROWS)
+const navDirection = new THREE.Vector2()
+let navPlayerCell = -1
 
 const player = {
   position: new THREE.Vector3(PLAYER_START.x, 1.82, PLAYER_START.y),
@@ -305,13 +326,40 @@ function cylinder(
   return mesh
 }
 
+function colliderGridKey(cellX: number, cellZ: number): number {
+  return (cellX + 512) * 2048 + cellZ + 512
+}
+
+function indexCollider(collider: Collider): void {
+  const minCellX = Math.floor(collider.minX / COLLIDER_GRID_SIZE)
+  const maxCellX = Math.floor(collider.maxX / COLLIDER_GRID_SIZE)
+  const minCellZ = Math.floor(collider.minZ / COLLIDER_GRID_SIZE)
+  const maxCellZ = Math.floor(collider.maxZ / COLLIDER_GRID_SIZE)
+  for (let cellX = minCellX; cellX <= maxCellX; cellX += 1) {
+    for (let cellZ = minCellZ; cellZ <= maxCellZ; cellZ += 1) {
+      const key = colliderGridKey(cellX, cellZ)
+      const bucket = colliderGrid.get(key)
+      if (bucket) bucket.push(collider)
+      else colliderGrid.set(key, [collider])
+    }
+  }
+}
+
+function rebuildColliderIndex(): void {
+  colliderGrid.clear()
+  for (const collider of colliders) indexCollider(collider)
+  colliderIndexReady = true
+}
+
 function addCollider(x: number, z: number, width: number, depth: number, padding = 0.25): void {
-  colliders.push({
+  const collider = {
     minX: x - width / 2 - padding,
     maxX: x + width / 2 + padding,
     minZ: z - depth / 2 - padding,
     maxZ: z + depth / 2 + padding,
-  })
+  }
+  colliders.push(collider)
+  if (colliderIndexReady) indexCollider(collider)
 }
 
 function buildDockTownAtmosphere(): void {
@@ -355,6 +403,8 @@ const expandedWorld = buildWorldExpansion({
 weaponPickups.push(...expandedWorld.weaponPickups)
 spawnPoints.length = 0
 spawnPoints.push(...expandedWorld.spawnPoints)
+rebuildColliderIndex()
+buildNavigationGrid()
 
 const emberCount = isTouch ? 82 : 180
 const emberPositions = new Float32Array(emberCount * 3)
@@ -431,7 +481,7 @@ const handguard = mapWeaponPart(
 )
 const stock = mapWeaponPart(
   box(0.2, 0.19, 0.38, gunWoodMaterial, 0, -0.015, 0.48),
-  ATLAS_TILES.bottomLeft,
+  ATLAS_TILES.topRight,
 )
 stock.rotation.x = 0.05
 const cheekRest = mapWeaponPart(
@@ -956,12 +1006,33 @@ function updateWeaponPickups(dt: number, elapsed: number): void {
 applyWeaponVisual()
 
 function circleHitsCollider(x: number, z: number, radius: number): boolean {
-  for (const collider of colliders) {
+  const test = (collider: Collider): boolean => {
     const closestX = THREE.MathUtils.clamp(x, collider.minX, collider.maxX)
     const closestZ = THREE.MathUtils.clamp(z, collider.minZ, collider.maxZ)
     const dx = x - closestX
     const dz = z - closestZ
-    if (dx * dx + dz * dz < radius * radius) return true
+    return dx * dx + dz * dz < radius * radius
+  }
+
+  if (!colliderIndexReady) {
+    for (const collider of colliders) {
+      if (test(collider)) return true
+    }
+    return false
+  }
+
+  const minCellX = Math.floor((x - radius) / COLLIDER_GRID_SIZE)
+  const maxCellX = Math.floor((x + radius) / COLLIDER_GRID_SIZE)
+  const minCellZ = Math.floor((z - radius) / COLLIDER_GRID_SIZE)
+  const maxCellZ = Math.floor((z + radius) / COLLIDER_GRID_SIZE)
+  for (let cellX = minCellX; cellX <= maxCellX; cellX += 1) {
+    for (let cellZ = minCellZ; cellZ <= maxCellZ; cellZ += 1) {
+      const bucket = colliderGrid.get(colliderGridKey(cellX, cellZ))
+      if (!bucket) continue
+      for (const collider of bucket) {
+        if (test(collider)) return true
+      }
+    }
   }
   return false
 }
@@ -969,6 +1040,171 @@ function circleHitsCollider(x: number, z: number, radius: number): boolean {
 function insideIsland(x: number, z: number, margin = 0): boolean {
   void margin
   return expandedWorld.isWalkableAt(x, z)
+}
+
+function navigationCellAt(x: number, z: number): number {
+  const column = Math.floor((x - DOCK_TOWN_LIMITS.minX) / NAV_CELL_SIZE)
+  const row = Math.floor((z - DOCK_TOWN_LIMITS.minZ) / NAV_CELL_SIZE)
+  if (column < 0 || column >= NAV_COLUMNS || row < 0 || row >= NAV_ROWS) return -1
+  return row * NAV_COLUMNS + column
+}
+
+function navigationCellCenter(index: number, target: THREE.Vector2): THREE.Vector2 {
+  const column = index % NAV_COLUMNS
+  const row = Math.floor(index / NAV_COLUMNS)
+  return target.set(
+    DOCK_TOWN_LIMITS.minX + (column + 0.5) * NAV_CELL_SIZE,
+    DOCK_TOWN_LIMITS.minZ + (row + 0.5) * NAV_CELL_SIZE,
+  )
+}
+
+function nearestOpenNavigationCell(index: number, maximumRadius = 8): number {
+  if (index < 0) return -1
+  if (navBlocked[index] === 0) return index
+  const originColumn = index % NAV_COLUMNS
+  const originRow = Math.floor(index / NAV_COLUMNS)
+  for (let radius = 1; radius <= maximumRadius; radius += 1) {
+    for (let rowOffset = -radius; rowOffset <= radius; rowOffset += 1) {
+      for (let columnOffset = -radius; columnOffset <= radius; columnOffset += 1) {
+        if (Math.abs(rowOffset) !== radius && Math.abs(columnOffset) !== radius) continue
+        const column = originColumn + columnOffset
+        const row = originRow + rowOffset
+        if (column < 0 || column >= NAV_COLUMNS || row < 0 || row >= NAV_ROWS) continue
+        const candidate = row * NAV_COLUMNS + column
+        if (navBlocked[candidate] === 0) return candidate
+      }
+    }
+  }
+  return -1
+}
+
+function nearestReachableNavigationCell(index: number, maximumRadius = 8): number {
+  if (index < 0) return -1
+  if (navBlocked[index] === 0 && navDistance[index] >= 0) return index
+  const originColumn = index % NAV_COLUMNS
+  const originRow = Math.floor(index / NAV_COLUMNS)
+  for (let radius = 1; radius <= maximumRadius; radius += 1) {
+    for (let rowOffset = -radius; rowOffset <= radius; rowOffset += 1) {
+      for (let columnOffset = -radius; columnOffset <= radius; columnOffset += 1) {
+        if (Math.abs(rowOffset) !== radius && Math.abs(columnOffset) !== radius) continue
+        const column = originColumn + columnOffset
+        const row = originRow + rowOffset
+        if (column < 0 || column >= NAV_COLUMNS || row < 0 || row >= NAV_ROWS) continue
+        const candidate = row * NAV_COLUMNS + column
+        if (navBlocked[candidate] === 0 && navDistance[candidate] >= 0) return candidate
+      }
+    }
+  }
+  return -1
+}
+
+function rebuildNavigationFlow(force = false): void {
+  const requestedStart = navigationCellAt(player.position.x, player.position.z)
+  const start = nearestOpenNavigationCell(requestedStart, 6)
+  if (!force && start === navPlayerCell) return
+  navPlayerCell = start
+  navDistance.fill(-1)
+  if (start < 0) return
+
+  let read = 0
+  let write = 0
+  navQueue[write++] = start
+  navDistance[start] = 0
+  const offsets = [
+    [-1, 0], [1, 0], [0, -1], [0, 1],
+    [-1, -1], [1, -1], [-1, 1], [1, 1],
+  ] as const
+
+  while (read < write) {
+    const current = navQueue[read++]
+    const currentColumn = current % NAV_COLUMNS
+    const currentRow = Math.floor(current / NAV_COLUMNS)
+    const nextDistance = navDistance[current] + 1
+    for (const [columnOffset, rowOffset] of offsets) {
+      const column = currentColumn + columnOffset
+      const row = currentRow + rowOffset
+      if (column < 0 || column >= NAV_COLUMNS || row < 0 || row >= NAV_ROWS) continue
+      const candidate = row * NAV_COLUMNS + column
+      if (navBlocked[candidate] !== 0 || navDistance[candidate] >= 0) continue
+      if (columnOffset !== 0 && rowOffset !== 0) {
+        const horizontal = currentRow * NAV_COLUMNS + column
+        const vertical = row * NAV_COLUMNS + currentColumn
+        if (navBlocked[horizontal] !== 0 || navBlocked[vertical] !== 0) continue
+      }
+      navDistance[candidate] = nextDistance
+      navQueue[write++] = candidate
+    }
+  }
+}
+
+function buildNavigationGrid(): void {
+  for (let row = 0; row < NAV_ROWS; row += 1) {
+    for (let column = 0; column < NAV_COLUMNS; column += 1) {
+      const x = DOCK_TOWN_LIMITS.minX + (column + 0.5) * NAV_CELL_SIZE
+      const z = DOCK_TOWN_LIMITS.minZ + (row + 0.5) * NAV_CELL_SIZE
+      const index = row * NAV_COLUMNS + column
+      navBlocked[index] = (
+        insideIsland(x, z, 0.44) &&
+        !circleHitsCollider(x, z, 0.44)
+      ) ? 0 : 1
+    }
+  }
+  navPlayerCell = -1
+  rebuildNavigationFlow(true)
+}
+
+function sampleNavigationDirection(
+  x: number,
+  z: number,
+  directX: number,
+  directZ: number,
+): THREE.Vector2 {
+  const current = navigationCellAt(x, z)
+  if (current < 0 || navBlocked[current] !== 0 || navDistance[current] < 0) {
+    return navDirection.set(directX, directZ)
+  }
+  const currentColumn = current % NAV_COLUMNS
+  const currentRow = Math.floor(current / NAV_COLUMNS)
+  let best = current
+  let bestDistance = navDistance[current]
+  for (let rowOffset = -1; rowOffset <= 1; rowOffset += 1) {
+    for (let columnOffset = -1; columnOffset <= 1; columnOffset += 1) {
+      if (columnOffset === 0 && rowOffset === 0) continue
+      const column = currentColumn + columnOffset
+      const row = currentRow + rowOffset
+      if (column < 0 || column >= NAV_COLUMNS || row < 0 || row >= NAV_ROWS) continue
+      const candidate = row * NAV_COLUMNS + column
+      const distance = navDistance[candidate]
+      if (columnOffset !== 0 && rowOffset !== 0) {
+        const horizontal = currentRow * NAV_COLUMNS + column
+        const vertical = row * NAV_COLUMNS + currentColumn
+        if (navBlocked[horizontal] !== 0 || navBlocked[vertical] !== 0) continue
+      }
+      if (navBlocked[candidate] === 0 && distance >= 0 && distance < bestDistance) {
+        best = candidate
+        bestDistance = distance
+      }
+    }
+  }
+  if (best === current) return navDirection.set(directX, directZ)
+  navigationCellCenter(best, navDirection)
+  navDirection.set(navDirection.x - x, navDirection.y - z).normalize()
+  navDirection.x = navDirection.x * 0.82 + directX * 0.18
+  navDirection.y = navDirection.y * 0.82 + directZ * 0.18
+  return navDirection.normalize()
+}
+
+function recoverZombieToNavigation(zombie: Zombie): boolean {
+  const current = navigationCellAt(zombie.group.position.x, zombie.group.position.z)
+  const open = nearestReachableNavigationCell(current, 8)
+  if (open < 0) return false
+  navigationCellCenter(open, navDirection)
+  zombie.group.position.x = navDirection.x
+  zombie.group.position.z = navDirection.y
+  zombie.lastX = navDirection.x
+  zombie.lastZ = navDirection.y
+  zombie.stuckTimer = 0
+  return true
 }
 
 function movePlayer(dx: number, dz: number): void {
@@ -982,16 +1218,20 @@ function movePlayer(dx: number, dz: number): void {
   }
 }
 
-function moveZombie(zombie: Zombie, dx: number, dz: number): void {
+function moveZombie(zombie: Zombie, dx: number, dz: number): boolean {
   const radius = 0.44
+  let moved = false
   const nextX = zombie.group.position.x + dx
   if (insideIsland(nextX, zombie.group.position.z, radius) && !circleHitsCollider(nextX, zombie.group.position.z, radius)) {
     zombie.group.position.x = nextX
+    moved = true
   }
   const nextZ = zombie.group.position.z + dz
   if (insideIsland(zombie.group.position.x, nextZ, radius) && !circleHitsCollider(zombie.group.position.x, nextZ, radius)) {
     zombie.group.position.z = nextZ
+    moved = true
   }
+  return moved
 }
 
 function createZombie(position: THREE.Vector3): Zombie {
@@ -1013,7 +1253,7 @@ function createZombie(position: THREE.Vector3): Zombie {
   const zombie: Zombie = {
     group,
     parts: visual.parts,
-    head: visual.head,
+    rig: visual.rig,
     health: tuning.health,
     maxHealth: tuning.health,
     speed: tuning.speed * (0.94 + Math.random() * 0.24) * (runner ? 1.3 : 1),
@@ -1022,12 +1262,14 @@ function createZombie(position: THREE.Vector3): Zombie {
     attackTimer: Math.random() * 0.4,
     phase: Math.random() * Math.PI * 2,
     flashTimer: 0,
+    stuckTimer: 0,
+    lastX: position.x,
+    lastZ: position.z,
     dead: false,
   }
 
   for (const part of visual.parts) {
     part.userData.zombie = zombie
-    part.userData.headshot = visual.headshotParts.has(part)
     shotTargets.push(part)
   }
   scene.add(group)
@@ -1040,7 +1282,6 @@ function removeZombie(zombie: Zombie): void {
   for (const part of zombie.parts) {
     const targetIndex = shotTargets.indexOf(part)
     if (targetIndex >= 0) shotTargets.splice(targetIndex, 1)
-    part.geometry.dispose()
     const material = part.material
     if (Array.isArray(material)) material.forEach((entry) => entry.dispose())
     else material.dispose()
@@ -1121,11 +1362,34 @@ function nearestSpawnPoint(): THREE.Vector3 {
   })
   const distant = spawnPoints.filter((point) => point.distanceToSquared(player.position) > 32 * 32)
   const pool = preferred.length > 0 ? preferred : distant.length > 0 ? distant : spawnPoints
-  const base = pool[Math.floor(Math.random() * pool.length)]
-  const tangent = new THREE.Vector3(-base.z, 0, base.x)
-    .normalize()
-    .multiplyScalar((Math.random() - 0.5) * 8)
-  return base.clone().add(tangent)
+  for (let attempt = 0; attempt < 18; attempt += 1) {
+    const base = pool[Math.floor(Math.random() * pool.length)]
+    const angle = Math.random() * Math.PI * 2
+    const radius = Math.random() * 7.5
+    const candidate = new THREE.Vector3(
+      base.x + Math.cos(angle) * radius,
+      base.y,
+      base.z + Math.sin(angle) * radius,
+    )
+    const navCell = navigationCellAt(candidate.x, candidate.z)
+    if (
+      navCell >= 0 &&
+      navBlocked[navCell] === 0 &&
+      navDistance[navCell] >= 0 &&
+      insideIsland(candidate.x, candidate.z, 0.44) &&
+      !circleHitsCollider(candidate.x, candidate.z, 0.44)
+    ) {
+      return candidate
+    }
+  }
+
+  const fallback = pool[Math.floor(Math.random() * pool.length)].clone()
+  const open = nearestReachableNavigationCell(navigationCellAt(fallback.x, fallback.z), 12)
+  if (open >= 0) {
+    navigationCellCenter(open, navDirection)
+    fallback.set(navDirection.x, fallback.y, navDirection.y)
+  }
+  return fallback
 }
 
 function startWave(): void {
@@ -1251,7 +1515,9 @@ function fireWeapon(): void {
     const zombie = hit.object.userData.zombie as Zombie | undefined
     if (!zombie || zombie.dead) continue
     hitSomething = true
-    const headshot = Boolean(hit.object.userData.headshot)
+    localHitPoint.copy(hit.point)
+    zombie.group.worldToLocal(localHitPoint)
+    const headshot = localHitPoint.y > 1.78
     const waveBonus = Math.floor((state.wave - 1) / 6) * 2
     const damage =
       (weapon.damage + waveBonus) *
@@ -1497,13 +1763,14 @@ function updatePlayer(dt: number): void {
 }
 
 function updateZombies(dt: number, elapsed: number): void {
+  rebuildNavigationFlow()
   const cellSize = 3.1
-  const buckets = new Map<string, Zombie[]>()
+  const buckets = new Map<number, Zombie[]>()
   for (const zombie of zombies) {
     if (zombie.dead) continue
     const cellX = Math.floor(zombie.group.position.x / cellSize)
     const cellZ = Math.floor(zombie.group.position.z / cellSize)
-    const key = `${cellX}:${cellZ}`
+    const key = (cellX + 256) * 1024 + cellZ + 256
     const bucket = buckets.get(key)
     if (bucket) bucket.push(zombie)
     else buckets.set(key, [zombie])
@@ -1522,13 +1789,21 @@ function updateZombies(dt: number, elapsed: number): void {
       const inverseDistance = 1 / Math.max(distance, 0.001)
       const directionX = deltaX * inverseDistance
       const directionZ = deltaZ * inverseDistance
+      const flow = sampleNavigationDirection(
+        zombie.group.position.x,
+        zombie.group.position.z,
+        directionX,
+        directionZ,
+      )
       let separationX = 0
       let separationZ = 0
       const cellX = Math.floor(zombie.group.position.x / cellSize)
       const cellZ = Math.floor(zombie.group.position.z / cellSize)
       for (let offsetX = -1; offsetX <= 1; offsetX += 1) {
         for (let offsetZ = -1; offsetZ <= 1; offsetZ += 1) {
-          const nearby = buckets.get(`${cellX + offsetX}:${cellZ + offsetZ}`)
+          const nearby = buckets.get(
+            (cellX + offsetX + 256) * 1024 + cellZ + offsetZ + 256,
+          )
           if (!nearby) continue
           for (const other of nearby) {
             if (other === zombie || other.dead) continue
@@ -1543,14 +1818,28 @@ function updateZombies(dt: number, elapsed: number): void {
         }
       }
       const sway = Math.sin(elapsed * 1.6 + zombie.phase) * 0.12
-      const desiredX = directionX + separationX * 0.18 - directionZ * sway
-      const desiredZ = directionZ + separationZ * 0.18 + directionX * sway
+      const desiredX = flow.x + separationX * 0.18 - flow.y * sway
+      const desiredZ = flow.y + separationZ * 0.18 + flow.x * sway
       const desiredLength = Math.hypot(desiredX, desiredZ) || 1
-      moveZombie(
+      const previousX = zombie.group.position.x
+      const previousZ = zombie.group.position.z
+      const moved = moveZombie(
         zombie,
         (desiredX / desiredLength) * zombie.speed * dt,
         (desiredZ / desiredLength) * zombie.speed * dt,
       )
+      const movement = Math.hypot(
+        zombie.group.position.x - previousX,
+        zombie.group.position.z - previousZ,
+      )
+      if (!moved || movement < zombie.speed * dt * 0.12) {
+        zombie.stuckTimer += dt
+      } else {
+        zombie.stuckTimer = Math.max(0, zombie.stuckTimer - dt * 2.2)
+        zombie.lastX = zombie.group.position.x
+        zombie.lastZ = zombie.group.position.z
+      }
+      if (zombie.stuckTimer > 1.15) recoverZombieToNavigation(zombie)
       zombie.group.lookAt(player.position.x, zombie.group.position.y, player.position.z)
     } else if (!state.elevatedTower && zombie.attackTimer <= 0) {
       zombie.attackTimer = zombie.attackDelay
@@ -1562,14 +1851,12 @@ function updateZombies(dt: number, elapsed: number): void {
     zombie.group.position.y =
       expandedWorld.heightAt(zombie.group.position.x, zombie.group.position.z) +
       Math.abs(Math.sin(walk)) * 0.035
-    const leftArm = zombie.parts[3]
-    const rightArm = zombie.parts[4]
-    const leftLeg = zombie.parts[5]
-    const rightLeg = zombie.parts[6]
-    leftArm.rotation.x = -0.78 + Math.sin(walk) * 0.28
-    rightArm.rotation.x = -0.84 - Math.sin(walk) * 0.28
-    leftLeg.rotation.x = Math.sin(walk) * 0.24
-    rightLeg.rotation.x = -Math.sin(walk) * 0.24
+    zombie.rig.leftArm.rotation.x = -0.24 + Math.sin(walk) * 0.42
+    zombie.rig.rightArm.rotation.x = -0.28 - Math.sin(walk) * 0.42
+    zombie.rig.leftLeg.rotation.x = Math.sin(walk) * 0.32
+    zombie.rig.rightLeg.rotation.x = -Math.sin(walk) * 0.32
+    zombie.rig.head.rotation.y = Math.sin(walk * 0.37 + zombie.phase) * 0.12
+    zombie.rig.head.rotation.z = Math.sin(walk * 0.23 + zombie.phase) * 0.055
 
     const flashing = zombie.flashTimer > 0
     if (Boolean(zombie.group.userData.flashActive) !== flashing) {
@@ -1847,17 +2134,41 @@ void App.addListener('backButton', () => {
 function onResize(): void {
   camera.aspect = innerWidth / innerHeight
   camera.updateProjectionMatrix()
-  renderer.setPixelRatio(Math.min(devicePixelRatio || 1, isTouch ? 0.95 : 1.55))
+  renderer.setPixelRatio(renderPixelRatio)
   renderer.setSize(innerWidth, innerHeight)
 }
 addEventListener('resize', onResize)
 
 let elapsed = 0
 let atmosphereFrame = 0
+let adaptiveSeconds = 0
+let adaptiveFrames = 0
+
+function updateAdaptiveResolution(rawDelta: number): void {
+  if (!isTouch || !state.started || state.paused || state.gameOver || rawDelta > 0.2) return
+  adaptiveSeconds += rawDelta
+  adaptiveFrames += 1
+  if (adaptiveSeconds < 2.4) return
+
+  const averageFps = adaptiveFrames / adaptiveSeconds
+  const previous = renderPixelRatio
+  if (averageFps < 43) renderPixelRatio = Math.max(0.68, renderPixelRatio - 0.075)
+  else if (averageFps < 51) renderPixelRatio = Math.max(0.68, renderPixelRatio - 0.045)
+  else if (averageFps > 58) renderPixelRatio = Math.min(0.92, renderPixelRatio + 0.025)
+
+  adaptiveSeconds = 0
+  adaptiveFrames = 0
+  if (Math.abs(previous - renderPixelRatio) < 0.001) return
+  renderer.setPixelRatio(renderPixelRatio)
+  renderer.setSize(innerWidth, innerHeight, false)
+}
+
 function animate(): void {
   requestAnimationFrame(animate)
-  const dt = Math.min(clock.getDelta(), 0.04)
+  const rawDelta = clock.getDelta()
+  const dt = Math.min(rawDelta, 0.04)
   elapsed += dt
+  updateAdaptiveResolution(rawDelta)
   if (state.started && !state.paused && !state.gameOver) {
     state.fireCooldown = Math.max(0, state.fireCooldown - dt)
     state.interactionCooldown = Math.max(0, state.interactionCooldown - dt)
