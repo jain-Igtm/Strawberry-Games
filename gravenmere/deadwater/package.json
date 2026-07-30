@@ -1,7 +1,7 @@
 {
   "name": "ashfall-deadwater",
   "private": true,
-  "version": "0.10.0",
+  "version": "0.10.1",
   "type": "module",
   "scripts": {
     "predev": "node scripts/run-feedback-pass.mjs && node scripts/fix-controls-v3.mjs && node scripts/run-world-pass-v4.mjs && node scripts/patch-environment-v5.mjs && node scripts/apply-expansion-v5.mjs && node scripts/fix-expansion-materials-v5.mjs && node scripts/apply-polish-v6.mjs && node scripts/fix-terrain-winding-v6.mjs && node scripts/fetch-cc0-audio-v7.mjs && node scripts/apply-recorded-audio-v7.mjs && node scripts/apply-dock-town-v8.mjs && node scripts/apply-dock-town-scale-v9.mjs && node scripts/apply-forest-impostor-v10.mjs",
