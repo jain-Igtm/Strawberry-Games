@@ -150,6 +150,19 @@ function addServiceBuilding(
     -depth / 2,
     materials.rust,
   )
+  const lintelHeight = wallHeight - 2.55
+  const lintel = box(
+    doorway,
+    lintelHeight,
+    thickness,
+    materials.rust,
+    0,
+    2.55 + lintelHeight / 2,
+    -depth / 2,
+  )
+  lintel.userData.blocksShot = true
+  group.add(lintel)
+  context.shotTargets.push(lintel)
 
   const awning = box(3.6, 0.18, 1.25, materials.metal, 0, 3.25, -depth / 2 - 0.56)
   awning.rotation.x = -0.08
@@ -404,4 +417,3 @@ export function buildExpandedInfrastructure(context: BuildContext): WeaponPickup
     addWeaponPickup(context, 'marksman', 0, -53, 0),
   ]
 }
-

@@ -434,12 +434,14 @@ function addEnterableBuilding(
   const thickness = 0.28
   const doorway = 2.35
   const frontHalf = (width - doorway) / 2
+  const lintelHeight = totalHeight - 2.55
   const wallPieces = [
     box(width, totalHeight, thickness, facade, 0, totalHeight / 2, depth / 2),
     box(thickness, totalHeight, depth, facade, -width / 2, totalHeight / 2, 0),
     box(thickness, totalHeight, depth, facade, width / 2, totalHeight / 2, 0),
     box(frontHalf, totalHeight, thickness, facade, -width / 2 + frontHalf / 2, totalHeight / 2, -depth / 2),
     box(frontHalf, totalHeight, thickness, facade, width / 2 - frontHalf / 2, totalHeight / 2, -depth / 2),
+    box(doorway, lintelHeight, thickness, facade, 0, 2.55 + lintelHeight / 2, -depth / 2),
   ]
   for (const wall of wallPieces) {
     wall.userData.blocksShot = true
@@ -449,8 +451,8 @@ function addEnterableBuilding(
   context.addCollider(x, z + depth / 2, width, thickness, 0.05)
   context.addCollider(x - width / 2, z, thickness, depth, 0.05)
   context.addCollider(x + width / 2, z, thickness, depth, 0.05)
-  context.addCollider(x - width * 0.33, z - depth / 2, frontHalf, thickness, 0.05)
-  context.addCollider(x + width * 0.33, z - depth / 2, frontHalf, thickness, 0.05)
+  context.addCollider(x - width / 2 + frontHalf / 2, z - depth / 2, frontHalf, thickness, 0.05)
+  context.addCollider(x + width / 2 - frontHalf / 2, z - depth / 2, frontHalf, thickness, 0.05)
 
   addFacadeWindows(group, materials.glass, width, depth, Math.max(1, floors - 1), 3.2)
   group.add(box(Math.min(width - 1.4, 8), 1.0, 0.14, signMaterial(label), 0, 3.0, -depth / 2 - 0.16))
@@ -700,33 +702,78 @@ function addHospitalComplex(
     }
   }
 
-  // This playable plan adapts the public-domain HABS first-floor survey of
-  // St. Elizabeths Hospital's West Wing: two named ward corridors, a central
-  // transfer core, a large day room, irregular patient rooms, treatment rooms,
-  // and an east ward spur. Geometry is instanced by material rather than issued
-  // as hundreds of individual meshes.
-  queueDecoration(width, 0.24, depth, context.materials.concrete, 0, 0.12, 0)
-  queueDecoration(width + 0.8, 0.45, depth + 0.8, materials.roof, 0, exteriorHeight + 0.22, 0)
-  queueDecoration(width - 0.7, 0.24, depth - 0.7, materials.concrete, 0, 3.55, 0)
-  queueDecoration(width + 0.5, 0.28, depth + 0.5, context.materials.rust, 0, 6.4, 0)
-  queueDecoration(width + 0.5, 0.24, depth + 0.5, context.materials.darkRust, 0, 9.6, 0)
+  // The footprint is a genuine pavilion hospital rather than the old rectangle.
+  // Its symmetrical administration/ER block follows the public-domain Mountain
+  // Branch hospital HABS TN-254-X first-floor plan. The two long ward wings and
+  // their nurse/linen/bath rhythm follow Ellis Island Measles Ward A, HABS
+  // NY-6086-T. Door widths and a second cross-corridor are the gameplay changes.
+  const frontNorth = -8
+  const wardHeight = 10.75
+  const connectorHeight = 7.05
+  const wardWidth = 25
+  const wardCenterX = 25.5
 
-  addWallRunX(-halfWidth, halfWidth, -halfDepth, [-24, 24], exteriorHeight, materials.concrete, 4.6)
-  addWallRunX(-halfWidth, halfWidth, halfDepth, [0], exteriorHeight, materials.concrete, 3.6)
-  addWallRunZ(-halfWidth, -halfDepth, halfDepth, [-8], exteriorHeight, materials.concrete, 3.4)
-  addWallRunZ(halfWidth, -halfDepth, halfDepth, [8], exteriorHeight, materials.concrete, 3.4)
+  // Four-storey administration/ER bar.
+  queueDecoration(width, 0.24, 15, context.materials.concrete, 0, 0.12, -15.5)
+  queueDecoration(width + 0.8, 0.45, 15.8, materials.roof, 0, exteriorHeight + 0.22, -15.5)
+  for (const floorY of [3.55, 6.75, 9.95]) {
+    queueDecoration(width - 0.7, 0.24, 14.3, materials.concrete, 0, floorY, -15.5)
+  }
 
+  // Two three-storey isolation/ward pavilions and the two-storey transfer hall.
+  for (const side of [-1, 1]) {
+    queueDecoration(wardWidth, 0.24, 31, context.materials.concrete, side * wardCenterX, 0.12, 7.5)
+    queueDecoration(wardWidth + 0.7, 0.42, 31.7, materials.roof, side * wardCenterX, wardHeight + 0.21, 7.5)
+    for (const floorY of [3.55, 6.75]) {
+      queueDecoration(wardWidth - 0.55, 0.23, 30.4, materials.concrete, side * wardCenterX, floorY, 7.5)
+    }
+  }
+  queueDecoration(26, 0.24, 7, context.materials.concrete, 0, 0.12, 9.5)
+  queueDecoration(26.6, 0.4, 7.6, materials.roof, 0, connectorHeight + 0.2, 9.5)
+  queueDecoration(25.4, 0.23, 6.4, materials.concrete, 0, 3.55, 9.5)
+
+  // Exterior perimeter. The two recessed courtyards make the sourced pavilion
+  // silhouette visible from both the street and the playable interior.
+  addWallRunX(-halfWidth, halfWidth, -halfDepth, [0, 24], exteriorHeight, materials.concrete, 4.4)
+  addWallRunZ(-halfWidth, -halfDepth, frontNorth, [], exteriorHeight, materials.concrete, 3.4)
+  addWallRunZ(halfWidth, -halfDepth, frontNorth, [], exteriorHeight, materials.concrete, 3.4)
+  addWallRunZ(-halfWidth, frontNorth, halfDepth, [0], wardHeight, materials.concrete, 3.4)
+  addWallRunZ(halfWidth, frontNorth, halfDepth, [0], wardHeight, materials.concrete, 3.4)
+  for (const side of [-1, 1]) {
+    queue(blockerBatches, materials.concrete, {
+      width: wardWidth,
+      height: exteriorHeight - wardHeight,
+      depth: 0.28,
+      x: side * wardCenterX,
+      y: wardHeight + (exteriorHeight - wardHeight) / 2,
+      z: frontNorth,
+    })
+  }
+  addWallRunX(-13, 13, frontNorth, [0], exteriorHeight, materials.concrete, 3.4)
+  addWallRunZ(-13, frontNorth, halfDepth, [-2, 9.5, 18], wardHeight, materials.concrete, 3.2)
+  addWallRunZ(13, frontNorth, halfDepth, [-2, 9.5, 18], wardHeight, materials.concrete, 3.2)
+  addWallRunX(-halfWidth, -13, halfDepth, [-25.5], wardHeight, materials.concrete, 3.4)
+  addWallRunX(13, halfWidth, halfDepth, [25.5], wardHeight, materials.concrete, 3.4)
+  addWallRunX(-13, 13, 6, [0], connectorHeight, materials.concrete, 3.2)
+  addWallRunX(-13, 13, 13, [0], connectorHeight, materials.concrete, 3.2)
+
+  // Street and courtyard windows, grouped into one glass instance batch.
   for (let floor = 1; floor < 4; floor += 1) {
     const windowY = 2.1 + floor * 3.2
-    for (let column = 0; column < 22; column += 1) {
-      const windowX = -halfWidth + 2.2 + column * ((width - 4.4) / 21)
+    for (let column = 0; column < 20; column += 1) {
+      const windowX = -35 + column * (70 / 19)
       queueDecoration(1.25, 1.45, 0.13, materials.glass, windowX, windowY, -halfDepth - 0.08)
-      queueDecoration(1.25, 1.45, 0.13, materials.glass, windowX, windowY, halfDepth + 0.08)
     }
+  }
+  for (let floor = 1; floor < 3; floor += 1) {
+    const windowY = 2.05 + floor * 3.2
     for (const side of [-1, 1]) {
-      for (let column = 0; column < 10; column += 1) {
-        const windowZ = -halfDepth + 2.2 + column * ((depth - 4.4) / 9)
-        queueDecoration(0.13, 1.35, 1.2, materials.glass, side * (halfWidth + 0.08), windowY, windowZ)
+      for (const windowZ of [-4, 3, 10, 17, 21]) {
+        queueDecoration(0.13, 1.35, 1.25, materials.glass, side * (halfWidth + 0.08), windowY, windowZ)
+        queueDecoration(0.13, 1.35, 1.25, materials.glass, side * 12.92, windowY, windowZ)
+      }
+      for (const windowX of [16.5, 21, 25.5, 30, 34.5]) {
+        queueDecoration(1.15, 1.35, 0.13, materials.glass, side * windowX, windowY, halfDepth + 0.08)
       }
     }
   }
@@ -738,62 +785,59 @@ function addHospitalComplex(
     queueDecoration(0.36, 3.5, 0.36, context.materials.metal, canopyX, 1.75, -halfDepth - 5.2)
   }
 
-  // Oak Ward: an offset west corridor with patient rooms on both sides.
-  const oakDoors = [-31, -23, -15, -7]
-  addWallRunX(-halfWidth + 1.4, -4, -10.5, oakDoors)
-  addWallRunX(-halfWidth + 1.4, -4, -5.5, oakDoors)
-  for (const dividerX of [-34, -26, -18, -10]) {
-    addWall(dividerX, (-halfDepth - 10.5) / 2, 0.28, halfDepth - 10.5)
-    addWall(dividerX, -1, 0.28, 9)
+  // Mountain Branch administration plan: a broad east/west hall, offices,
+  // waiting rooms, pharmacy, cashier, stair/elevator core, and ER rooms.
+  const administrationDoors = [-33, -25, -17, -9, 0, 8, 16, 24, 32]
+  addWallRunX(-halfWidth + 0.5, halfWidth - 0.5, -17.1, administrationDoors, interiorHeight, materials.painted, 2.5)
+  addWallRunX(-halfWidth + 0.5, halfWidth - 0.5, -12.1, administrationDoors, interiorHeight, materials.painted, 2.5)
+  for (const dividerX of [-29, -21, -13, -5, 4, 12, 20, 28]) {
+    addWall(dividerX, -20.05, 0.28, 5.65)
+    addWall(dividerX, -10.05, 0.28, 4.05)
   }
 
-  // Gray Ash Corridor and its transfer junction continue east into a separate
-  // ward spur. The offset junctions create loops instead of one exposed grid.
-  addWallRunX(-4, 34, 3.5, [0, 8, 16, 24, 30])
-  addWallRunX(-4, 34, 8.5, [0, 8, 16, 24, 30])
-  addWallRunZ(-4, -10.5, 3.5, [-8])
-  addWallRunZ(4, -5.5, 3.5, [-1])
-
-  // Front clinical, waiting, pharmacy and ER rooms.
-  for (const dividerX of [4, 12, 20, 28]) {
-    addWall(dividerX, (-halfDepth - 10.5) / 2, 0.28, halfDepth - 10.5)
+  // Ellis Island-style ward pavilions: central north/south circulation with
+  // paired patient bays and repeated service rooms.
+  const wardDoors = [-4, 3, 10, 17, 21]
+  addWallRunZ(-29, frontNorth + 0.3, halfDepth - 0.3, wardDoors, interiorHeight, materials.painted, 2.45)
+  addWallRunZ(-24, frontNorth + 0.3, halfDepth - 0.3, wardDoors, interiorHeight, materials.painted, 2.45)
+  addWallRunZ(24, frontNorth + 0.3, halfDepth - 0.3, wardDoors, interiorHeight, materials.painted, 2.45)
+  addWallRunZ(29, frontNorth + 0.3, halfDepth - 0.3, wardDoors, interiorHeight, materials.painted, 2.45)
+  for (const dividerZ of [-0.5, 6.5, 13.5, 20.5]) {
+    addWall(-33.5, dividerZ, 9, 0.28)
+    addWall(-18.5, dividerZ, 11, 0.28)
+    addWall(18.5, dividerZ, 11, 0.28)
+    addWall(33.5, dividerZ, 9, 0.28)
   }
 
-  // East ward spur: paired rooms off a north-south corridor, adapted from the
-  // HABS seclusion/ward run but repurposed here as general patient rooms.
-  addWallRunZ(27, -10.5, halfDepth, [-7, 0, 6, 14, 20])
-  addWallRunZ(32, -10.5, halfDepth, [-7, 0, 6, 14, 20])
-  for (const dividerZ of [-4, 3.5, 11, 18]) {
-    addWall(23.5, dividerZ, 7, 0.28)
-    addWall(35, dividerZ, 6, 0.28)
+  // The rear transfer hall completes a second circulation loop and houses the
+  // nurses' station, linen store, bath and day room.
+  addWallRunZ(-5, 6.2, 12.8, [9.5], interiorHeight, materials.painted, 2.4)
+  addWallRunZ(5, 6.2, 12.8, [9.5], interiorHeight, materials.painted, 2.4)
+
+  // Floor bands make the historically sourced circulation readable at a glance.
+  queueDecoration(75, 0.035, 4.65, materials.concrete, 0, 0.2, -14.6)
+  queueDecoration(4.65, 0.035, 30.3, materials.concrete, -26.5, 0.2, 7.5)
+  queueDecoration(4.65, 0.035, 30.3, materials.concrete, 26.5, 0.2, 7.5)
+  queueDecoration(26, 0.035, 6.6, materials.sidewalk, 0, 0.205, 9.5)
+
+  // Reception, pharmacy, clinical storage and nurses' stations.
+  queueDecoration(11.5, 1.05, 1.05, context.materials.metal, 2, 0.64, -19.4)
+  queueDecoration(7.6, 2.15, 0.24, materials.glass, 2, 1.5, -19.95)
+  for (const shelfX of [14.5, 17.5, 20.5]) {
+    queueDecoration(0.55, 2.25, 4.4, materials.wood, shelfX, 1.18, -19.6)
   }
-
-  // A large day room sits behind Gray Ash with a dining bay and a service
-  // passage to the rear exit.
-  addWallRunZ(-4, 8.5, halfDepth, [12, 20])
-  addWallRunZ(20, 8.5, halfDepth, [12, 20])
-  addWallRunX(-4, 20, 17.5, [4, 14])
-  addWallRunZ(8, 17.5, halfDepth, [20])
-
-  // Corridor floor bands make the circulation plan immediately legible.
-  queueDecoration(34, 0.035, 4.65, materials.concrete, -21, 0.2, -8)
-  queueDecoration(38, 0.035, 4.65, materials.concrete, 15, 0.2, 6)
-  queueDecoration(4.65, 0.035, 28.5, materials.concrete, 29.5, 0.2, 7)
-  queueDecoration(23.5, 0.035, 8.4, materials.sidewalk, 8, 0.205, 13)
-
-  // Reception, pharmacy and clinical furniture are instanced in a few batches.
-  queueDecoration(11.5, 1.05, 1.05, context.materials.metal, 8.5, 0.64, -16.2)
-  queueDecoration(7.6, 2.15, 0.24, materials.glass, 8.5, 1.5, -16.75)
-  for (const shelfX of [14.2, 17.2]) {
-    queueDecoration(0.55, 2.25, 4.8, materials.wood, shelfX, 1.18, -17)
-  }
+  queueDecoration(7.4, 1.05, 1.0, context.materials.metal, -8.5, 0.64, 9.5)
+  queueDecoration(7.4, 1.05, 1.0, context.materials.metal, 8.5, 0.64, 9.5)
 
   const bedPositions: Array<[number, number, number]> = [
-    [-30, -17, 0], [-22, -17, 0], [-14, -17, 0], [-7, -17, 0],
-    [-30, -1, Math.PI], [-22, -1, Math.PI], [-14, -1, Math.PI], [-7, -1, Math.PI],
-    [23.3, -7, Math.PI / 2], [23.3, 0, Math.PI / 2],
-    [23.3, 14, Math.PI / 2], [35.2, -7, -Math.PI / 2],
-    [35.2, 0, -Math.PI / 2], [35.2, 14, -Math.PI / 2],
+    [-34, -4, Math.PI / 2], [-18, -4, -Math.PI / 2],
+    [-34, 3, Math.PI / 2], [-18, 3, -Math.PI / 2],
+    [-34, 10, Math.PI / 2], [-18, 10, -Math.PI / 2],
+    [-34, 17, Math.PI / 2], [-18, 17, -Math.PI / 2],
+    [18, -4, Math.PI / 2], [34, -4, -Math.PI / 2],
+    [18, 3, Math.PI / 2], [34, 3, -Math.PI / 2],
+    [18, 10, Math.PI / 2], [34, 10, -Math.PI / 2],
+    [18, 17, Math.PI / 2], [34, 17, -Math.PI / 2],
   ]
   for (const [bedX, bedZ, rotation] of bedPositions) {
     queueDecoration(2.25, 0.5, 0.95, context.materials.metal, bedX, 0.42, bedZ, rotation)
@@ -811,7 +855,7 @@ function addHospitalComplex(
       rotation,
     )
   }
-  for (const [tableX, tableZ] of [[2, 13], [9, 13], [16, 13]] as Array<[number, number]>) {
+  for (const [tableX, tableZ] of [[-18, 17], [18, 17]] as Array<[number, number]>) {
     queueDecoration(2.3, 0.18, 1.25, materials.wood, tableX, 0.82, tableZ)
     for (const chairOffset of [-1.55, 1.55]) {
       queueDecoration(0.78, 0.18, 0.78, context.materials.darkRust, tableX + chairOffset, 0.48, tableZ)
@@ -821,12 +865,14 @@ function addHospitalComplex(
 
   const hospitalLightMaterial = new THREE.MeshBasicMaterial({ color: 0xffd2a6, toneMapped: false })
   for (const [lightX, lightZ, rotation] of [
-    [-31, -8, 0], [-23, -8, 0], [-15, -8, 0], [-7, -8, 0],
-    [0, 6, 0], [8, 6, 0], [16, 6, 0], [24, 6, 0],
-    [29.5, -6, Math.PI / 2], [29.5, 3, Math.PI / 2],
-    [29.5, 12, Math.PI / 2], [29.5, 20, Math.PI / 2],
-    [2, 13, 0], [9, 13, 0], [16, 13, 0],
-    [8, -16, 0], [24, -17, 0], [32, -17, 0],
+    [-32, -14.6, 0], [-24, -14.6, 0], [-16, -14.6, 0],
+    [-8, -14.6, 0], [0, -14.6, 0], [8, -14.6, 0],
+    [16, -14.6, 0], [24, -14.6, 0], [32, -14.6, 0],
+    [-26.5, -4, Math.PI / 2], [-26.5, 3, Math.PI / 2],
+    [-26.5, 10, Math.PI / 2], [-26.5, 17, Math.PI / 2],
+    [26.5, -4, Math.PI / 2], [26.5, 3, Math.PI / 2],
+    [26.5, 10, Math.PI / 2], [26.5, 17, Math.PI / 2],
+    [-8, 9.5, 0], [0, 9.5, 0], [8, 9.5, 0],
   ] as Array<[number, number, number]>) {
     queueDecoration(3.2, 0.08, 0.52, hospitalLightMaterial, lightX, 3.39, lightZ, rotation)
   }
@@ -937,17 +983,29 @@ function addTrafficLights(
     new THREE.MeshBasicMaterial({ color: 0x332817, toneMapped: false }),
     new THREE.MeshBasicMaterial({ color: 0x132319, toneMapped: false }),
   ]
-  const intersections: Array<[number, number, number]> = [
-    [86, 72, 0],
-    [132, 72, Math.PI],
-    [132, 136, 0],
-    [86, 166, Math.PI],
-    [132, 166, Math.PI / 2],
+  const intersections: Array<{
+    x: number
+    z: number
+    rotation: number
+    poleOffsetX: number
+    poleOffsetZ: number
+  }> = [
+    { x: 86, z: 72, rotation: 0, poleOffsetX: -6.5, poleOffsetZ: -5.7 },
+    { x: 132, z: 72, rotation: Math.PI, poleOffsetX: 6.5, poleOffsetZ: -5.7 },
+    { x: 132, z: 136, rotation: 0, poleOffsetX: -6.5, poleOffsetZ: -5.7 },
+    { x: 86, z: 166, rotation: Math.PI, poleOffsetX: 6.5, poleOffsetZ: -5.7 },
+    // This eastbound control had been planted on the north/south approach. Its
+    // face now looks west toward approaching traffic and its arm spans the road.
+    { x: 132, z: 166, rotation: Math.PI / 2, poleOffsetX: 5.7, poleOffsetZ: 6.5 },
   ]
   for (let index = 0; index < intersections.length; index += 1) {
-    const [x, z, rotation] = intersections[index]
+    const { x, z, rotation, poleOffsetX, poleOffsetZ } = intersections[index]
     const group = new THREE.Group()
-    group.position.set(x + (rotation === 0 ? -6.5 : rotation === Math.PI ? 6.5 : 0), terrainHeightAt(x, z), z - 5.7)
+    group.position.set(
+      x + poleOffsetX,
+      terrainHeightAt(x, z),
+      z + poleOffsetZ,
+    )
     group.rotation.y = rotation
     group.rotation.z = index === 3 ? 0.055 : 0
     group.add(box(0.3, 6.6, 0.3, context.materials.metal, 0, 3.3, 0))
@@ -1034,53 +1092,49 @@ function addFalloutHillsAndCloud(
     context.scene.add(mesh)
   }
 
-  // One billboarded historical photograph replaces 32 separate smoke puffs.
-  // The source is the public-domain 1954 Castle Romeo nuclear test image. The
-  // shader crops the original and derives alpha from its dark background, so
-  // the texture remains an actual blast photograph without a rectangular edge.
-  const cloudGeometry = new THREE.PlaneGeometry(204, 154)
+  // A single static billboard uses the late-stage public-domain NARA Hiroshima
+  // plume. Its motionless charcoal treatment places the scene after the blast
+  // and shockwave rather than inside an active red fireball.
+  const cloudGeometry = new THREE.PlaneGeometry(232, 178)
   const smokeMaterial = new THREE.ShaderMaterial({
     uniforms: {
       mushroomMap: { value: mushroomCloudTexture },
     },
     vertexShader: `
-      varying vec2 vPhotoUv;
       varying vec2 vPlaneUv;
       void main() {
         vec4 center = modelViewMatrix * vec4(0.0, 0.0, 0.0, 1.0);
         center.xy += position.xy;
         gl_Position = projectionMatrix * center;
         vPlaneUv = uv;
-        vPhotoUv = vec2(
-          mix(0.11, 0.89, uv.x),
-          mix(0.23, 0.68, uv.y)
-        );
       }
     `,
     fragmentShader: `
       uniform sampler2D mushroomMap;
-      varying vec2 vPhotoUv;
       varying vec2 vPlaneUv;
       void main() {
-        vec3 photo = texture2D(mushroomMap, vPhotoUv).rgb;
+        vec3 photo = texture2D(mushroomMap, vPlaneUv).rgb;
         float luminance = dot(photo, vec3(0.2126, 0.7152, 0.0722));
-        vec2 capPoint = (vPlaneUv - vec2(0.5, 0.66)) / vec2(0.47, 0.41);
-        float capSupport = 1.0 - smoothstep(0.84, 1.0, length(capPoint));
-        float stemWidth = mix(0.18, 0.075, smoothstep(0.0, 0.36, vPlaneUv.y));
+        vec2 capPoint = (vPlaneUv - vec2(0.5, 0.78)) / vec2(0.45, 0.22);
+        float capSupport = 1.0 - smoothstep(0.88, 1.0, length(capPoint));
+        float stemWidth = mix(0.12, 0.19, smoothstep(0.12, 0.62, vPlaneUv.y));
         float stemSupport =
-          (1.0 - smoothstep(stemWidth, stemWidth + 0.055, abs(vPlaneUv.x - 0.5))) *
-          (1.0 - smoothstep(0.37, 0.46, vPlaneUv.y));
+          (1.0 - smoothstep(stemWidth, stemWidth + 0.07, abs(vPlaneUv.x - 0.5))) *
+          smoothstep(0.04, 0.15, vPlaneUv.y) *
+          (1.0 - smoothstep(0.69, 0.78, vPlaneUv.y));
         float blastShape = max(capSupport, stemSupport);
-        float mask = smoothstep(0.12, 0.42, luminance);
-        mask = max(mask, smoothstep(0.035, 0.16, luminance) * blastShape * 0.68);
+        float localContrast = smoothstep(0.48, 0.76, luminance);
+        float mask = localContrast * blastShape;
+        mask = max(mask, smoothstep(0.36, 0.62, luminance) * blastShape * 0.58);
         float edgeX = smoothstep(0.0, 0.075, vPlaneUv.x) *
           smoothstep(0.0, 0.075, 1.0 - vPlaneUv.x);
         float edgeY = smoothstep(0.0, 0.07, vPlaneUv.y) *
           smoothstep(0.0, 0.07, 1.0 - vPlaneUv.y);
         mask *= edgeX * edgeY;
         if (mask < 0.018) discard;
-        vec3 ashPhoto = mix(photo * vec3(0.78, 0.74, 0.72), photo, 0.72);
-        gl_FragColor = vec4(ashPhoto, mask * 0.94);
+        float smokeDetail = smoothstep(0.38, 0.9, luminance);
+        vec3 charcoal = mix(vec3(0.075, 0.078, 0.082), vec3(0.23, 0.225, 0.22), smokeDetail);
+        gl_FragColor = vec4(charcoal, mask * 0.82);
       }
     `,
     transparent: true,
@@ -1089,7 +1143,7 @@ function addFalloutHillsAndCloud(
     toneMapped: false,
   })
   const cloud = new THREE.Mesh(cloudGeometry, smokeMaterial)
-  cloud.position.set(FALLOUT_HILLS.cloudX, 78, FALLOUT_HILLS.cloudZ)
+  cloud.position.set(FALLOUT_HILLS.cloudX, 84, FALLOUT_HILLS.cloudZ)
   cloud.frustumCulled = true
   context.scene.add(cloud)
 

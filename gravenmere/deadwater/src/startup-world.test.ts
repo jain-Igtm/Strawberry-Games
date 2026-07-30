@@ -2,9 +2,12 @@ import * as THREE from 'three'
 import { afterEach, describe, expect, it } from 'vitest'
 import { buildWorldExpansion } from './world-expansion'
 import {
-  CASTLE_ROMEO_JPEG_V17,
-  QUATERNIUS_ZOMBIE_GLB_V17,
-} from './generated-assets-v17'
+  DISSIPATING_PLUME_WEBP_V18,
+  PIXELHOUSE_ZOMBIE_ATTACK_GLB_V18,
+  PIXELHOUSE_ZOMBIE_DEATH_GLB_V18,
+  PIXELHOUSE_ZOMBIE_DIFFUSE_WEBP_V18,
+  PIXELHOUSE_ZOMBIE_WALK_GLB_V18,
+} from './generated-assets-v18'
 
 const originalDocument = globalThis.document
 
@@ -83,11 +86,19 @@ describe('production startup geometry', () => {
     expect(expansion.vehicles.length).toBeGreaterThan(0)
   })
 
-  it('packages the real-photo cloud and optimized animated zombie offline', () => {
-    expect(CASTLE_ROMEO_JPEG_V17.startsWith('data:image/jpeg;base64,/9j/')).toBe(true)
-    expect(QUATERNIUS_ZOMBIE_GLB_V17.startsWith('data:model/gltf-binary;base64,')).toBe(true)
-    const header = atob(QUATERNIUS_ZOMBIE_GLB_V17.split(',')[1].slice(0, 8))
-    expect(header.slice(0, 4)).toBe('glTF')
-    expect(QUATERNIUS_ZOMBIE_GLB_V17.length).toBeLessThan(500_000)
+  it('packages the post-blast plume and grounded animated zombie offline', () => {
+    expect(DISSIPATING_PLUME_WEBP_V18.startsWith('data:image/webp;base64,UklG')).toBe(true)
+    expect(PIXELHOUSE_ZOMBIE_DIFFUSE_WEBP_V18.startsWith('data:image/webp;base64,UklG')).toBe(true)
+    for (const glb of [
+      PIXELHOUSE_ZOMBIE_WALK_GLB_V18,
+      PIXELHOUSE_ZOMBIE_ATTACK_GLB_V18,
+      PIXELHOUSE_ZOMBIE_DEATH_GLB_V18,
+    ]) {
+      expect(glb.startsWith('data:model/gltf-binary;base64,')).toBe(true)
+      const header = atob(glb.split(',')[1].slice(0, 8))
+      expect(header.slice(0, 4)).toBe('glTF')
+      expect(glb.length).toBeLessThan(350_000)
+    }
+    expect(PIXELHOUSE_ZOMBIE_DIFFUSE_WEBP_V18.length).toBeLessThan(60_000)
   })
 })

@@ -1229,6 +1229,25 @@ function moveZombie(zombie: Zombie, dx: number, dz: number): boolean {
   )
 }
 
+function recoverZombieOutsideWalls(zombie: Zombie): void {
+  const { x, z } = zombie.group.position
+  if (
+    insideIsland(x, z, zombie.radius) &&
+    !circleHitsCollider(x, z, zombie.radius)
+  ) {
+    return
+  }
+  const open = nearestReachableNavigationCell(navigationCellAt(x, z), 10)
+  if (open < 0) return
+  navigationCellCenter(open, navDirection)
+  if (circleHitsCollider(navDirection.x, navDirection.y, zombie.radius)) return
+  zombie.group.position.x = navDirection.x
+  zombie.group.position.z = navDirection.y
+  zombie.velocityX = 0
+  zombie.velocityZ = 0
+  zombie.stuckTimer = 0
+}
+
 function nudgeZombieAlongWall(
   zombie: Zombie,
   flowX: number,
@@ -1314,6 +1333,7 @@ function clearZombies(): void {
 }
 
 const soundscape = new DeadwaterSoundscapeV7()
+soundscape.preload()
 
 function ensureAudio(): AudioContext {
   return soundscape.ensure()
@@ -1806,6 +1826,7 @@ function updateZombies(dt: number, _elapsed: number): void {
       advanceZombieAnimation(zombie.visual, dt, 0)
       continue
     }
+    recoverZombieOutsideWalls(zombie)
     zombie.attackTimer -= dt
     zombie.flashTimer = Math.max(0, zombie.flashTimer - dt)
     const deltaX = player.position.x - zombie.group.position.x
@@ -1926,8 +1947,14 @@ function updateZombies(dt: number, _elapsed: number): void {
         if (!Array.isArray(material) && material instanceof THREE.MeshStandardMaterial) materials.add(material)
       }
       for (const material of materials) {
-        material.emissive.setHex(flashing ? 0x7d130b : 0x000000)
-        material.emissiveIntensity = flashing ? 1.2 : 0
+        material.emissive.setHex(
+          flashing
+            ? 0x7d130b
+            : Number(material.userData.baseEmissive ?? 0x000000),
+        )
+        material.emissiveIntensity = flashing
+          ? 1.2
+          : Number(material.userData.baseEmissiveIntensity ?? 0)
       }
     }
   }

@@ -17,15 +17,71 @@ export class DeadwaterSoundscapeV7 extends DeadwaterSoundscapeV5 {
   private nextZombieSampleAt = 0
   private sirenTimer = 76 + Math.random() * 54
   private openingSirenPlayed = false
+  private openingFallbackPlayed = false
   private active = false
 
+  preload(): void {
+    void this.loadSamples()
+  }
+
   override start(): void {
+    const context = this.ensure()
+    if (context.state === 'suspended') void context.resume()
     super.start()
     this.active = true
+    if (!this.openingSirenPlayed) {
+      this.openingSirenPlayed = this.playCivilDefenseSiren(true)
+    }
+    if (!this.openingSirenPlayed && !this.openingFallbackPlayed) {
+      this.openingFallbackPlayed = true
+      this.playImmediateCivilDefenseSiren()
+    }
     void this.loadSamples().then(() => {
       if (this.openingSirenPlayed) return
+      if (context.state === 'suspended') void context.resume()
       this.openingSirenPlayed = this.playCivilDefenseSiren(true)
     })
+  }
+
+  private playImmediateCivilDefenseSiren(): void {
+    const context = this.ensure()
+    const filter = context.createBiquadFilter()
+    const master = context.createGain()
+    const sweep = context.createOscillator()
+    const sweepDepth = context.createGain()
+    const start = context.currentTime
+    const duration = 8.5
+
+    filter.type = 'lowpass'
+    filter.frequency.value = 1850
+    filter.Q.value = 0.72
+    master.gain.setValueAtTime(0.0001, start)
+    master.gain.exponentialRampToValueAtTime(0.052, start + 0.42)
+    master.gain.setValueAtTime(0.052, start + duration - 1.15)
+    master.gain.exponentialRampToValueAtTime(0.0001, start + duration)
+    filter.connect(master).connect(context.destination)
+
+    sweep.type = 'sine'
+    sweep.frequency.value = 0.135
+    sweepDepth.gain.value = 250
+    sweep.connect(sweepDepth)
+    for (const [frequency, detune, volume] of [
+      [515, -7, 0.62],
+      [515, 8, 0.46],
+    ] as Array<[number, number, number]>) {
+      const oscillator = context.createOscillator()
+      const voice = context.createGain()
+      oscillator.type = 'sawtooth'
+      oscillator.frequency.value = frequency
+      oscillator.detune.value = detune
+      voice.gain.value = volume
+      sweepDepth.connect(oscillator.frequency)
+      oscillator.connect(voice).connect(filter)
+      oscillator.start(start)
+      oscillator.stop(start + duration + 0.04)
+    }
+    sweep.start(start)
+    sweep.stop(start + duration + 0.04)
   }
 
   private async decode(path: string): Promise<AudioBuffer | null> {
@@ -140,7 +196,7 @@ export class DeadwaterSoundscapeV7 extends DeadwaterSoundscapeV5 {
         : 0
     this.playBuffer(
       sample,
-      opening ? 0.052 : 0.033,
+      opening ? 0.082 : 0.033,
       opening ? 0.985 : 0.96 + Math.random() * 0.035,
       offset,
       duration,

@@ -1,12 +1,18 @@
 import * as THREE from 'three'
 import { GLTFLoader, type GLTF } from 'three/examples/jsm/loaders/GLTFLoader.js'
 import { clone as cloneSkeleton } from 'three/examples/jsm/utils/SkeletonUtils.js'
-import { QUATERNIUS_ZOMBIE_GLB_V17 } from './generated-assets-v17'
+import {
+  PIXELHOUSE_ZOMBIE_ATTACK_GLB_V18,
+  PIXELHOUSE_ZOMBIE_DEATH_GLB_V18,
+  PIXELHOUSE_ZOMBIE_DIFFUSE_WEBP_V18,
+  PIXELHOUSE_ZOMBIE_WALK_GLB_V18,
+} from './generated-assets-v18'
 
 export type ZombieAnimationState = 'walk' | 'run' | 'attack' | 'death'
 
 export type ZombieVisual = {
   group: THREE.Group
+  mixerRoot: THREE.Group
   parts: THREE.Mesh[]
   mixer: THREE.AnimationMixer
   actions: Record<ZombieAnimationState, THREE.AnimationAction>
@@ -17,45 +23,87 @@ export type ZombieVisual = {
 
 type ZombieAsset = {
   scene: THREE.Group
+  texture: THREE.Texture
   clips: Record<ZombieAnimationState, THREE.AnimationClip>
-  groundOffset: number
+  modelCenter: THREE.Vector3
+  modelScale: number
 }
 
 let zombieAsset: ZombieAsset | null = null
 let zombieAssetFailed = false
-
-function findClip(
-  animations: THREE.AnimationClip[],
-  name: string,
-): THREE.AnimationClip {
-  const clip = THREE.AnimationClip.findByName(animations, name)
-  if (!clip) throw new Error(`Missing zombie animation: ${name}`)
-  return clip
-}
 
 function removeRootMotion(clip: THREE.AnimationClip): THREE.AnimationClip {
   const clean = clip.clone()
   clean.tracks = clean.tracks.filter((track) => {
     const rootPosition =
       track.name === 'Root.position' ||
-      track.name === 'CharacterArmature.position'
+      track.name === 'CharacterArmature.position' ||
+      track.name === 'Bip01.position' ||
+      track.name === 'Bip01_Footsteps.position'
     return !rootPosition
   })
   clean.resetDuration()
   return clean
 }
 
-function prepareZombieAsset(gltf: GLTF): ZombieAsset {
-  const bounds = new THREE.Box3().setFromObject(gltf.scene)
-  const groundOffset = Number.isFinite(bounds.min.y) ? -bounds.min.y : 0
+function animationFrom(gltf: GLTF, name: string): THREE.AnimationClip {
+  const source = gltf.animations[0]
+  if (!source) throw new Error(`Missing Pixelhouse zombie animation: ${name}`)
+  const clip = removeRootMotion(source)
+  clip.name = name
+  return clip
+}
+
+function loadGltf(loader: GLTFLoader, source: string): Promise<GLTF> {
+  return new Promise((resolve, reject) => {
+    loader.load(source, resolve, undefined, reject)
+  })
+}
+
+function loadZombieTexture(): Promise<THREE.Texture> {
+  return new Promise((resolve, reject) => {
+    new THREE.TextureLoader().load(
+      PIXELHOUSE_ZOMBIE_DIFFUSE_WEBP_V18,
+      (texture) => {
+        texture.colorSpace = THREE.SRGBColorSpace
+        texture.wrapS = THREE.ClampToEdgeWrapping
+        texture.wrapT = THREE.ClampToEdgeWrapping
+        texture.minFilter = THREE.LinearMipmapLinearFilter
+        texture.magFilter = THREE.LinearFilter
+        texture.generateMipmaps = true
+        resolve(texture)
+      },
+      undefined,
+      reject,
+    )
+  })
+}
+
+function prepareZombieAsset(
+  walk: GLTF,
+  attack: GLTF,
+  death: GLTF,
+  texture: THREE.Texture,
+): ZombieAsset {
+  const bounds = new THREE.Box3().setFromObject(walk.scene)
+  const size = bounds.getSize(new THREE.Vector3())
+  const modelScale =
+    Number.isFinite(size.y) && size.y > 0.01 ? 1.76 / size.y : 1
+  const modelCenter = bounds.getCenter(new THREE.Vector3())
+  modelCenter.y = bounds.min.y
+  const walkClip = animationFrom(walk, 'Walk')
+  const runClip = walkClip.clone()
+  runClip.name = 'Run'
   return {
-    scene: gltf.scene,
-    groundOffset,
+    scene: walk.scene,
+    texture,
+    modelCenter,
+    modelScale,
     clips: {
-      walk: removeRootMotion(findClip(gltf.animations, 'Walk')),
-      run: removeRootMotion(findClip(gltf.animations, 'Run')),
-      attack: removeRootMotion(findClip(gltf.animations, 'Idle_Attack')),
-      death: removeRootMotion(findClip(gltf.animations, 'Death')),
+      walk: walkClip,
+      run: runClip,
+      attack: animationFrom(attack, 'Attack'),
+      death: animationFrom(death, 'Death'),
     },
   }
 }
@@ -65,28 +113,31 @@ export const zombieAssetReady: Promise<boolean> =
     ? Promise.resolve(false)
     : new Promise((resolve) => {
         const loader = new GLTFLoader()
-        try {
-          loader.load(
-            QUATERNIUS_ZOMBIE_GLB_V17,
-            (gltf) => {
-              try {
-                zombieAsset = prepareZombieAsset(gltf)
-                resolve(true)
-              } catch {
-                zombieAssetFailed = true
-                resolve(false)
-              }
-            },
-            undefined,
-            () => {
+        void Promise.all([
+          loadGltf(loader, PIXELHOUSE_ZOMBIE_WALK_GLB_V18),
+          loadGltf(loader, PIXELHOUSE_ZOMBIE_ATTACK_GLB_V18),
+          loadGltf(loader, PIXELHOUSE_ZOMBIE_DEATH_GLB_V18),
+          loadZombieTexture(),
+        ]).then(
+          ([walk, attack, death, texture]) => {
+            try {
+              zombieAsset = prepareZombieAsset(
+                walk,
+                attack,
+                death,
+                texture,
+              )
+              resolve(true)
+            } catch {
               zombieAssetFailed = true
               resolve(false)
-            },
-          )
-        } catch {
-          zombieAssetFailed = true
-          resolve(false)
-        }
+            }
+          },
+          () => {
+            zombieAssetFailed = true
+            resolve(false)
+          },
+        )
       })
 
 export function isZombieAssetReady(): boolean {
@@ -99,18 +150,26 @@ export function didZombieAssetFail(): boolean {
 
 function cloneZombieMaterial(
   source: THREE.Material,
+  texture: THREE.Texture,
   tint: number,
 ): THREE.Material {
   const material = source.clone()
   if (material instanceof THREE.MeshStandardMaterial) {
-    material.color.offsetHSL(
-      tint * 0.015,
-      -0.035 + Math.abs(tint) * 0.02,
-      tint * 0.035,
+    material.map = texture
+    material.color.setHSL(
+      0.04 + tint * 0.015,
+      0.055 + Math.abs(tint) * 0.02,
+      0.82 + tint * 0.035,
     )
+    material.emissive.setHex(0x292725)
+    material.emissiveMap = texture
+    material.emissiveIntensity = 0.42
+    material.userData.baseEmissive = 0x292725
+    material.userData.baseEmissiveIntensity = 0.42
     material.roughness = 0.96
     material.metalness = 0
     material.flatShading = false
+    material.needsUpdate = true
   }
   return material
 }
@@ -125,25 +184,35 @@ export function createTexturedZombieVisual(): ZombieVisual | null {
   model.traverse((object) => {
     if (!(object instanceof THREE.Mesh)) return
     object.material = Array.isArray(object.material)
-      ? object.material.map((material) => cloneZombieMaterial(material, tint))
-      : cloneZombieMaterial(object.material, tint)
+      ? object.material.map((material) =>
+          cloneZombieMaterial(material, asset.texture, tint))
+      : cloneZombieMaterial(object.material, asset.texture, tint)
     object.castShadow = false
     object.receiveShadow = false
     object.frustumCulled = true
     parts.push(object)
   })
 
-  // The source character is intentionally stocky. This non-uniform presentation
-  // scale restores adult proportions without changing its authored mesh,
-  // texture, rig, or animation.
-  model.position.y = asset.groundOffset
-  model.rotation.y = Math.PI
-  model.scale.set(0.78, 1.55, 0.78)
+  // Preserve the authored adult proportions. Center and normalize once with a
+  // uniform scale; non-uniform scaling is what made the previous character read
+  // as a waddling mascot.
+  model.scale.setScalar(asset.modelScale)
+  model.position.set(
+    -asset.modelCenter.x * asset.modelScale,
+    -asset.modelCenter.y * asset.modelScale,
+    -asset.modelCenter.z * asset.modelScale,
+  )
+  const facing = new THREE.Group()
+  // Pixelhouse authored the character's forward axis along +X. Three.js agents
+  // move along local -Z, so a quarter turn keeps the gait facing its travel
+  // direction instead of presenting a side-on "waddle".
+  facing.rotation.y = Math.PI / 2
+  facing.add(model)
 
   const group = new THREE.Group()
-  group.name = 'cc0-textured-zombie'
+  group.name = 'pixelhouse-textured-zombie'
   group.userData.flashActive = false
-  group.add(model)
+  group.add(facing)
 
   const mixer = new THREE.AnimationMixer(model)
   const actions = {
@@ -162,6 +231,7 @@ export function createTexturedZombieVisual(): ZombieVisual | null {
 
   return {
     group,
+    mixerRoot: model,
     parts,
     mixer,
     actions,
@@ -216,7 +286,7 @@ export function disposeZombieVisual(visual: ZombieVisual): void {
   if (visual.disposed) return
   visual.disposed = true
   visual.mixer.stopAllAction()
-  visual.mixer.uncacheRoot(visual.group.children[0])
+  visual.mixer.uncacheRoot(visual.mixerRoot)
   for (const part of visual.parts) {
     const materials = Array.isArray(part.material)
       ? part.material

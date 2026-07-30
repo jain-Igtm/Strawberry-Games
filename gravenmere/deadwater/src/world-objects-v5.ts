@@ -214,6 +214,19 @@ function addEnterableBuilding(
     -depth / 2,
     materials.rust,
   )
+  const lintelHeight = wallHeight - 2.55
+  const lintel = box(
+    doorway,
+    lintelHeight,
+    thickness,
+    materials.rust,
+    0,
+    2.55 + lintelHeight / 2,
+    -depth / 2,
+  )
+  lintel.userData.blocksShot = true
+  group.add(lintel)
+  context.shotTargets.push(lintel)
 
   const sign = box(Math.min(width - 1.2, 7.2), 1.0, 0.12, labelMaterial(name), 0, 3.75, -depth / 2 - 0.2)
   group.add(sign)

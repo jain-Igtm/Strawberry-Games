@@ -15,7 +15,7 @@ on:
       - ".github/workflows/deadwater-android.yml"
 
 permissions:
-  contents: read
+  contents: write
 
 concurrency:
   group: deadwater-android-${{ github.ref }}
@@ -87,3 +87,16 @@ jobs:
             gravenmere/deadwater/Ashfall-Deadwater.apk.sha256
           if-no-files-found: error
           retention-days: 30
+
+      - name: Publish direct-download APK release
+        if: github.event_name == 'push' && github.ref == 'refs/heads/agent/deadwater-zombies'
+        working-directory: gravenmere/deadwater
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          tag="ashfall-deadwater-${GITHUB_RUN_NUMBER}"
+          gh release create "$tag" \
+            Ashfall-Deadwater.apk \
+            Ashfall-Deadwater.apk.sha256 \
+            --title "Ashfall: Deadwater Android build ${GITHUB_RUN_NUMBER}" \
+            --notes "Install Ashfall-Deadwater.apk on Android. Version 0.18.0 focuses on grounded zombies, collision recovery, the post-blast plume, sirens, the sourced hospital layout, doorway headers, traffic-control orientation, and mobile performance."
