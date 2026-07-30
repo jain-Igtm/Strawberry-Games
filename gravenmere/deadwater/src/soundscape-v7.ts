@@ -1,3 +1,4 @@
+import * as THREE from 'three'
 import { DeadwaterSoundscapeV5 } from './soundscape-v5'
 
 type SampleSet = {
@@ -57,6 +58,7 @@ export class DeadwaterSoundscapeV7 extends DeadwaterSoundscapeV5 {
     duration?: number,
     lowpass = 5200,
     pan = 0,
+    fadeSeconds = 0.035,
   ): void {
     const context = this.ensure()
     const source = context.createBufferSource()
@@ -69,11 +71,12 @@ export class DeadwaterSoundscapeV7 extends DeadwaterSoundscapeV5 {
     filter.frequency.value = lowpass
     filter.Q.value = 0.45
     panner.pan.value = THREE.MathUtils.clamp(pan, -1, 1)
-    gain.gain.setValueAtTime(0.0001, context.currentTime)
-    gain.gain.linearRampToValueAtTime(volume, context.currentTime + 1.4)
     const available = Math.max(0.08, buffer.duration - offset)
     const playDuration = Math.min(duration ?? available, available)
-    gain.gain.setValueAtTime(volume, context.currentTime + Math.max(1.5, playDuration - 2.4))
+    const fade = Math.min(fadeSeconds, playDuration * 0.22)
+    gain.gain.setValueAtTime(0.0001, context.currentTime)
+    gain.gain.linearRampToValueAtTime(volume, context.currentTime + fade)
+    gain.gain.setValueAtTime(volume, context.currentTime + Math.max(fade + 0.01, playDuration - fade * 1.7))
     gain.gain.linearRampToValueAtTime(0.0001, context.currentTime + playDuration)
     source.connect(filter).connect(panner).connect(gain).connect(context.destination)
     source.start(context.currentTime, Math.min(offset, Math.max(0, buffer.duration - 0.08)), playDuration)
@@ -128,6 +131,6 @@ export class DeadwaterSoundscapeV7 extends DeadwaterSoundscapeV5 {
     const maximumOffset = Math.max(0, sample.duration - duration)
     const offset = maximumOffset > 0 ? Math.random() * maximumOffset : 0
     // Slightly left-biased and filtered to suggest the fallout hills beyond the shipyard.
-    this.playBuffer(sample, 0.033, 0.96 + Math.random() * 0.035, offset, duration, 3500, -0.34)
+    this.playBuffer(sample, 0.033, 0.96 + Math.random() * 0.035, offset, duration, 3500, -0.34, 1.4)
   }
 }
