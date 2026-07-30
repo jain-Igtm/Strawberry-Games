@@ -80,8 +80,8 @@ background = background.replace(/#[0-9A-Fa-f]{6}/, '#1A0D09')
 writeFileSync(backgroundPath, background)
 
 let buildGradle = readFileSync(buildGradlePath, 'utf8')
-buildGradle = buildGradle.replace(/versionCode \d+/, 'versionCode 21')
-buildGradle = buildGradle.replace(/versionName "[^"]+"/, 'versionName "0.18.2"')
+buildGradle = buildGradle.replace(/versionCode \d+/, 'versionCode 22')
+buildGradle = buildGradle.replace(/versionName "[^"]+"/, 'versionName "0.18.3"')
 writeFileSync(buildGradlePath, buildGradle)
 
-console.log('Configured landscape, fullscreen Ashfall Android 0.18.2 (21) project.')
+console.log('Configured landscape, fullscreen Ashfall Android 0.18.3 (22) project.')
