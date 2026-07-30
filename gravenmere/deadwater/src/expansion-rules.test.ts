@@ -3,8 +3,10 @@ import {
   LOOK_SENSITIVITIES,
   canRepairBoat,
   nextSensitivityIndex,
+  opticForUpgrade,
   upgradeCost,
   weaponDamageMultiplier,
+  weaponMagazineSize,
 } from './expansion-rules'
 
 describe('Deadwater expansion rules', () => {
@@ -17,6 +19,10 @@ describe('Deadwater expansion rules', () => {
   it('makes weapon upgrades progressively more expensive and stronger', () => {
     expect(upgradeCost(2)).toBeGreaterThan(upgradeCost(0))
     expect(weaponDamageMultiplier(2)).toBeGreaterThan(weaponDamageMultiplier(1))
+    expect(weaponMagazineSize(30, 2)).toBeGreaterThan(weaponMagazineSize(30, 1))
+    expect(opticForUpgrade(undefined, 1)?.id).toBe('reflex')
+    expect(opticForUpgrade(undefined, 2)?.id).toBe('combat')
+    expect(opticForUpgrade(undefined, 5)?.id).toBe('reflex')
   })
 
   it('requires all three boat repair items', () => {

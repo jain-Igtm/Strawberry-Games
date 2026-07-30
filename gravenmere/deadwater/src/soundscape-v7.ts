@@ -94,12 +94,12 @@ export class DeadwaterSoundscapeV7 extends DeadwaterSoundscapeV5 {
 
   override zombieMoan(distance: number): void {
     const context = this.ensure()
-    if (distance > 52 || context.currentTime < this.nextZombieSampleAt) return
+    if (distance > 68 || context.currentTime < this.nextZombieSampleAt) return
     const sample = this.randomZombie()
     if (!sample) return
-    this.nextZombieSampleAt = context.currentTime + 0.72 + Math.random() * 1.35
-    const distanceVolume = Math.max(0.004, Math.min(0.052, 0.058 * (1 - distance / 58)))
-    const rate = 0.8 + Math.random() * 0.24
+    this.nextZombieSampleAt = context.currentTime + 0.4 + Math.random() * 0.72
+    const distanceVolume = Math.max(0.008, Math.min(0.105, 0.115 * (1 - distance / 74)))
+    const rate = 0.82 + Math.random() * 0.27
     const offset = sample.duration > 2.2 ? Math.random() * Math.max(0, sample.duration - 1.7) : 0
     const duration = Math.min(sample.duration - offset, 0.85 + Math.random() * 1.15)
     this.playBuffer(sample, distanceVolume, rate, offset, duration, 2600)
@@ -109,14 +109,14 @@ export class DeadwaterSoundscapeV7 extends DeadwaterSoundscapeV5 {
     const sample = this.randomZombie()
     if (!sample) return
     const offset = sample.duration > 1.2 ? Math.random() * Math.max(0, sample.duration - 0.75) : 0
-    this.playBuffer(sample, 0.062, 1.08 + Math.random() * 0.18, offset, Math.min(0.72, sample.duration - offset), 3400)
+    this.playBuffer(sample, 0.12, 1.08 + Math.random() * 0.18, offset, Math.min(0.72, sample.duration - offset), 3800)
   }
 
   override zombieDeath(): void {
     const sample = this.randomZombie()
     if (!sample) return
     const offset = sample.duration > 1.8 ? Math.random() * Math.max(0, sample.duration - 1.35) : 0
-    this.playBuffer(sample, 0.06, 0.68 + Math.random() * 0.16, offset, Math.min(1.3, sample.duration - offset), 2100)
+    this.playBuffer(sample, 0.09, 0.68 + Math.random() * 0.16, offset, Math.min(1.3, sample.duration - offset), 2300)
   }
 
   override update(dt: number): void {

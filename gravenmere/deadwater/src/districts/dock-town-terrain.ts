@@ -69,14 +69,14 @@ function createDistrictLand(material: THREE.Material): THREE.Mesh {
 }
 
 function districtAt(x: number, z: number): string {
-  if (z < 68 && x < 96) return 'SOUTH NEIGHBORHOOD'
-  if (z < 69 && x >= 100) return 'BURNING TREELINE'
-  if (x >= 128 && z >= 73 && z < 109) return 'ST. AGNES HOSPITAL'
-  if (x >= 87 && x < 122 && z >= 74 && z < 109) return 'BAR DISTRICT'
-  if (Math.hypot(x - WATER_TOWER_POSITION.x, z - WATER_TOWER_POSITION.y) < 15) return 'WATER TOWER'
-  if (z >= 108 && x >= 87) return 'SHOPPING DISTRICT'
-  if (z >= 108 && x < 78) return 'SMALL FACTORIES'
-  if (z >= 96 && x < 88) return 'SHIPYARD ROAD'
+  if (z < 68 && x < 100) return 'SOUTH NEIGHBORHOOD'
+  if (z < 70 && x >= 100) return 'BURNING TREELINE'
+  if (x >= 137 && z >= 80 && z < 133) return 'ST. AGNES HOSPITAL'
+  if (x >= 94 && x < 130 && z >= 74 && z < 133) return 'BAR DISTRICT'
+  if (Math.hypot(x - WATER_TOWER_POSITION.x, z - WATER_TOWER_POSITION.y) < 17) return 'WATER TOWER'
+  if (z >= 134 && x >= 137) return 'SHOPPING DISTRICT'
+  if (z >= 118 && x < 83) return 'SMALL FACTORIES'
+  if (z >= 110 && x < 94) return 'SHIPYARD ROAD'
   return 'MAIN STREET'
 }
 
@@ -89,26 +89,33 @@ export function buildDockTownTerrain(context: TerrainBuildContext): TerrainWorld
   const spawnCoordinates: Array<[number, number]> = [
     // The southeast group sits immediately behind the visible treeline so
     // zombies appear to emerge from the burning forest onto Main Street.
-    [116, 63],
-    [129, 66],
-    [143, 67],
-    [158, 67],
-    [173, 64],
+    [112, 63],
+    [130, 66],
+    [149, 67],
+    [169, 68],
+    [190, 67],
+    [210, 63],
+    // Hospital corridors can become active fronts during later waves.
+    [148, 106],
+    [176, 106],
+    [202, 106],
+    [176, 124],
     // Other entrances keep waves circulating through streets and interiors.
-    [177, 91],
-    [177, 121],
-    [171, 150],
-    [143, 158],
-    [106, 158],
-    [71, 156],
-    [36, 160],
-    [2, 151],
-    [-5, 119],
+    [216, 96],
+    [216, 142],
+    [209, 181],
+    [181, 190],
+    [140, 190],
+    [101, 190],
+    [66, 187],
+    [32, 192],
+    [1, 182],
+    [-7, 139],
     [-5, 80],
     [3, 49],
     [5, 14],
-    [39, 6],
-    [72, 6],
+    [43, 6],
+    [78, 6],
   ]
   const spawnPoints = spawnCoordinates
     .filter(([x, z]) => isLandAt(x, z))

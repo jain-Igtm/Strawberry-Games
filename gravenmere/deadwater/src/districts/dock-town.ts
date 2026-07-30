@@ -8,6 +8,8 @@ import {
 import type {
   Driveable,
   FuelStation,
+  TowerAccess,
+  UpgradeMachine,
   VehicleKind,
   WalkableZone,
 } from '../world-objects-v5'
@@ -16,7 +18,9 @@ import {
   BAR_POSITION,
   DOCK_TOWN_ROADS,
   FALLOUT_HILLS,
+  FORGE_POSITION,
   FUEL_STATION_POSITION,
+  HOSPITAL_FOOTPRINT,
   HOSPITAL_POSITION,
   IMPASSABLE_FOREST,
   WATER_TOWER_POSITION,
@@ -33,6 +37,8 @@ export type DockTownContext = {
 export type DockTownDistrict = {
   vehicles: Driveable[]
   fuelStation: FuelStation
+  towers: TowerAccess[]
+  upgradeMachine: UpgradeMachine
   walkableZones: WalkableZone[]
   update: (dt: number, elapsed: number) => void
 }
@@ -50,7 +56,7 @@ type DockTownMaterials = {
   deadLeaves: THREE.MeshStandardMaterial
   grass: THREE.MeshStandardMaterial
   cable: THREE.MeshStandardMaterial
-  roadLine: THREE.MeshStandardMaterial
+  roadLine: THREE.MeshBasicMaterial
 }
 
 function box(
@@ -180,11 +186,12 @@ function createMaterials(base: EnvironmentMaterials): DockTownMaterials {
     }),
     grass: new THREE.MeshStandardMaterial({ color: 0x343625, roughness: 1 }),
     cable: new THREE.MeshStandardMaterial({ color: 0x171716, roughness: 0.7, metalness: 0.65 }),
-    roadLine: new THREE.MeshStandardMaterial({
+    roadLine: new THREE.MeshBasicMaterial({
       color: 0x9b8156,
-      emissive: 0x24170a,
-      emissiveIntensity: 0.18,
-      roughness: 0.92,
+      toneMapped: false,
+      polygonOffset: true,
+      polygonOffsetFactor: -8,
+      polygonOffsetUnits: -8,
     }),
   }
 }
@@ -248,10 +255,10 @@ function addRoad(context: DockTownContext, materials: DockTownMaterials, road: P
     const t = index / dashCount
     const center = curve.getPoint(t)
     const tangent = curve.getTangent(t)
-    const dash = box(0.16, 0.025, 3.2, materials.roadLine)
+    const dash = box(0.24, 0.045, 3.65, materials.roadLine)
     dash.position.set(
       center.x,
-      terrainHeightAt(center.x, center.z) + 0.175,
+      terrainHeightAt(center.x, center.z) + 0.225,
       center.z,
     )
     dash.rotation.y = Math.atan2(tangent.x, tangent.z)
@@ -399,14 +406,14 @@ function addEnterableBuilding(
 function addBar(
   context: DockTownContext,
   materials: DockTownMaterials,
-): void {
+): TowerAccess {
   const group = addEnterableBuilding(
     context,
     materials,
     BAR_POSITION.x,
     BAR_POSITION.y,
+    20,
     18,
-    15,
     2,
     'BENT NAIL BAR',
     materials.brick,
@@ -416,8 +423,52 @@ function addBar(
     group.add(cylinder(0.95, 0.95, 0.12, 12, tableMaterial, x, 0.92, z))
     group.add(cylinder(0.13, 0.18, 0.88, 7, context.materials.metal, x, 0.44, z))
   }
-  group.add(box(8.5, 1.05, 1.0, materials.wood, 0, 0.65, 5.1))
-  group.add(box(8.2, 2.0, 0.18, materials.glass, 0, 2.0, 5.58))
+  group.add(box(9.5, 1.05, 1.0, materials.wood, 0, 0.65, 6.4))
+  group.add(box(9.2, 2.0, 0.18, materials.glass, 0, 2.0, 6.88))
+
+  // The second floor opens directly onto a broad street-facing balcony.
+  group.add(box(16.5, 0.26, 4.4, materials.concrete, 0, 3.48, -11.1))
+  group.add(box(16.8, 0.16, 0.16, context.materials.metal, 0, 4.55, -13.25))
+  for (const railX of [-8.25, -4.1, 0, 4.1, 8.25]) {
+    group.add(box(0.14, 1.16, 0.14, context.materials.metal, railX, 4.02, -13.25))
+  }
+  for (const side of [-1, 1]) {
+    group.add(box(0.16, 0.16, 4.25, context.materials.metal, side * 8.25, 4.55, -11.12))
+    group.add(box(0.14, 1.16, 0.14, context.materials.metal, side * 8.25, 4.02, -9.0))
+  }
+
+  // A visible exterior staircase marks the interaction point used to reach the
+  // playable upstairs floor without adding a heavy mobile stair solver.
+  for (let index = 0; index < 11; index += 1) {
+    const progress = index / 10
+    group.add(box(
+      2.15,
+      0.26 + progress * 0.08,
+      1.48,
+      materials.concrete,
+      -11.2,
+      0.15 + progress * 3.18,
+      6.0 - progress * 14.1,
+    ))
+  }
+  group.add(box(0.16, 3.8, 15.2, context.materials.metal, -12.35, 2.05, -1.0))
+  group.add(box(0.16, 3.8, 15.2, context.materials.metal, -10.05, 2.05, -1.0))
+
+  // Upstairs furniture makes the second storey read as an actual bar room.
+  for (const [x, z] of [[-4.8, 2.0], [0, 2.0], [4.8, 2.0], [-3.0, -2.2], [3.0, -2.2]] as Array<[number, number]>) {
+    group.add(cylinder(0.82, 0.82, 0.12, 12, tableMaterial, x, 4.2, z))
+    group.add(cylinder(0.12, 0.16, 0.72, 7, context.materials.metal, x, 3.82, z))
+  }
+
+  const ground = terrainHeightAt(BAR_POSITION.x, BAR_POSITION.y)
+  return {
+    id: 'bent-nail-upstairs',
+    label: 'BENT NAIL UPSTAIRS',
+    base: new THREE.Vector3(BAR_POSITION.x - 11.2, ground + 1.7, BAR_POSITION.y + 6.1),
+    top: new THREE.Vector3(BAR_POSITION.x, ground + 5.18, BAR_POSITION.y - 1.0),
+    halfWidth: 8.1,
+    halfDepth: 11.7,
+  }
 }
 
 function addStaticAmbulance(
@@ -451,45 +502,178 @@ function addHospitalComplex(
 ): void {
   const x = HOSPITAL_POSITION.x
   const z = HOSPITAL_POSITION.y
-  const main = addEnterableBuilding(
-    context,
-    materials,
-    x,
-    z,
-    31,
-    20,
-    4,
-    'ST. AGNES HOSPITAL',
-    materials.concrete,
-  )
-  main.add(box(8.4, 1.15, 0.16, signMaterial('EMERGENCY', '#b63d32'), 8.5, 4.4, -11.7))
-  main.add(box(0.24, 2.7, 7.8, materials.painted, -5.1, 1.45, 2.2))
-  main.add(box(0.24, 2.7, 7.8, materials.painted, 5.1, 1.45, 2.2))
-  main.add(box(9.4, 1.0, 0.75, context.materials.metal, 0, 0.62, 7.2))
+  const { width, depth } = HOSPITAL_FOOTPRINT
+  const halfWidth = width / 2
+  const halfDepth = depth / 2
+  const exteriorHeight = 14.1
+  const interiorHeight = 3.25
+  const group = new THREE.Group()
+  group.position.set(x, terrainHeightAt(x, z), z)
 
-  const annex = addEnterableBuilding(
-    context,
-    materials,
-    170,
-    92,
-    18,
-    16,
-    2,
-    'EMERGENCY ROOM',
-    materials.brick,
-  )
-  annex.add(box(7.8, 0.42, 5.4, context.materials.metal, 0, 3.65, -10.2))
-  annex.add(box(0.35, 3.4, 0.35, context.materials.metal, -3.5, 1.7, -11.8))
-  annex.add(box(0.35, 3.4, 0.35, context.materials.metal, 3.5, 1.7, -11.8))
+  const addWall = (
+    localX: number,
+    localZ: number,
+    wallWidth: number,
+    wallDepth: number,
+    wallHeight = interiorHeight,
+    material: THREE.Material = materials.painted,
+  ): THREE.Mesh => {
+    const wall = box(wallWidth, wallHeight, wallDepth, material, localX, wallHeight / 2, localZ)
+    wall.userData.blocksShot = true
+    group.add(wall)
+    context.shotTargets.push(wall)
+    context.addCollider(x + localX, z + localZ, wallWidth, wallDepth, 0.045)
+    return wall
+  }
 
-  const parking = box(47, 0.08, 14, materials.asphalt, 153, terrainHeightAt(153, 76) + 0.1, 76)
+  const addWallRunX = (
+    start: number,
+    end: number,
+    localZ: number,
+    doors: number[],
+    wallHeight = interiorHeight,
+    material: THREE.Material = materials.painted,
+    doorWidth = 2.4,
+  ): void => {
+    let cursor = start
+    for (const door of [...doors].sort((a, b) => a - b)) {
+      const segmentEnd = Math.max(cursor, door - doorWidth / 2)
+      if (segmentEnd - cursor > 0.15) {
+        addWall((cursor + segmentEnd) / 2, localZ, segmentEnd - cursor, 0.28, wallHeight, material)
+      }
+      const lintelHeight = wallHeight - 2.55
+      if (lintelHeight > 0.2) {
+        const lintel = box(doorWidth, lintelHeight, 0.28, material, door, 2.55 + lintelHeight / 2, localZ)
+        lintel.userData.blocksShot = true
+        group.add(lintel)
+        context.shotTargets.push(lintel)
+      }
+      cursor = Math.min(end, door + doorWidth / 2)
+    }
+    if (end - cursor > 0.15) {
+      addWall((cursor + end) / 2, localZ, end - cursor, 0.28, wallHeight, material)
+    }
+  }
+
+  const addWallRunZ = (
+    localX: number,
+    start: number,
+    end: number,
+    doors: number[],
+    wallHeight = interiorHeight,
+    material: THREE.Material = materials.painted,
+    doorWidth = 2.4,
+  ): void => {
+    let cursor = start
+    for (const door of [...doors].sort((a, b) => a - b)) {
+      const segmentEnd = Math.max(cursor, door - doorWidth / 2)
+      if (segmentEnd - cursor > 0.15) {
+        addWall(localX, (cursor + segmentEnd) / 2, 0.28, segmentEnd - cursor, wallHeight, material)
+      }
+      const lintelHeight = wallHeight - 2.55
+      if (lintelHeight > 0.2) {
+        const lintel = box(0.28, lintelHeight, doorWidth, material, localX, 2.55 + lintelHeight / 2, door)
+        lintel.userData.blocksShot = true
+        group.add(lintel)
+        context.shotTargets.push(lintel)
+      }
+      cursor = Math.min(end, door + doorWidth / 2)
+    }
+    if (end - cursor > 0.15) {
+      addWall(localX, (cursor + end) / 2, 0.28, end - cursor, wallHeight, material)
+    }
+  }
+
+  // A four-storey exterior wraps a fully playable ground-floor hospital. The
+  // long central hall and crossing north hall divide the footprint into wards,
+  // treatment rooms, reception, pharmacy and emergency spaces.
+  group.add(box(width, 0.24, depth, context.materials.concrete, 0, 0.12, 0))
+  group.add(box(width + 0.8, 0.45, depth + 0.8, materials.roof, 0, exteriorHeight + 0.22, 0))
+  group.add(box(width - 0.7, 0.24, depth - 0.7, materials.concrete, 0, 3.55, 0))
+  group.add(box(width + 0.5, 0.28, depth + 0.5, context.materials.rust, 0, 6.4, 0))
+  group.add(box(width + 0.5, 0.24, depth + 0.5, context.materials.darkRust, 0, 9.6, 0))
+
+  addWallRunX(-halfWidth, halfWidth, -halfDepth, [-22, 22], exteriorHeight, materials.concrete, 4.6)
+  addWallRunX(-halfWidth, halfWidth, halfDepth, [0], exteriorHeight, materials.concrete, 3.6)
+  addWallRunZ(-halfWidth, -halfDepth, halfDepth, [0], exteriorHeight, materials.concrete, 3.4)
+  addWallRunZ(halfWidth, -halfDepth, halfDepth, [7], exteriorHeight, materials.concrete, 3.4)
+  addFacadeWindows(group, materials.glass, width, depth, 4, 3.2)
+
+  group.add(box(22, 1.25, 0.18, signMaterial('ST. AGNES HOSPITAL', '#b24f38'), -6, 4.9, -halfDepth - 0.22))
+  group.add(box(13.5, 1.08, 0.18, signMaterial('EMERGENCY', '#bd352b'), 25, 4.35, -halfDepth - 0.24))
+  group.add(box(13.5, 0.46, 5.8, context.materials.metal, 22, 3.62, -halfDepth - 2.75))
+  for (const canopyX of [16, 28]) {
+    group.add(box(0.36, 3.5, 0.36, context.materials.metal, canopyX, 1.75, -halfDepth - 5.2))
+  }
+
+  // Long east-west hall, with doors into every room bay.
+  const roomDoors = [-33, -24, -15, -6, 6, 15, 24, 33]
+  addWallRunX(-halfWidth, halfWidth, -3.15, roomDoors)
+  addWallRunX(-halfWidth, halfWidth, 3.15, roomDoors)
+
+  // South treatment rooms.
+  for (const dividerX of [-29, -20, -11, -2, 8, 18, 28]) {
+    addWallRunZ(dividerX, -halfDepth, -3.15, [-12.5])
+  }
+
+  // North wards surround a crossing corridor that reaches the rear exit.
+  for (const dividerX of [-29, -20, -11, 11, 20, 29]) {
+    addWallRunZ(dividerX, 3.15, halfDepth, [13.2])
+  }
+  addWallRunZ(-3.15, 3.15, halfDepth, [10, 19])
+  addWallRunZ(3.15, 3.15, halfDepth, [10, 19])
+  addWallRunX(-halfWidth, -3.15, 13.2, [-25, -15, -7])
+  addWallRunX(3.15, halfWidth, 13.2, [8, 17, 27])
+
+  // Reception, pharmacy and clinical room furniture.
+  group.add(box(12.5, 1.05, 1.15, context.materials.metal, -22, 0.64, -8.2))
+  group.add(box(8.5, 2.35, 0.28, materials.glass, -22, 1.55, -8.72))
+  group.add(box(12, 1.0, 1.1, materials.wood, 25, 0.6, 8.4))
+  group.add(box(11.6, 2.15, 0.24, materials.glass, 25, 1.55, 8.98))
+
+  const bedPositions: Array<[number, number, number]> = [
+    [-33, -13, 0], [-24.5, -13, 0], [-15.5, -13, 0], [-6.5, -13, 0],
+    [12.5, -13, 0], [22.5, -13, 0], [32.5, -13, 0],
+    [-33, 8.5, Math.PI], [-24.5, 8.5, Math.PI], [-15.5, 8.5, Math.PI],
+    [15.5, 18, Math.PI], [25, 18, Math.PI], [33, 18, Math.PI],
+  ]
+  for (const [bedX, bedZ, rotation] of bedPositions) {
+    const bed = new THREE.Group()
+    bed.position.set(bedX, 0, bedZ)
+    bed.rotation.y = rotation
+    bed.add(box(2.25, 0.5, 0.95, context.materials.metal, 0, 0.42, 0))
+    bed.add(box(1.92, 0.22, 0.82, materials.painted, 0, 0.78, 0))
+    bed.add(box(0.52, 0.2, 0.76, materials.concrete, 0.66, 0.97, 0))
+    group.add(bed)
+  }
+  for (const [chairX, chairZ] of [[-28, -18], [-24.5, -18], [-21, -18], [-17.5, -18], [17, -18], [20.5, -18]] as Array<[number, number]>) {
+    group.add(box(1.2, 0.2, 1.2, context.materials.darkRust, chairX, 0.48, chairZ))
+    group.add(box(1.2, 1.05, 0.2, context.materials.darkRust, chairX, 0.93, chairZ + 0.5))
+  }
+
+  const hospitalLightMaterial = new THREE.MeshBasicMaterial({ color: 0xffd2a6, toneMapped: false })
+  for (const [lightX, lightZ] of [
+    [-30, 0], [-18, 0], [-6, 0], [6, 0], [18, 0], [30, 0],
+    [0, 9], [0, 18], [-24, -13], [24, -13], [-24, 17], [24, 17],
+  ] as Array<[number, number]>) {
+    group.add(box(3.2, 0.08, 0.52, hospitalLightMaterial, lightX, 3.39, lightZ))
+  }
+  for (const [lightX, lightZ] of [[-24, 0], [0, 0], [24, 0], [0, 16]] as Array<[number, number]>) {
+    const light = new THREE.PointLight(0xffc89e, 3.6, 25, 2)
+    light.position.set(lightX, 2.85, lightZ)
+    group.add(light)
+  }
+
+  context.scene.add(group)
+
+  const parking = box(79, 0.08, 8.5, materials.asphalt, x, terrainHeightAt(x, 79) + 0.1, 79)
   context.scene.add(parking)
-  for (const xOffset of [-14, -7, 0, 7, 14]) {
-    const stripe = box(0.14, 0.02, 6.5, materials.roadLine, 153 + xOffset, terrainHeightAt(153, 76) + 0.15, 76)
+  for (const xOffset of [-31, -23, -15, -7, 1, 9, 17, 25, 33]) {
+    const stripe = box(0.18, 0.035, 5.8, materials.roadLine, x + xOffset, terrainHeightAt(x, 79) + 0.18, 79)
     context.scene.add(stripe)
   }
-  addStaticAmbulance(context, 158, 77, 0)
-  addStaticAmbulance(context, 166, 78, 0.06)
+  addStaticAmbulance(context, 192, 79, Math.PI / 2)
+  addStaticAmbulance(context, 204, 79, Math.PI / 2)
 }
 
 function addGasStation(
@@ -539,6 +723,74 @@ function addSmallFactory(
   group.add(cylinder(1.0, 1.25, 9.5, 9, context.materials.darkRust, 7.4, 9.0, 4.8))
   group.add(cylinder(0.7, 0.7, 2.0, 9, context.materials.rust, 7.4, 14.1, 4.8))
   group.add(box(5.6, 3.7, 0.22, context.materials.metal, -5.4, 2.0, 9.12))
+}
+
+function addForge(
+  context: DockTownContext,
+  materials: DockTownMaterials,
+): UpgradeMachine {
+  const x = FORGE_POSITION.x
+  const z = FORGE_POSITION.y
+  const group = new THREE.Group()
+  group.position.set(x, terrainHeightAt(x, z), z)
+  group.add(box(4.1, 3.9, 3.0, context.materials.darkRust, 0, 1.95, 0))
+  group.add(box(4.45, 0.24, 3.35, context.materials.metal, 0, 4.05, 0))
+  group.add(box(2.9, 0.62, 0.22, context.materials.blackMetal, 0, 2.45, -1.56))
+  group.add(box(3.65, 0.88, 0.18, signMaterial('THE FORGE', '#ef6635'), 0, 3.45, -1.6))
+  const coreMaterial = new THREE.MeshStandardMaterial({
+    color: 0xff7a39,
+    emissive: 0xff471d,
+    emissiveIntensity: 2.35,
+    roughness: 0.28,
+    metalness: 0.28,
+  })
+  const core = cylinder(0.72, 0.72, 1.7, 12, coreMaterial, 0, 1.25, -1.52)
+  core.rotation.x = Math.PI / 2
+  group.add(core)
+  group.add(box(0.22, 2.8, 0.22, materials.roadLine, -1.6, 1.55, -1.58))
+  group.add(box(0.22, 2.8, 0.22, materials.roadLine, 1.6, 1.55, -1.58))
+  context.scene.add(group)
+  context.addCollider(x, z, 4.1, 3.0, 0.08)
+  return { group, position: group.position, core }
+}
+
+function addTrafficLights(
+  context: DockTownContext,
+  materials: DockTownMaterials,
+): void {
+  const lensMaterials = [
+    new THREE.MeshBasicMaterial({ color: 0x351313, toneMapped: false }),
+    new THREE.MeshBasicMaterial({ color: 0x332817, toneMapped: false }),
+    new THREE.MeshBasicMaterial({ color: 0x132319, toneMapped: false }),
+  ]
+  const intersections: Array<[number, number, number]> = [
+    [86, 72, 0],
+    [132, 72, Math.PI],
+    [132, 136, 0],
+    [86, 166, Math.PI],
+    [132, 166, Math.PI / 2],
+  ]
+  for (let index = 0; index < intersections.length; index += 1) {
+    const [x, z, rotation] = intersections[index]
+    const group = new THREE.Group()
+    group.position.set(x + (rotation === 0 ? -6.5 : rotation === Math.PI ? 6.5 : 0), terrainHeightAt(x, z), z - 5.7)
+    group.rotation.y = rotation
+    group.rotation.z = index === 3 ? 0.055 : 0
+    group.add(box(0.3, 6.6, 0.3, context.materials.metal, 0, 3.3, 0))
+    group.add(box(6.9, 0.28, 0.28, context.materials.metal, 3.25, 6.35, 0))
+    const signal = new THREE.Group()
+    signal.position.set(6.05, 5.55, 0)
+    signal.rotation.z = index === 2 ? -0.12 : 0
+    signal.add(box(1.05, 2.8, 0.72, context.materials.blackMetal, 0, 0, 0))
+    for (let lens = 0; lens < 3; lens += 1) {
+      const face = cylinder(0.3, 0.3, 0.1, 12, lensMaterials[lens], 0, 0.82 - lens * 0.82, -0.4)
+      face.rotation.x = Math.PI / 2
+      signal.add(face)
+    }
+    group.add(signal)
+    context.scene.add(group)
+  }
+  void materials
 }
 
 type FirePocket = {
@@ -619,22 +871,25 @@ function addFalloutHillsAndCloud(
   })
   const cloud = new THREE.Group()
   cloud.position.set(FALLOUT_HILLS.cloudX, 0, FALLOUT_HILLS.cloudZ)
-  for (let level = 0; level < 5; level += 1) {
+  for (let level = 0; level < 8; level += 1) {
     const puff = new THREE.Mesh(
-      new THREE.DodecahedronGeometry(5.5 + level * 1.05, 0),
+      new THREE.DodecahedronGeometry(7.2 + level * 1.25, 0),
       smokeMaterial,
     )
-    puff.position.set((level % 2 - 0.5) * 2.2, 10 + level * 5.0, (level % 3 - 1) * 1.4)
-    puff.scale.set(0.78, 1.25, 0.78)
+    puff.position.set((level % 2 - 0.5) * 3.2, 12 + level * 7.0, (level % 3 - 1) * 2.0)
+    puff.scale.set(0.86, 1.38, 0.86)
     cloud.add(puff)
   }
   const capOffsets: Array<[number, number, number, number]> = [
-    [-15, 34, 1, 11],
-    [-8, 38, -2, 13],
-    [0, 40, 0, 15],
-    [10, 38, 2, 13],
-    [17, 34, -1, 10],
-    [-3, 48, 1, 10],
+    [-28, 67, 2, 16],
+    [-18, 74, -3, 19],
+    [-7, 79, 1, 22],
+    [7, 80, -1, 23],
+    [21, 75, 3, 19],
+    [32, 68, -2, 15],
+    [-14, 88, 2, 16],
+    [2, 93, -2, 18],
+    [18, 87, 1, 15],
   ]
   for (const [px, py, pz, radius] of capOffsets) {
     const puff = new THREE.Mesh(new THREE.DodecahedronGeometry(radius, 0), smokeMaterial)
@@ -642,12 +897,12 @@ function addFalloutHillsAndCloud(
     puff.scale.y = 0.74
     cloud.add(puff)
   }
-  const underside = new THREE.PointLight(0xff4a22, 5.5, 75, 2)
-  underside.position.set(0, 25, 0)
+  const underside = new THREE.PointLight(0xff4a22, 8.5, 120, 2)
+  underside.position.set(0, 57, 0)
   cloud.add(underside)
   context.scene.add(cloud)
 
-  const warning = box(16, 2.2, 0.22, signMaterial('ROAD CLOSED · FALLOUT'), -2, 4.2, 154)
+  const warning = box(16, 2.2, 0.22, signMaterial('ROAD CLOSED · FALLOUT'), -2, 4.2, 184)
   warning.rotation.y = -0.52
   context.scene.add(warning)
 }
@@ -686,7 +941,7 @@ function addWaterTower(context: DockTownContext, materials: DockTownMaterials): 
   const z = WATER_TOWER_POSITION.y
   const group = new THREE.Group()
   group.position.set(x, terrainHeightAt(x, z), z)
-  const legHeight = 11.5
+  const legHeight = 19.5
   for (const legX of [-2.5, 2.5]) {
     for (const legZ of [-2.5, 2.5]) {
       const leg = box(0.38, legHeight, 0.38, context.materials.metal, legX, legHeight / 2, legZ)
@@ -695,18 +950,18 @@ function addWaterTower(context: DockTownContext, materials: DockTownMaterials): 
       group.add(leg)
     }
   }
-  for (const y of [3.2, 6.3, 9.3]) {
+  for (const y of [4.2, 8.4, 12.6, 16.7]) {
     group.add(box(5.3, 0.18, 0.18, context.materials.rust, 0, y, -2.5))
     group.add(box(5.3, 0.18, 0.18, context.materials.rust, 0, y, 2.5))
     group.add(box(0.18, 0.18, 5.3, context.materials.rust, -2.5, y, 0))
     group.add(box(0.18, 0.18, 5.3, context.materials.rust, 2.5, y, 0))
   }
-  const tank = cylinder(3.65, 3.65, 4.5, 18, context.materials.metal, 0, 13.3, 0)
+  const tank = cylinder(3.85, 3.85, 5.0, 18, context.materials.metal, 0, 22.0, 0)
   tank.scale.z = 0.92
   group.add(tank)
-  group.add(cylinder(1.5, 3.45, 1.5, 16, context.materials.darkRust, 0, 16.15, 0))
-  group.add(box(5.1, 3.55, 0.18, smileMaterial(), 0, 13.25, -3.52))
-  const towerTimber = box(1.1, 10.8, 0.12, materials.wood, 3.0, 6.1, 0)
+  group.add(cylinder(1.65, 3.65, 1.8, 16, context.materials.darkRust, 0, 25.35, 0))
+  group.add(box(5.45, 3.9, 0.18, smileMaterial(), 0, 21.95, -3.72))
+  const towerTimber = box(1.1, 18.6, 0.12, materials.wood, 3.15, 9.8, 0)
   mapGeometryToAtlas(towerTimber.geometry, ATLAS_TILES.topLeft)
   group.add(towerTimber)
   context.scene.add(group)
@@ -871,7 +1126,7 @@ function addImpassableBurningForest(
   // A smaller number of genuine interior trees preserves parallax between the
   // perimeter and the cheap deep-forest layers.
   let attempts = 0
-  while (trees.length < 148 && attempts < 1400) {
+  while (trees.length < 184 && attempts < 1800) {
     attempts += 1
     const px = minX + random() * (maxX - minX)
     const pz = minZ + random() * (maxZ - minZ)
@@ -1120,11 +1375,11 @@ function addImpassableBurningForest(
 
   // Several overlapping collision blocks approximate the irregular polygon and
   // leave the named surrounding roads open.
-  context.addCollider(148, 34, 58, 50, 0.8)
-  context.addCollider(119, 38, 21, 34, 0.8)
-  context.addCollider(169, 37, 23, 43, 0.8)
-  context.addCollider(151, 59, 43, 12, 0.8)
-  context.addCollider(143, 13, 48, 15, 0.8)
+  context.addCollider(161, 35, 78, 52, 0.8)
+  context.addCollider(118, 38, 23, 35, 0.8)
+  context.addCollider(208, 38, 22, 42, 0.8)
+  context.addCollider(168, 62, 75, 12, 0.8)
+  context.addCollider(158, 12, 88, 15, 0.8)
 
   return glowMaterials
 }
@@ -1144,10 +1399,11 @@ function cableBetween(
 function addUtilityPoles(context: DockTownContext, materials: DockTownMaterials): void {
   const networks: Array<Array<[number, number]>> = [
     [[13, 7], [13, 21], [13, 37], [13, 54], [13, 68]],
-    [[43, 7], [43, 21], [43, 37], [43, 54], [43, 68]],
-    [[73, 7], [73, 21], [73, 37], [73, 54], [73, 68]],
-    [[3, 78], [27, 78], [51, 78], [75, 78], [99, 78], [121, 78]],
-    [[88, 117], [106, 117], [128, 117], [150, 117], [174, 117]],
+    [[46, 7], [46, 21], [46, 38], [46, 54], [46, 68]],
+    [[79, 7], [79, 21], [79, 38], [79, 54], [79, 68]],
+    [[3, 78], [29, 78], [56, 78], [83, 78], [109, 78], [130, 78]],
+    [[139, 78], [164, 78], [190, 78], [214, 78]],
+    [[92, 142], [116, 142], [140, 142], [164, 142], [190, 142], [214, 142]],
   ]
   let globalIndex = 0
   for (const network of networks) {
@@ -1250,11 +1506,11 @@ function addBoundaryBarricades(
 
   // Every outward road ends physically inside this build. The future Shipyard,
   // beach and harbor remain separate selectable maps rather than walkable seams.
-  addGate(-6.3, 156.8, 11.2, 0.22)
-  addGate(-6.5, 72, 12.4)
-  addGate(178.2, 72, 12.4)
-  addGate(179.5, 112, 10.4)
-  addGate(179.5, 136, 10.4)
+  addGate(-7.2, 187.8, 11.2, 0.22)
+  addGate(-7.5, 72, 12.4)
+  addGate(216.2, 72, 12.4)
+  addGate(219.2, 136, 10.4)
+  addGate(219.2, 166, 10.4)
 }
 
 export function buildDockTownDistrict(context: DockTownContext): DockTownDistrict {
@@ -1264,10 +1520,10 @@ export function buildDockTownDistrict(context: DockTownContext): DockTownDistric
   // The southwest neighborhood follows the three drawn residential rows, with
   // paved streets and a cross street separating the north and south blocks.
   const houses: Array<[number, number, number]> = [
-    [7, 13, 1], [36, 13, 2], [66, 13, 1],
-    [7, 24, 2], [36, 24, 1], [66, 24, 2],
-    [7, 47, 2], [36, 47, 1], [66, 47, 2],
-    [7, 58, 1], [36, 58, 2], [66, 58, 1],
+    [7, 13, 1], [38, 13, 2], [71, 13, 1],
+    [7, 25, 2], [38, 25, 1], [71, 25, 2],
+    [7, 48, 2], [38, 48, 1], [71, 48, 2],
+    [7, 60, 1], [38, 60, 2], [71, 60, 1],
   ]
   for (const [x, z, floors] of houses) {
     addHouse(context, materials, x, z, 8.4, 8.2, floors)
@@ -1275,11 +1531,11 @@ export function buildDockTownDistrict(context: DockTownContext): DockTownDistric
 
   // The dense tower block stands opposite the bar block across Water Tower
   // Avenue. These remain closed, detailed street walls with few gaps.
-  addClosedBuilding(context, materials, 47, 86, 14, 13, 5, 'CIVIC HOTEL', materials.brick)
-  addClosedBuilding(context, materials, 64, 85, 14, 12, 6, 'TOWER HOUSE', materials.concrete)
-  addClosedBuilding(context, materials, 94, 85, 8, 12, 4, 'CITY ROOMS', materials.painted)
+  addClosedBuilding(context, materials, 48, 91, 14, 13, 5, 'CIVIC HOTEL', materials.brick)
+  addClosedBuilding(context, materials, 66, 91, 14, 12, 6, 'TOWER HOUSE', materials.concrete)
+  addClosedBuilding(context, materials, 96, 91, 9, 13, 4, 'CITY ROOMS', materials.painted)
   addWaterTower(context, materials)
-  addBar(context, materials)
+  const barTower = addBar(context, materials)
   const fuelStation = addGasStation(context, materials)
 
   // St. Agnes and its attached ER form the main eastern gameplay interior.
@@ -1287,19 +1543,20 @@ export function buildDockTownDistrict(context: DockTownContext): DockTownDistric
   addHospitalComplex(context, materials)
 
   // Two modest enterable factories sit beside the paved Shipyard Road bend.
-  addSmallFactory(context, materials, 19, 121, 'MERCER MACHINE')
-  addSmallFactory(context, materials, 45, 106, 'ASHFALL TOOL')
+  addSmallFactory(context, materials, 21, 148, 'MERCER MACHINE')
+  addSmallFactory(context, materials, 54, 127, 'ASHFALL TOOL')
+  const upgradeMachine = addForge(context, materials)
 
   // The shopping district is three close building rows running north-south.
   // Alleys between the rows connect Shopping Street and Market Street.
-  addClosedBuilding(context, materials, 139, 124, 12, 10, 4, 'ALDER DEPT', materials.brick)
-  addEnterableBuilding(context, materials, 154, 124, 13, 10, 4, 'FIVE & DIME', materials.painted)
-  addEnterableBuilding(context, materials, 171, 124, 14, 10, 4, 'NORTH MARKET', materials.concrete)
-  addClosedBuilding(context, materials, 139, 151, 12, 12, 5, 'MILLER BLOCK', materials.concrete)
-  addClosedBuilding(context, materials, 154, 151, 13, 12, 4, 'GRAYSON STORE', materials.brick)
-  addEnterableBuilding(context, materials, 171, 151, 14, 12, 4, 'CROWN OUTFITTERS', materials.painted)
-  for (const alleyX of [146.5, 162.5]) {
-    const alley = box(2.2, 0.06, 39, materials.concrete, alleyX, terrainHeightAt(alleyX, 139) + 0.1, 139)
+  addClosedBuilding(context, materials, 147, 150, 14, 11, 4, 'ALDER DEPT', materials.brick)
+  addEnterableBuilding(context, materials, 166, 150, 15, 11, 4, 'FIVE & DIME', materials.painted)
+  addEnterableBuilding(context, materials, 196, 150, 17, 11, 4, 'NORTH MARKET', materials.concrete)
+  addClosedBuilding(context, materials, 147, 181, 14, 13, 5, 'MILLER BLOCK', materials.concrete)
+  addClosedBuilding(context, materials, 166, 181, 15, 13, 4, 'GRAYSON STORE', materials.brick)
+  addEnterableBuilding(context, materials, 196, 181, 17, 13, 4, 'CROWN OUTFITTERS', materials.painted)
+  for (const alleyX of [156.5, 181]) {
+    const alley = box(2.5, 0.06, 55, materials.concrete, alleyX, terrainHeightAt(alleyX, 166) + 0.1, 166)
     context.scene.add(alley)
   }
 
@@ -1311,34 +1568,39 @@ export function buildDockTownDistrict(context: DockTownContext): DockTownDistric
   // Only light, sparse tree cover appears elsewhere in this town map.
   addTreeMass(context, materials, [
     { x: 7, z: 36, width: 8, depth: 8, count: 4, seed: 1204 },
-    { x: 36, z: 36, width: 8, depth: 8, count: 4, seed: 1205 },
-    { x: 66, z: 36, width: 8, depth: 8, count: 4, seed: 1206 },
-    { x: 4, z: 137, width: 13, depth: 24, count: 14, seed: 1207 },
-    { x: 72, z: 150, width: 11, depth: 12, count: 7, seed: 1208 },
+    { x: 38, z: 36, width: 8, depth: 8, count: 4, seed: 1205 },
+    { x: 71, z: 36, width: 8, depth: 8, count: 4, seed: 1206 },
+    { x: 4, z: 159, width: 13, depth: 31, count: 17, seed: 1207 },
+    { x: 75, z: 180, width: 12, depth: 13, count: 8, seed: 1208 },
   ])
 
   const roadFires = [
-    addFireSite(context, 118, 62, true, true),
-    addFireSite(context, 176, 106, false, false),
-    addFireSite(context, 133, 132, false, true),
-    addFireSite(context, 55, 116, true, true),
+    addFireSite(context, 120, 62, true, true),
+    addFireSite(context, 214, 124, false, false),
+    addFireSite(context, 142, 162, false, true),
+    addFireSite(context, 59, 143, true, true),
     addFireSite(context, 31, 67, false, false),
-    addFireSite(context, 116, 70, false, true),
+    addFireSite(context, 124, 70, false, true),
   ]
   addFalloutHillsAndCloud(context, materials)
   addUtilityPoles(context, materials)
+  addTrafficLights(context, materials)
   addBoundaryBarricades(context, materials)
 
   const vehicles = [
-    addVehicle(context, 'town-pickup', 'TOWN PICKUP', 'truck', 96, 67, Math.PI / 2),
-    addVehicle(context, 'neighborhood-sedan', 'NEIGHBORHOOD SEDAN', 'buggy', 61, 42, 0),
+    addVehicle(context, 'town-pickup', 'TOWN PICKUP', 'truck', 101, 67, Math.PI / 2),
+    addVehicle(context, 'neighborhood-sedan', 'NEIGHBORHOOD SEDAN', 'buggy', 65, 43, 0),
   ]
 
   return {
     vehicles,
     fuelStation,
+    towers: [barTower],
+    upgradeMachine,
     walkableZones: [],
     update: (_dt, elapsed) => {
+      upgradeMachine.core.rotation.z += _dt * 0.9
+      upgradeMachine.core.scale.setScalar(0.96 + Math.sin(elapsed * 4.2) * 0.04)
       for (const pocket of forestFire) {
         pocket.material.emissiveIntensity = 1.05 + Math.sin(elapsed * 3.2 + pocket.phase) * 0.34
       }

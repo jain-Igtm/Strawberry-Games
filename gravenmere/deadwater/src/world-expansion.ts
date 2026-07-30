@@ -34,21 +34,6 @@ export type ExpandedWorld = TerrainWorld & {
   update: (dt: number, elapsed: number) => void
 }
 
-function createInactiveUpgradeMachine(): UpgradeMachine {
-  const group = new THREE.Group()
-  group.position.set(-10_000, -10_000, -10_000)
-  const core = new THREE.Mesh(
-    new THREE.BoxGeometry(0.01, 0.01, 0.01),
-    new THREE.MeshBasicMaterial({ visible: false }),
-  )
-  group.add(core)
-  return {
-    group,
-    position: group.position,
-    core,
-  }
-}
-
 export function buildWorldExpansion(context: ExpandedWorldContext): ExpandedWorld {
   const terrain = buildDockTownTerrain({
     scene: context.scene,
@@ -77,11 +62,11 @@ export function buildWorldExpansion(context: ExpandedWorldContext): ExpandedWorl
 
   return {
     ...terrain,
-    towers: [],
+    towers: dockTown.towers,
     questPickups: [],
     vehicles: dockTown.vehicles,
     fuelStation: dockTown.fuelStation,
-    upgradeMachine: createInactiveUpgradeMachine(),
+    upgradeMachine: dockTown.upgradeMachine,
     weaponPickups: [],
     walkableZones,
     isWalkableAt,

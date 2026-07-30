@@ -25,42 +25,42 @@ export const DOCK_TOWN_ROADS: PlannedRoad[] = [
     label: 'Main Street',
     width: 10.8,
     sidewalks: true,
-    points: points([-7, 72], [24, 72], [54, 72], [82, 72], [106, 72], [132, 72], [178, 72]),
+    points: points([-8, 72], [28, 72], [60, 72], [86, 72], [112, 72], [132, 72], [168, 72], [216, 72]),
   },
   {
     id: 'water-tower-avenue',
     label: 'Water Tower Avenue',
     width: 9.2,
     sidewalks: true,
-    points: points([82, 5], [82, 34], [82, 72], [82, 103], [82, 136], [82, 159]),
+    points: points([86, 5], [86, 35], [86, 72], [86, 108], [86, 136], [86, 166], [86, 188]),
   },
   {
     id: 'hospital-avenue',
     label: 'Hospital Avenue',
     width: 9.4,
     sidewalks: true,
-    points: points([124, 72], [124, 92], [124, 112], [124, 136], [124, 159]),
+    points: points([132, 72], [132, 106], [132, 136], [132, 166], [132, 188]),
   },
   {
     id: 'shopping-street',
     label: 'Shopping Street',
     width: 8.8,
     sidewalks: true,
-    points: points([82, 112], [104, 112], [124, 112], [150, 112], [180, 112]),
+    points: points([86, 136], [108, 136], [132, 136], [160, 136], [190, 136], [219, 136]),
   },
   {
     id: 'market-street',
     label: 'Market Street',
     width: 8.8,
     sidewalks: true,
-    points: points([82, 136], [104, 136], [124, 136], [150, 136], [180, 136]),
+    points: points([86, 166], [108, 166], [132, 166], [160, 166], [190, 166], [219, 166]),
   },
   {
     id: 'shipyard-road',
     label: 'Shipyard Road',
     width: 9.4,
     sidewalks: false,
-    points: points([82, 104], [70, 111], [59, 123], [46, 137], [28, 149], [-7, 157]),
+    points: points([86, 122], [74, 132], [61, 146], [46, 162], [28, 178], [-8, 188]),
   },
   {
     id: 'neighborhood-west',
@@ -74,81 +74,85 @@ export const DOCK_TOWN_ROADS: PlannedRoad[] = [
     label: 'Ash Street',
     width: 7.2,
     sidewalks: true,
-    points: points([50, 4], [50, 34], [50, 72]),
+    points: points([53, 4], [53, 35], [53, 72]),
   },
   {
     id: 'neighborhood-cross',
     label: 'Foundry Lane',
     width: 7.0,
     sidewalks: true,
-    points: points([3, 34], [20, 34], [50, 34], [82, 34]),
+    points: points([3, 35], [20, 35], [53, 35], [86, 35]),
   },
   {
     id: 'hospital-drive',
     label: 'Emergency Drive',
     width: 6.8,
     sidewalks: false,
-    points: points([134, 72], [138, 84], [148, 96], [168, 101]),
+    points: points([143, 72], [148, 82], [170, 87], [196, 88]),
   },
 ]
 
 export const DOCK_TOWN_LIMITS = {
-  minX: -12,
-  maxX: 184,
+  minX: -14,
+  maxX: 222,
   minZ: 0,
-  maxZ: 166,
+  maxZ: 198,
 } as const
 
 export const DOCK_TOWN_BOUNDARY = points(
-  [-8, 2],
-  [178, 2],
-  [184, 25],
-  [184, 96],
-  [181, 148],
-  [151, 163],
-  [91, 163],
-  [58, 160],
-  [24, 169],
-  [-10, 159],
-  [-12, 119],
-  [-10, 66],
+  [-10, 2],
+  [216, 2],
+  [222, 28],
+  [222, 118],
+  [219, 178],
+  [194, 194],
+  [112, 194],
+  [66, 191],
+  [26, 198],
+  [-11, 190],
+  [-14, 136],
+  [-12, 68],
 )
 
 export const DOCK_TOWN_EXITS = {
-  shipyardRoad: new THREE.Vector2(-7, 157),
-  westMain: new THREE.Vector2(-7, 72),
-  eastMain: new THREE.Vector2(178, 72),
-  northMarket: new THREE.Vector2(180, 136),
+  shipyardRoad: new THREE.Vector2(-8, 188),
+  westMain: new THREE.Vector2(-8, 72),
+  eastMain: new THREE.Vector2(216, 72),
+  northMarket: new THREE.Vector2(219, 166),
 } as const
 
 export const IMPASSABLE_FOREST = {
-  x: 147,
-  z: 35,
-  width: 76,
-  depth: 65,
+  x: 161,
+  z: 36,
+  width: 112,
+  depth: 68,
   polygon: points(
-    [106, 5],
-    [147, 3],
-    [177, 11],
-    [183, 29],
-    [181, 49],
-    [174, 64],
-    [154, 68],
-    [132, 64],
-    [113, 57],
-    [105, 39],
+    [109, 5],
+    [158, 3],
+    [197, 8],
+    [218, 19],
+    [221, 38],
+    [217, 55],
+    [208, 67],
+    [181, 69],
+    [150, 67],
+    [125, 61],
+    [110, 49],
+    [104, 29],
   ),
 } as const
 
-export const WATER_TOWER_POSITION = new THREE.Vector2(61, 100)
-export const HOSPITAL_POSITION = new THREE.Vector2(151, 92)
-export const BAR_POSITION = new THREE.Vector2(108, 84)
-export const FUEL_STATION_POSITION = new THREE.Vector2(101, 99)
-export const PLAYER_START = new THREE.Vector2(87, 67)
+export const WATER_TOWER_POSITION = new THREE.Vector2(66, 108)
+export const HOSPITAL_POSITION = new THREE.Vector2(176, 106)
+export const HOSPITAL_FOOTPRINT = { width: 76, depth: 46 } as const
+export const BAR_POSITION = new THREE.Vector2(112, 88)
+export const FUEL_STATION_POSITION = new THREE.Vector2(105, 111)
+export const FORGE_POSITION = new THREE.Vector2(54, 128)
+export const PLAYER_START = new THREE.Vector2(92, 67)
 
 export const FALLOUT_HILLS = {
-  x: -46,
-  z: 166,
-  cloudX: -56,
-  cloudZ: 184,
+  x: -52,
+  z: 190,
+  cloudX: -63,
+  cloudZ: 217,
 } as const

@@ -11,6 +11,20 @@
 }
 
 #scope-overlay.visible { display: block; }
+#scope-overlay[data-optic="reflex"] {
+  background:
+    radial-gradient(circle at center, transparent 0 12%, rgba(123,42,25,.2) 12.5% 14%, transparent 14.5% 31%, rgba(0,0,0,.72) 49% 100%);
+}
+#scope-overlay[data-optic="combat"] {
+  background:
+    linear-gradient(90deg, rgba(0,0,0,.92) 0 17%, transparent 34% 66%, rgba(0,0,0,.92) 83% 100%),
+    radial-gradient(circle at center, transparent 0 29%, rgba(0,0,0,.9) 31% 100%);
+}
+#scope-overlay[data-optic="scout"] {
+  background:
+    linear-gradient(0deg, rgba(0,0,0,.9) 0 12%, transparent 30% 70%, rgba(0,0,0,.9) 88% 100%),
+    radial-gradient(ellipse at center, transparent 0 34%, rgba(0,0,0,.92) 36% 100%);
+}
 #scope-overlay::before,
 #scope-overlay::after {
   content: '';
@@ -31,6 +45,13 @@
 .round-action--scope {
   right: max(172px, calc(env(safe-area-inset-right) + 164px));
   bottom: max(25px, calc(env(safe-area-inset-bottom) + 13px));
+}
+
+.round-action--jump {
+  right: max(236px, calc(env(safe-area-inset-right) + 228px));
+  bottom: max(25px, calc(env(safe-area-inset-bottom) + 13px));
+  width: 56px;
+  height: 56px;
 }
 
 .round-action--sense {
@@ -103,6 +124,7 @@
 @media (max-height: 430px) {
   .round-action--switch { right: 153px; bottom: 83px; }
   .round-action--scope { right: 156px; bottom: 18px; }
+  .round-action--jump { right: 211px; bottom: 17px; width: 48px; height: 48px; }
   .round-action--sense { right: 211px; bottom: 17px; width: 48px; height: 48px; }
   .round-action--use { right: 99px; bottom: 17px; }
   #interaction-prompt { bottom: 27%; }

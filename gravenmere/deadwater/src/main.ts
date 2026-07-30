@@ -3,6 +3,8 @@ import { App } from '@capacitor/app'
 import { Haptics, ImpactStyle } from '@capacitor/haptics'
 import { StatusBar } from '@capacitor/status-bar'
 import {
+  fallDamageForDrop,
+  healthAfterRecovery,
   pointsForHit,
   reserveAmmoAfterWave,
   spawnIntervalForWave,
@@ -15,8 +17,10 @@ import {
   LOOK_SENSITIVITIES,
   canRepairBoat,
   nextSensitivityIndex,
+  opticForUpgrade,
   upgradeCost,
   weaponDamageMultiplier,
+  weaponMagazineSize,
 } from './expansion-rules'
 import { buildWorldExpansion } from './world-expansion'
 import { PLAYER_START } from './districts/dock-town-plan'
@@ -121,6 +125,7 @@ function createHudButton(id: string, label: string, className: string): HTMLButt
 
 const switchButton = createHudButton('switch-button', 'SWP', 'round-action--switch')
 const scopeButton = createHudButton('scope-button', 'ADS', 'round-action--scope')
+const jumpButton = createHudButton('jump-button', 'JMP', 'round-action--jump')
 const pauseButton = createHudButton('pause-button', 'Ⅱ', 'round-action--pause')
 pauseButton.setAttribute('aria-label', 'Pause')
 const pauseMenu = document.createElement('section')
@@ -155,9 +160,9 @@ ui.hud.append(vehicleStatus)
 const isTouch = matchMedia('(pointer: coarse)').matches || 'ontouchstart' in window
 const scene = new THREE.Scene()
 scene.background = new THREE.Color(0x170c09)
-scene.fog = new THREE.FogExp2(0x2a130d, 0.0074)
+scene.fog = new THREE.FogExp2(0x2a130d, 0.0062)
 
-const camera = new THREE.PerspectiveCamera(69, innerWidth / innerHeight, 0.06, 360)
+const camera = new THREE.PerspectiveCamera(69, innerWidth / innerHeight, 0.06, 440)
 camera.rotation.order = 'YXZ'
 scene.add(camera)
 
@@ -170,13 +175,13 @@ renderer.setPixelRatio(Math.min(devicePixelRatio || 1, isTouch ? 0.95 : 1.55))
 renderer.setSize(innerWidth, innerHeight)
 renderer.outputColorSpace = THREE.SRGBColorSpace
 renderer.toneMapping = THREE.ACESFilmicToneMapping
-renderer.toneMappingExposure = 1.12
+renderer.toneMappingExposure = 2.05
 configureAtlasTextures(renderer)
 installAshfallSky(scene, renderer)
 
 const clock = new THREE.Clock()
 const raycaster = new THREE.Raycaster()
-raycaster.far = 170
+raycaster.far = 220
 const colliders: Collider[] = []
 const shotTargets: THREE.Object3D[] = []
 const zombies: Zombie[] = []
@@ -222,7 +227,7 @@ const state = {
   weaponAmmo: {} as Partial<Record<WeaponId, { ammo: number; reserve: number }>>,
   weaponLevels: {} as Partial<Record<WeaponId, number>>,
   lookSensitivityIndex: 1,
-  brightnessIndex: 1,
+  brightnessIndex: 2,
   scoped: false,
   vehicleLookYaw: 0,
   vehicleLookPitch: -0.18,
@@ -233,6 +238,10 @@ const state = {
   bannerTimer: 0,
   hitTimer: 0,
   damageTimer: 0,
+  secondsSinceDamage: 99,
+  airborne: false,
+  verticalVelocity: 0,
+  fallStartY: 0,
   toastTimer: 0,
 }
 
@@ -306,15 +315,15 @@ function addCollider(x: number, z: number, width: number, depth: number, padding
 }
 
 function buildDockTownAtmosphere(): void {
-  const hemi = new THREE.HemisphereLight(0x78838b, 0x17100d, 1.78)
+  const hemi = new THREE.HemisphereLight(0x78838b, 0x17100d, 2.45)
   scene.add(hemi)
-  const firelight = new THREE.DirectionalLight(0xff7950, 1.65)
+  const firelight = new THREE.DirectionalLight(0xff7950, 2.15)
   firelight.position.set(-24, 42, 18)
   scene.add(firelight)
-  const overcast = new THREE.DirectionalLight(0x8fa4b3, 1.08)
+  const overcast = new THREE.DirectionalLight(0x8fa4b3, 1.55)
   overcast.position.set(75, 28, 34)
   scene.add(overcast)
-  scene.add(new THREE.AmbientLight(0x6f7478, 0.58))
+  scene.add(new THREE.AmbientLight(0x6f7478, 0.88))
 
   const ocean = new THREE.Mesh(new THREE.PlaneGeometry(560, 560), mats.water)
   ocean.rotation.x = -Math.PI / 2
@@ -461,6 +470,42 @@ const sidePlate = mapWeaponPart(
   box(0.235, 0.075, 0.3, gunRustMaterial, 0, -0.02, -0.2),
   ATLAS_TILES.bottomRight,
 )
+const opticGroup = new THREE.Group()
+opticGroup.position.set(0, 0.255, -0.1)
+const opticRail = mapWeaponPart(
+  box(0.15, 0.045, 0.48, gunSteelMaterial, 0, 0, 0),
+  ATLAS_TILES.topLeft,
+)
+const opticLensMaterial = new THREE.MeshBasicMaterial({
+  color: 0xff9a5e,
+  transparent: true,
+  opacity: 0.78,
+  toneMapped: false,
+})
+const reflexOptic = new THREE.Group()
+reflexOptic.add(box(0.14, 0.17, 0.07, gunSteelMaterial, 0, 0.12, -0.08))
+reflexOptic.add(box(0.105, 0.105, 0.015, opticLensMaterial, 0, 0.13, -0.122))
+const combatOptic = new THREE.Group()
+const combatTube = cylinder(0.075, 0.075, 0.36, 10, gunSteelMaterial, 0, 0.105, -0.02)
+combatTube.rotation.x = Math.PI / 2
+combatOptic.add(combatTube)
+combatOptic.add(box(0.18, 0.075, 0.12, gunRustMaterial, 0, 0.03, -0.02))
+const marksmanOptic = new THREE.Group()
+const marksmanTube = cylinder(0.095, 0.095, 0.58, 12, gunSteelMaterial, 0, 0.12, -0.06)
+marksmanTube.rotation.x = Math.PI / 2
+marksmanOptic.add(marksmanTube)
+marksmanOptic.add(box(0.19, 0.08, 0.16, gunRustMaterial, 0, 0.035, -0.06))
+const scoutOptic = new THREE.Group()
+const scoutTube = cylinder(0.065, 0.065, 0.44, 9, gunRustMaterial, 0, 0.1, -0.19)
+scoutTube.rotation.x = Math.PI / 2
+scoutOptic.add(scoutTube)
+scoutOptic.add(box(0.145, 0.065, 0.13, gunSteelMaterial, 0, 0.028, -0.19))
+opticGroup.add(opticRail, reflexOptic, combatOptic, marksmanOptic, scoutOptic)
+const forgeBands = [0, 1, 2, 3].map((index) => {
+  const band = box(0.235, 0.035, 0.038, gunRustMaterial, 0, 0.105, -0.49 - index * 0.09)
+  band.visible = false
+  return band
+})
 const muzzle = new THREE.Mesh(new THREE.SphereGeometry(0.08, 8, 6), mats.ember)
 muzzle.position.set(0, 0.01, -1.25)
 muzzle.visible = false
@@ -479,6 +524,8 @@ gun.add(
   frontSight,
   rearSight,
   sidePlate,
+  opticGroup,
+  ...forgeBands,
   muzzle,
   muzzleLight,
 )
@@ -492,16 +539,30 @@ const weaponViewBase = new THREE.Vector3(0.34, -0.29, -0.61)
 
 function applyWeaponVisual(): void {
   const definition = WEAPONS[state.weaponId]
+  const level = currentUpgradeLevel()
+  const optic = opticForUpgrade(definition.scopeFov, level)
   gun.scale.set(...definition.viewScale)
   weaponViewBase.set(...definition.viewPosition)
   weaponAccentMaterial.color.setHex(definition.accent)
   weaponAccentMaterial.emissive.setHex(definition.accent)
-  weaponAccentMaterial.emissiveIntensity = 0.16
-  weaponLabel.textContent = definition.name
+  weaponAccentMaterial.emissiveIntensity = 0.16 + Math.min(0.7, level * 0.14)
+  magazine.scale.set(1 + Math.min(0.18, level * 0.035), 1 + Math.min(0.62, level * 0.13), 1)
+  opticGroup.visible = Boolean(optic)
+  reflexOptic.visible = optic?.id === 'reflex'
+  combatOptic.visible = optic?.id === 'combat'
+  marksmanOptic.visible = optic?.id === 'marksman' || optic?.id === 'factory'
+  scoutOptic.visible = optic?.id === 'scout'
+  frontSight.visible = !optic
+  rearSight.visible = !optic
+  forgeBands.forEach((band, index) => {
+    band.visible = index < Math.min(level, forgeBands.length)
+  })
+  scopeOverlay.dataset.optic = optic?.id ?? 'iron'
+  weaponLabel.textContent = definition.name + (level > 0 ? ' · FORGE ' + level : '')
 }
 
-const BRIGHTNESS_LEVELS = [0.86, 1.12, 1.38, 1.66] as const
-const BRIGHTNESS_LABELS = ['DARK', 'STANDARD', 'BRIGHT', 'VERY BRIGHT'] as const
+const BRIGHTNESS_LEVELS = [1.45, 1.75, 2.05, 2.38] as const
+const BRIGHTNESS_LABELS = ['LOW', 'BRIGHT', 'HIGH', 'MAX'] as const
 const SENSITIVITY_LABELS = ['NORMAL', 'FAST', 'VERY FAST'] as const
 
 function refreshPauseSettings(): void {
@@ -533,11 +594,20 @@ function currentUpgradeLevel(): number {
   return state.weaponLevels[state.weaponId] ?? 0
 }
 
+function magazineSizeFor(id: WeaponId): number {
+  return weaponMagazineSize(WEAPONS[id].magazineSize, state.weaponLevels[id] ?? 0)
+}
+
+function currentOptic() {
+  const definition = WEAPONS[state.weaponId]
+  return opticForUpgrade(definition.scopeFov, currentUpgradeLevel())
+}
+
 function ensureWeaponAmmo(id: WeaponId): { ammo: number; reserve: number } {
   let record = state.weaponAmmo[id]
   if (!record) {
     const definition = WEAPONS[id]
-    record = { ammo: definition.magazineSize, reserve: definition.startingReserve }
+    record = { ammo: magazineSizeFor(id), reserve: definition.startingReserve }
     state.weaponAmmo[id] = record
   }
   return record
@@ -548,10 +618,10 @@ function syncCurrentWeaponAmmo(): void {
 }
 
 function setScoped(enabled: boolean): void {
-  const definition = WEAPONS[state.weaponId]
-  const hasScope = Boolean(definition.scopeFov)
+  const optic = currentOptic()
+  const hasScope = Boolean(optic)
   state.scoped = enabled && !state.vehicle
-  camera.fov = state.scoped ? definition.scopeFov ?? 54 : 69
+  camera.fov = state.scoped ? optic?.fov ?? 54 : 69
   camera.updateProjectionMatrix()
   scopeOverlay.classList.toggle('visible', state.scoped && hasScope)
   ui.hud.classList.toggle('aiming', state.scoped)
@@ -572,7 +642,7 @@ function equipWeapon(id: WeaponId, fromPickup = false): void {
   const record = ensureWeaponAmmo(id)
   if (fromPickup) {
     const definition = WEAPONS[id]
-    record.ammo = Math.max(record.ammo, definition.magazineSize)
+    record.ammo = Math.max(record.ammo, magazineSizeFor(id))
     record.reserve = Math.max(record.reserve, definition.startingReserve)
   }
   state.ammo = record.ammo
@@ -617,6 +687,9 @@ function resetExpansionProgress(): void {
   state.collectedParts.clear()
   state.vehicle = null
   state.elevatedTower = null
+  state.airborne = false
+  state.verticalVelocity = 0
+  state.fallStartY = player.position.y
   state.interactionCooldown = 0
   setScoped(false)
   soundscape.stopVehicle()
@@ -712,6 +785,8 @@ function enterVehicle(vehicle: Driveable): void {
     return
   }
   state.vehicle = vehicle
+  state.airborne = false
+  state.verticalVelocity = 0
   state.vehicleLookYaw = 0
   state.vehicleLookPitch = -0.18
   state.elevatedTower = null
@@ -738,6 +813,8 @@ function exitVehicle(): void {
   player.yaw = vehicle.yaw + state.vehicleLookYaw
   player.pitch = state.vehicleLookPitch
   state.vehicle = null
+  state.airborne = false
+  state.verticalVelocity = 0
   state.vehicleLookYaw = 0
   state.vehicleLookPitch = -0.18
   soundscape.stopVehicle()
@@ -778,6 +855,8 @@ function performInteraction(): void {
   const tower = nearestTower()
   if (tower) {
     state.elevatedTower = tower
+    state.airborne = false
+    state.verticalVelocity = 0
     player.position.copy(tower.top)
     showToast(tower.label, 1.5)
     return
@@ -795,12 +874,17 @@ function performInteraction(): void {
     state.score -= cost
     state.weaponLevels[state.weaponId] = level + 1
     const definition = WEAPONS[state.weaponId]
-    state.ammo = definition.magazineSize
+    state.ammo = magazineSizeFor(state.weaponId)
     state.reserve = Math.max(state.reserve, definition.startingReserve)
     syncCurrentWeaponAmmo()
     soundscape.upgrade()
     applyWeaponVisual()
-    showToast(definition.name + ' FORGED +' + (level + 1), 2.1)
+    showToast(
+      definition.name + ' FORGED +' + (level + 1) +
+      ' · MAG ' + magazineSizeFor(state.weaponId) +
+      ' · ' + (currentOptic()?.id.toUpperCase() ?? 'IRON'),
+      2.4,
+    )
     updateHud()
   }
 }
@@ -924,7 +1008,7 @@ function createZombie(position: THREE.Vector3): Zombie {
   const scale = 0.9 + Math.random() * 0.2
   group.position.copy(position)
   group.scale.setScalar(scale)
-  const runner = Math.random() < Math.min(0.3, 0.12 + state.wave * 0.012)
+  const runner = Math.random() < Math.min(0.52, 0.2 + state.wave * 0.025)
 
   const zombie: Zombie = {
     group,
@@ -932,7 +1016,7 @@ function createZombie(position: THREE.Vector3): Zombie {
     head: visual.head,
     health: tuning.health,
     maxHealth: tuning.health,
-    speed: tuning.speed * (0.92 + Math.random() * 0.24) * (runner ? 1.22 : 1),
+    speed: tuning.speed * (0.94 + Math.random() * 0.24) * (runner ? 1.3 : 1),
     damage: tuning.damage,
     attackDelay: tuning.attackDelay,
     attackTimer: Math.random() * 0.4,
@@ -1026,15 +1110,16 @@ function updateHud(): void {
   ui.ammoCount.textContent = String(state.ammo)
   ui.reserveCount.textContent = String(state.reserve)
   ui.ammoPanel.classList.toggle('reloading', state.reloading)
-  weaponLabel.textContent = WEAPONS[state.weaponId].name
+  const level = currentUpgradeLevel()
+  weaponLabel.textContent = WEAPONS[state.weaponId].name + (level > 0 ? ' · FORGE ' + level : '')
 }
 
 function nearestSpawnPoint(): THREE.Vector3 {
   const preferred = spawnPoints.filter((point) => {
     const distanceSquared = point.distanceToSquared(player.position)
-    return distanceSquared > 34 * 34 && distanceSquared < 82 * 82
+    return distanceSquared > 38 * 38 && distanceSquared < 112 * 112
   })
-  const distant = spawnPoints.filter((point) => point.distanceToSquared(player.position) > 30 * 30)
+  const distant = spawnPoints.filter((point) => point.distanceToSquared(player.position) > 32 * 32)
   const pool = preferred.length > 0 ? preferred : distant.length > 0 ? distant : spawnPoints
   const base = pool[Math.floor(Math.random() * pool.length)]
   const tangent = new THREE.Vector3(-base.z, 0, base.x)
@@ -1058,8 +1143,9 @@ function finishWave(): void {
   state.health = Math.min(100, state.health + 22)
   state.reserve = reserveAmmoAfterWave(state.reserve, state.wave)
   const weapon = WEAPONS[state.weaponId]
-  if (state.ammo < weapon.magazineSize) {
-    const needed = weapon.magazineSize - state.ammo
+  const magazineSize = magazineSizeFor(state.weaponId)
+  if (state.ammo < magazineSize) {
+    const needed = magazineSize - state.ammo
     const loaded = Math.min(needed, state.reserve)
     state.ammo += loaded
     state.reserve -= loaded
@@ -1071,7 +1157,7 @@ function finishWave(): void {
 
 function beginReload(): void {
   const weapon = WEAPONS[state.weaponId]
-  if (state.reloading || state.ammo >= weapon.magazineSize || state.reserve <= 0 || state.gameOver) return
+  if (state.reloading || state.ammo >= magazineSizeFor(state.weaponId) || state.reserve <= 0 || state.gameOver) return
   state.reloading = true
   state.reloadTimer = weapon.reloadTime
   soundscape.reload()
@@ -1080,8 +1166,7 @@ function beginReload(): void {
 }
 
 function finishReload(): void {
-  const weapon = WEAPONS[state.weaponId]
-  const needed = weapon.magazineSize - state.ammo
+  const needed = magazineSizeFor(state.weaponId) - state.ammo
   const amount = Math.min(needed, state.reserve)
   state.ammo += amount
   state.reserve -= amount
@@ -1093,11 +1178,48 @@ function finishReload(): void {
 function damagePlayer(amount: number): void {
   if (state.gameOver) return
   state.health -= amount
+  state.secondsSinceDamage = 0
   state.damageTimer = 0.26
   ui.damageVignette.classList.add('visible')
   void Haptics.impact({ style: ImpactStyle.Heavy }).catch(() => undefined)
   updateHud()
   if (state.health <= 0) endRun()
+}
+
+function jumpPlayer(): void {
+  if (!state.started || state.paused || state.gameOver || state.vehicle || state.airborne) return
+  state.fallStartY = player.position.y
+  state.verticalVelocity = state.elevatedTower ? 2.35 : 5.2
+  state.airborne = true
+  if (state.elevatedTower) {
+    state.elevatedTower = null
+    showToast('BALCONY JUMP', 0.9)
+  }
+}
+
+function updateVerticalMotion(dt: number): void {
+  if (state.vehicle || state.elevatedTower || !state.airborne) return
+  const groundY = expandedWorld.heightAt(player.position.x, player.position.z) + 1.7
+  state.verticalVelocity -= 13.8 * dt
+  player.position.y += state.verticalVelocity * dt
+  state.fallStartY = Math.max(state.fallStartY, player.position.y)
+  if (player.position.y > groundY) return
+  const dropHeight = state.fallStartY - groundY
+  player.position.y = groundY
+  state.airborne = false
+  state.verticalVelocity = 0
+  const damage = fallDamageForDrop(dropHeight)
+  if (damage > 0) {
+    damagePlayer(damage)
+    showToast('FALL · ' + damage + ' DAMAGE', 1.15)
+  }
+}
+
+function updateHealthRecovery(dt: number): void {
+  state.secondsSinceDamage += dt
+  const previousHealth = state.health
+  state.health = healthAfterRecovery(state.health, state.secondsSinceDamage, dt)
+  if (Math.ceil(previousHealth) !== Math.ceil(state.health)) updateHud()
 }
 
 function fireWeapon(): void {
@@ -1184,6 +1306,10 @@ function resetRun(): void {
   state.pendingSpawns = 0
   state.spawnTimer = 0
   state.health = 100
+  state.secondsSinceDamage = 99
+  state.airborne = false
+  state.verticalVelocity = 0
+  state.fallStartY = player.position.y
   state.weaponId = 'carbine'
   const startingWeapon = WEAPONS.carbine
   state.ammo = startingWeapon.magazineSize
@@ -1333,12 +1459,16 @@ function updatePlayer(dt: number): void {
       player.position.y = tower.top.y
     } else {
       movePlayer(dx, dz)
-      player.position.y = expandedWorld.heightAt(player.position.x, player.position.z) + 1.7
+      if (!state.airborne) {
+        player.position.y = expandedWorld.heightAt(player.position.x, player.position.z) + 1.7
+      }
     }
     player.bob += dt * 11.2
-  } else if (!state.elevatedTower) {
+  } else if (!state.elevatedTower && !state.airborne) {
     player.position.y = expandedWorld.heightAt(player.position.x, player.position.z) + 1.7
   }
+
+  updateVerticalMotion(dt)
 
   const bobY = moving && !state.scoped ? Math.sin(player.bob) * 0.04 : 0
   const bobX = moving && !state.scoped ? Math.cos(player.bob * 0.5) * 0.02 : 0
@@ -1349,7 +1479,7 @@ function updatePlayer(dt: number): void {
   const gunBobX = moving ? Math.cos(player.bob * 0.5) * 0.018 : 0
   const gunBobY = moving ? Math.abs(Math.sin(player.bob)) * 0.018 : 0
   state.recoil = Math.max(0, state.recoil - dt * 7.8)
-  const hasOptic = Boolean(WEAPONS[state.weaponId].scopeFov)
+  const hasOptic = Boolean(currentOptic())
   const ironSights = state.scoped && !hasOptic
   gun.position.set(
     ironSights ? 0.012 : weaponViewBase.x + gunBobX,
@@ -1468,7 +1598,7 @@ function updateWave(dt: number): void {
 
   if (!state.waveActive) return
   state.spawnTimer -= dt
-  if (state.pendingSpawns > 0 && state.spawnTimer <= 0 && zombies.length < (isTouch ? 30 : 46)) {
+  if (state.pendingSpawns > 0 && state.spawnTimer <= 0 && zombies.length < (isTouch ? 40 : 60)) {
     createZombie(nearestSpawnPoint())
     state.pendingSpawns -= 1
     state.spawnTimer = spawnIntervalForWave(state.wave)
@@ -1629,6 +1759,10 @@ scopeButton.addEventListener('pointerdown', (event) => {
   event.preventDefault()
   toggleScope()
 })
+jumpButton.addEventListener('pointerdown', (event) => {
+  event.preventDefault()
+  jumpPlayer()
+})
 pauseButton.addEventListener('pointerdown', (event) => {
   event.preventDefault()
   setPaused(true)
@@ -1663,6 +1797,10 @@ addEventListener('keydown', (event) => {
   if (event.code === 'KeyQ') switchWeapon()
   if (event.code === 'KeyE') performInteraction()
   if (event.code === 'KeyC') toggleScope()
+  if (event.code === 'Space') {
+    event.preventDefault()
+    jumpPlayer()
+  }
   if (event.code === 'Escape') {
     setPaused(!state.paused)
     if (state.paused) document.exitPointerLock?.()
@@ -1732,6 +1870,7 @@ function animate(): void {
     updatePlayer(dt)
     updateZombies(dt, elapsed)
     updateWave(dt)
+    updateHealthRecovery(dt)
   }
   atmosphereFrame += 1
   if (!isTouch || atmosphereFrame % 2 === 0) {
