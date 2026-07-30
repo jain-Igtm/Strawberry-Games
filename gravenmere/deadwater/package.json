@@ -1,10 +1,12 @@
 {
   "name": "ashfall-deadwater",
   "private": true,
-  "version": "0.1.0",
+  "version": "0.2.0",
   "type": "module",
   "scripts": {
+    "predev": "node scripts/apply-feedback-pass.mjs",
     "dev": "vite --host 0.0.0.0",
+    "prebuild": "node scripts/apply-feedback-pass.mjs",
     "build": "tsc --noEmit && vite build",
     "test": "vitest run",
     "configure:android": "node scripts/configure-android.mjs",
