@@ -43,26 +43,32 @@ function skinGeometry(
   boneIndex: number,
   transform: PartTransform,
 ): THREE.BufferGeometry {
-  mapGeometryToAtlas(geometry, tile)
+  // BufferGeometryUtils requires every merged source to agree on indexed vs
+  // non-indexed storage. Three's primitive constructors mix the two forms
+  // (notably IcosahedronGeometry versus Cylinder/CapsuleGeometry), which caused
+  // a synchronous module-load exception before the Start listener attached.
+  const compatibleGeometry = geometry.index ? geometry.toNonIndexed() : geometry
+  if (compatibleGeometry !== geometry) geometry.dispose()
+  mapGeometryToAtlas(compatibleGeometry, tile)
   const quaternion = new THREE.Quaternion().setFromEuler(
     transform.rotation ?? new THREE.Euler(),
   )
-  geometry.applyMatrix4(new THREE.Matrix4().compose(
+  compatibleGeometry.applyMatrix4(new THREE.Matrix4().compose(
     transform.position,
     quaternion,
     transform.scale ?? new THREE.Vector3(1, 1, 1),
   ))
 
-  const vertexCount = geometry.getAttribute('position').count
+  const vertexCount = compatibleGeometry.getAttribute('position').count
   const indices = new Uint16Array(vertexCount * 4)
   const weights = new Float32Array(vertexCount * 4)
   for (let index = 0; index < vertexCount; index += 1) {
     indices[index * 4] = boneIndex
     weights[index * 4] = 1
   }
-  geometry.setAttribute('skinIndex', new THREE.Uint16BufferAttribute(indices, 4))
-  geometry.setAttribute('skinWeight', new THREE.Float32BufferAttribute(weights, 4))
-  return geometry
+  compatibleGeometry.setAttribute('skinIndex', new THREE.Uint16BufferAttribute(indices, 4))
+  compatibleGeometry.setAttribute('skinWeight', new THREE.Float32BufferAttribute(weights, 4))
+  return compatibleGeometry
 }
 
 function buildSharedZombieGeometry(): THREE.BufferGeometry {
