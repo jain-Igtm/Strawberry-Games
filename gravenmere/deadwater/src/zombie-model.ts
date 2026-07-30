@@ -4,9 +4,9 @@ import { clone as cloneSkeleton } from 'three/examples/jsm/utils/SkeletonUtils.j
 import {
   PIXELHOUSE_ZOMBIE_ATTACK_GLB_V18,
   PIXELHOUSE_ZOMBIE_DEATH_GLB_V18,
-  PIXELHOUSE_ZOMBIE_DIFFUSE_WEBP_V18,
   PIXELHOUSE_ZOMBIE_WALK_GLB_V18,
 } from './generated-assets-v18'
+import { MUTED_ZOMBIE_DIFFUSE_WEBP_V19 } from './generated-visual-assets-v19'
 
 export type ZombieAnimationState = 'walk' | 'run' | 'attack' | 'death'
 
@@ -66,7 +66,7 @@ function loadGltf(loader: GLTFLoader, source: string): Promise<GLTF> {
 function loadZombieTexture(): Promise<THREE.Texture> {
   return new Promise((resolve, reject) => {
     new THREE.TextureLoader().load(
-      PIXELHOUSE_ZOMBIE_DIFFUSE_WEBP_V18,
+      MUTED_ZOMBIE_DIFFUSE_WEBP_V19,
       (texture) => {
         texture.colorSpace = THREE.SRGBColorSpace
         texture.wrapS = THREE.ClampToEdgeWrapping
@@ -162,18 +162,22 @@ function cloneZombieMaterial(
   if (material instanceof THREE.MeshStandardMaterial) {
     material.map = texture
     material.color.setHSL(
-      0.04 + tint * 0.015,
-      0.055 + Math.abs(tint) * 0.02,
-      0.82 + tint * 0.035,
+      0.08 + tint * 0.008,
+      0.025,
+      0.9 + tint * 0.025,
     )
-    material.emissive.setHex(0x292725)
-    material.emissiveMap = texture
-    material.emissiveIntensity = 0.42
-    material.userData.baseEmissive = 0x292725
-    material.userData.baseEmissiveIntensity = 0.42
-    material.roughness = 0.96
+    material.emissive.setHex(0x171615)
+    material.emissiveMap = null
+    material.emissiveIntensity = 0.24
+    material.userData.baseEmissive = 0x171615
+    material.userData.baseEmissiveIntensity = 0.24
+    material.roughness = 1
     material.metalness = 0
+    // Smooth normals keep the already modest mesh from turning into a field of
+    // high-contrast facets; the intentionally tiny diffuse supplies the simple
+    // shape/color breakup instead.
     material.flatShading = false
+    material.dithering = true
     material.needsUpdate = true
   }
   return material
@@ -214,7 +218,7 @@ export function createTexturedZombieVisual(): ZombieVisual | null {
   facing.add(model)
 
   const group = new THREE.Group()
-  group.name = 'pixelhouse-textured-zombie'
+  group.name = 'muted-low-detail-zombie'
   group.userData.flashActive = false
   group.add(facing)
 

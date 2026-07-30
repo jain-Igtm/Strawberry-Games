@@ -2,12 +2,14 @@ import * as THREE from 'three'
 import { afterEach, describe, expect, it } from 'vitest'
 import { buildWorldExpansion } from './world-expansion'
 import {
-  DISSIPATING_PLUME_WEBP_V18,
   PIXELHOUSE_ZOMBIE_ATTACK_GLB_V18,
   PIXELHOUSE_ZOMBIE_DEATH_GLB_V18,
-  PIXELHOUSE_ZOMBIE_DIFFUSE_WEBP_V18,
   PIXELHOUSE_ZOMBIE_WALK_GLB_V18,
 } from './generated-assets-v18'
+import {
+  CASTLE_ROMEO_GRAY_WEBP_V19,
+  MUTED_ZOMBIE_DIFFUSE_WEBP_V19,
+} from './generated-visual-assets-v19'
 import {
   ZOMBIE_DISPLAY_HEIGHT,
   ZOMBIE_FORWARD_YAW,
@@ -93,8 +95,8 @@ describe('production startup geometry', () => {
   it('packages the post-blast plume and grounded animated zombie offline', () => {
     expect(ZOMBIE_DISPLAY_HEIGHT).toBeGreaterThanOrEqual(2)
     expect(ZOMBIE_FORWARD_YAW).toBe(-Math.PI / 2)
-    expect(DISSIPATING_PLUME_WEBP_V18.startsWith('data:image/webp;base64,UklG')).toBe(true)
-    expect(PIXELHOUSE_ZOMBIE_DIFFUSE_WEBP_V18.startsWith('data:image/webp;base64,UklG')).toBe(true)
+    expect(CASTLE_ROMEO_GRAY_WEBP_V19.startsWith('data:image/webp;base64,UklG')).toBe(true)
+    expect(MUTED_ZOMBIE_DIFFUSE_WEBP_V19.startsWith('data:image/webp;base64,UklG')).toBe(true)
     for (const glb of [
       PIXELHOUSE_ZOMBIE_WALK_GLB_V18,
       PIXELHOUSE_ZOMBIE_ATTACK_GLB_V18,
@@ -105,6 +107,7 @@ describe('production startup geometry', () => {
       expect(header.slice(0, 4)).toBe('glTF')
       expect(glb.length).toBeLessThan(350_000)
     }
-    expect(PIXELHOUSE_ZOMBIE_DIFFUSE_WEBP_V18.length).toBeLessThan(60_000)
+    expect(CASTLE_ROMEO_GRAY_WEBP_V19.length).toBeLessThan(40_000)
+    expect(MUTED_ZOMBIE_DIFFUSE_WEBP_V19.length).toBeLessThan(4_000)
   })
 })

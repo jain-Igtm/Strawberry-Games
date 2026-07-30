@@ -99,4 +99,4 @@ jobs:
             Ashfall-Deadwater.apk \
             Ashfall-Deadwater.apk.sha256 \
             --title "Ashfall: Deadwater Android build ${GITHUB_RUN_NUMBER}" \
-            --notes "Install Ashfall-Deadwater.apk on Android. Version 0.18.1 corrects zombie height and forward orientation, and strengthens the static post-blast plume's visibility without changing its charcoal treatment."
+            --notes "Install Ashfall-Deadwater.apk on Android. Version 0.18.2 restores the Castle Romeo blast as a static neutral-gray plume with sky-feathered edges, and replaces the detailed zombie skin with an optimized 32px four-tone treatment while preserving adult scale, forward movement, navigation, and natural animation."

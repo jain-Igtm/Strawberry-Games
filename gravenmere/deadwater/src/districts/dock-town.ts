@@ -1092,51 +1092,53 @@ function addFalloutHillsAndCloud(
     context.scene.add(mesh)
   }
 
-  // A single static billboard uses the late-stage public-domain NARA Hiroshima
-  // plume. Its motionless charcoal treatment places the scene after the blast
-  // and shockwave rather than inside an active red fireball.
-  const cloudGeometry = new THREE.PlaneGeometry(232, 178)
+  // A single static billboard restores the public-domain Castle Romeo
+  // photograph. The source and shader are strictly neutral grayscale, and the
+  // broad alpha feather keeps the photograph from reading as a rectangle.
+  const cloudGeometry = new THREE.PlaneGeometry(218, 164)
   const smokeMaterial = new THREE.ShaderMaterial({
     uniforms: {
       mushroomMap: { value: mushroomCloudTexture },
     },
     vertexShader: `
+      varying vec2 vPhotoUv;
       varying vec2 vPlaneUv;
       void main() {
         vec4 center = modelViewMatrix * vec4(0.0, 0.0, 0.0, 1.0);
         center.xy += position.xy;
         gl_Position = projectionMatrix * center;
         vPlaneUv = uv;
+        vPhotoUv = vec2(
+          mix(0.11, 0.89, uv.x),
+          mix(0.23, 0.68, uv.y)
+        );
       }
     `,
     fragmentShader: `
       uniform sampler2D mushroomMap;
+      varying vec2 vPhotoUv;
       varying vec2 vPlaneUv;
       void main() {
-        vec3 photo = texture2D(mushroomMap, vPlaneUv).rgb;
+        vec3 photo = texture2D(mushroomMap, vPhotoUv).rgb;
         float luminance = dot(photo, vec3(0.2126, 0.7152, 0.0722));
-        vec2 capPoint = (vPlaneUv - vec2(0.5, 0.78)) / vec2(0.45, 0.22);
-        float capSupport = 1.0 - smoothstep(0.88, 1.0, length(capPoint));
-        float stemWidth = mix(0.12, 0.19, smoothstep(0.12, 0.62, vPlaneUv.y));
+        vec2 capPoint = (vPlaneUv - vec2(0.5, 0.68)) / vec2(0.48, 0.34);
+        float capSupport = 1.0 - smoothstep(0.82, 1.0, length(capPoint));
+        float stemWidth = mix(0.18, 0.075, smoothstep(0.0, 0.36, vPlaneUv.y));
         float stemSupport =
           (1.0 - smoothstep(stemWidth, stemWidth + 0.07, abs(vPlaneUv.x - 0.5))) *
-          smoothstep(0.04, 0.15, vPlaneUv.y) *
-          (1.0 - smoothstep(0.69, 0.78, vPlaneUv.y));
+          smoothstep(0.16, 0.25, vPlaneUv.y) *
+          (1.0 - smoothstep(0.37, 0.47, vPlaneUv.y));
         float blastShape = max(capSupport, stemSupport);
-        float smokeDetail = smoothstep(0.28, 0.76, luminance);
-        float mask = blastShape * mix(0.32, 1.0, smokeDetail);
-        float edgeX = smoothstep(0.0, 0.075, vPlaneUv.x) *
-          smoothstep(0.0, 0.075, 1.0 - vPlaneUv.x);
-        float edgeY = smoothstep(0.0, 0.07, vPlaneUv.y) *
-          smoothstep(0.0, 0.07, 1.0 - vPlaneUv.y);
+        float smokeDetail = smoothstep(0.045, 0.46, luminance);
+        float mask = blastShape * mix(0.2, 0.94, smokeDetail);
+        float edgeX = smoothstep(0.0, 0.11, vPlaneUv.x) *
+          smoothstep(0.0, 0.11, 1.0 - vPlaneUv.x);
+        float edgeY = smoothstep(0.0, 0.1, vPlaneUv.y) *
+          smoothstep(0.0, 0.1, 1.0 - vPlaneUv.y);
         mask *= edgeX * edgeY;
-        if (mask < 0.018) discard;
-        vec3 charcoal = mix(
-          vec3(0.105, 0.11, 0.118),
-          vec3(0.39, 0.385, 0.38),
-          smokeDetail
-        );
-        gl_FragColor = vec4(charcoal, mask * 0.96);
+        if (mask < 0.012) discard;
+        float neutralGray = mix(0.11, 0.27, smoothstep(0.02, 0.9, luminance));
+        gl_FragColor = vec4(vec3(neutralGray), mask * 0.78);
       }
     `,
     transparent: true,
@@ -1145,7 +1147,7 @@ function addFalloutHillsAndCloud(
     toneMapped: false,
   })
   const cloud = new THREE.Mesh(cloudGeometry, smokeMaterial)
-  cloud.position.set(FALLOUT_HILLS.cloudX, 84, FALLOUT_HILLS.cloudZ)
+  cloud.position.set(FALLOUT_HILLS.cloudX, 82, FALLOUT_HILLS.cloudZ)
   cloud.frustumCulled = true
   context.scene.add(cloud)
 

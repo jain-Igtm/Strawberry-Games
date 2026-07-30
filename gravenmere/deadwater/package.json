@@ -1,7 +1,7 @@
 {
   "name": "ashfall-deadwater",
   "private": true,
-  "version": "0.18.1",
+  "version": "0.18.2",
   "type": "module",
   "scripts": {
     "prepare:audio": "node scripts/fetch-cc0-audio-v7.mjs",

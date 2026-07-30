@@ -1,6 +1,6 @@
 import * as THREE from 'three'
 import { GAMEPLAY_ATLAS_V16 } from './generated-textures-v16'
-import { DISSIPATING_PLUME_WEBP_V18 } from './generated-assets-v18'
+import { CASTLE_ROMEO_GRAY_WEBP_V19 } from './generated-visual-assets-v19'
 
 export type AtlasTile = Readonly<{
   u: number
@@ -57,7 +57,7 @@ function loadAtlas(source: string): THREE.Texture {
 export const gameplayAtlasTexture = loadAtlas(GAMEPLAY_ATLAS_V16)
 export const gunAtlasTexture = gameplayAtlasTexture
 export const forestAtlasTexture = loadAtlas('forest-atlas.webp')
-export const mushroomCloudTexture = loadAtlas(DISSIPATING_PLUME_WEBP_V18)
+export const mushroomCloudTexture = loadAtlas(CASTLE_ROMEO_GRAY_WEBP_V19)
 
 export function mapGeometryToAtlas<T extends THREE.BufferGeometry>(
   geometry: T,
