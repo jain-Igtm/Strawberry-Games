@@ -4,9 +4,9 @@
   "version": "0.2.0",
   "type": "module",
   "scripts": {
-    "predev": "node scripts/apply-feedback-pass.mjs",
+    "predev": "node scripts/run-feedback-pass.mjs",
     "dev": "vite --host 0.0.0.0",
-    "prebuild": "node scripts/apply-feedback-pass.mjs",
+    "prebuild": "node scripts/run-feedback-pass.mjs",
     "build": "tsc --noEmit && vite build",
     "test": "vitest run",
     "configure:android": "node scripts/configure-android.mjs",
