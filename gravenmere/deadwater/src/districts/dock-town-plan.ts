@@ -17,6 +17,11 @@ const points = (...coordinates: Array<[number, number]>): THREE.Vector2[] => (
  *
  * These are intentionally stable connection points. Future districts should
  * meet the named exits rather than shifting Dock Town to make room.
+ *
+ * The impassable forest is deliberately inside the district rather than along
+ * its outer boundary. Harbor Road, Warehouse Lane, Main Street and Water Tower
+ * Curve wrap around it, forcing a real road journey between Dock Town and the
+ * shipyard instead of allowing a straight cross-country walk.
  */
 export const DOCK_TOWN_ROADS: PlannedRoad[] = [
   {
@@ -24,35 +29,35 @@ export const DOCK_TOWN_ROADS: PlannedRoad[] = [
     label: 'Harbor Road',
     width: 9.4,
     sidewalks: false,
-    points: points([-4, 126], [25, 127], [58, 126], [88, 125], [116, 122]),
+    points: points([-8, 132], [8, 134], [24, 136], [42, 136], [60, 132], [82, 127], [102, 125], [120, 124]),
   },
   {
     id: 'water-tower-curve',
     label: 'Water Tower Curve',
     width: 7.6,
     sidewalks: true,
-    points: points([58, 88], [53, 96], [45, 107], [43, 117], [55, 125]),
+    points: points([63, 84], [66, 94], [66, 105], [68, 116], [75, 126]),
   },
   {
     id: 'main-street',
     label: 'Main Street',
     width: 10.2,
     sidewalks: true,
-    points: points([8, 79], [38, 80], [69, 79], [101, 78], [133, 75]),
+    points: points([8, 78], [24, 76], [43, 76], [64, 79], [93, 78], [134, 75]),
   },
   {
     id: 'downtown-loop',
     label: 'Downtown Loop',
     width: 7.2,
     sidewalks: true,
-    points: points([57, 81], [61, 96], [73, 106], [90, 103], [96, 91], [91, 79]),
+    points: points([62, 80], [69, 88], [74, 99], [84, 107], [98, 102], [103, 90], [94, 79]),
   },
   {
     id: 'warehouse-lane',
     label: 'Warehouse Lane',
     width: 6.5,
     sidewalks: false,
-    points: points([35, 80], [30, 90], [25, 101], [20, 114]),
+    points: points([20, 77], [14, 88], [10, 101], [12, 114], [20, 126], [27, 135]),
   },
   {
     id: 'neighborhood-road',
@@ -66,29 +71,36 @@ export const DOCK_TOWN_ROADS: PlannedRoad[] = [
     label: 'Administration Road',
     width: 7.4,
     sidewalks: false,
-    points: points([88, 124], [98, 114], [107, 102], [119, 91], [133, 82]),
+    points: points([92, 124], [101, 115], [109, 104], [120, 91], [134, 82]),
   },
 ]
 
 export const DOCK_TOWN_LIMITS = {
-  minX: 4,
-  maxX: 136,
-  minZ: 46,
-  maxZ: 130,
+  minX: -8,
+  maxX: 140,
+  minZ: 44,
+  maxZ: 138,
 } as const
 
 export const DOCK_TOWN_EXITS = {
-  shipyard: new THREE.Vector2(-4, 126),
-  harbor: new THREE.Vector2(116, 122),
-  hospital: new THREE.Vector2(133, 75),
-  outskirts: new THREE.Vector2(133, 82),
-  farmAndTown: new THREE.Vector2(8, 79),
+  shipyard: new THREE.Vector2(-8, 132),
+  harbor: new THREE.Vector2(120, 124),
+  hospital: new THREE.Vector2(134, 75),
+  outskirts: new THREE.Vector2(134, 82),
+  farmAndTown: new THREE.Vector2(8, 78),
 } as const
 
-export const WATER_TOWER_POSITION = new THREE.Vector2(55, 101)
-export const ADMIN_BUILDING_POSITION = new THREE.Vector2(95, 116)
+export const IMPASSABLE_FOREST = {
+  x: 39,
+  z: 106,
+  width: 36,
+  depth: 44,
+} as const
+
+export const WATER_TOWER_POSITION = new THREE.Vector2(67, 106)
+export const ADMIN_BUILDING_POSITION = new THREE.Vector2(98, 116)
 export const TRANSMISSION_FIELD = {
-  x: 116,
+  x: 120,
   z: 113,
   width: 31,
   depth: 28,
