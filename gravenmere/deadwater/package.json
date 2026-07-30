@@ -5,7 +5,7 @@
   "type": "module",
   "scripts": {
     "prepare:audio": "node scripts/fetch-cc0-audio-v7.mjs",
-    "prepare:visual-feedback": "node scripts/apply-visual-feedback-v20.mjs",
+    "prepare:visual-feedback": "node scripts/apply-visual-feedback-v20.mjs && node scripts/fix-visual-feedback-v20.mjs",
     "predev": "npm run prepare:audio && npm run prepare:visual-feedback",
     "dev": "vite --host 0.0.0.0",
     "pretest": "npm run prepare:visual-feedback",
