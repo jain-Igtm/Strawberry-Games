@@ -2,21 +2,19 @@ import { DeadwaterSoundscapeV5 } from './soundscape-v5'
 
 type SampleSet = {
   zombies: AudioBuffer[]
-  stormSiren: AudioBuffer | null
-  warningSiren: AudioBuffer | null
+  civilDefenseSiren: AudioBuffer | null
 }
 
 const EMPTY_SAMPLES: SampleSet = {
   zombies: [],
-  stormSiren: null,
-  warningSiren: null,
+  civilDefenseSiren: null,
 }
 
 export class DeadwaterSoundscapeV7 extends DeadwaterSoundscapeV5 {
   private samples: SampleSet = EMPTY_SAMPLES
   private sampleLoad: Promise<void> | null = null
   private nextZombieSampleAt = 0
-  private sirenTimer = 18 + Math.random() * 22
+  private sirenTimer = 34 + Math.random() * 30
 
   override start(): void {
     super.start()
@@ -37,17 +35,15 @@ export class DeadwaterSoundscapeV7 extends DeadwaterSoundscapeV5 {
   private loadSamples(): Promise<void> {
     if (this.sampleLoad) return this.sampleLoad
     this.sampleLoad = (async () => {
-      const [zombieOne, zombieTwo, zombieThree, stormSiren, warningSiren] = await Promise.all([
+      const [zombieOne, zombieTwo, zombieThree, civilDefenseSiren] = await Promise.all([
         this.decode('/audio-v7/zombie-groan-1.ogg'),
         this.decode('/audio-v7/zombie-groan-2.ogg'),
         this.decode('/audio-v7/zombie-groan-3.ogg'),
-        this.decode('/audio-v7/storm-siren.ogg'),
-        this.decode('/audio-v7/warning-siren.mp3'),
+        this.decode('/audio-v7/civil-defense-siren.ogg'),
       ])
       this.samples = {
         zombies: [zombieOne, zombieTwo, zombieThree].filter((entry): entry is AudioBuffer => Boolean(entry)),
-        stormSiren,
-        warningSiren,
+        civilDefenseSiren,
       }
     })()
     return this.sampleLoad
@@ -60,25 +56,28 @@ export class DeadwaterSoundscapeV7 extends DeadwaterSoundscapeV5 {
     offset = 0,
     duration?: number,
     lowpass = 5200,
+    pan = 0,
   ): void {
     const context = this.ensure()
     const source = context.createBufferSource()
     const filter = context.createBiquadFilter()
+    const panner = context.createStereoPanner()
     const gain = context.createGain()
     source.buffer = buffer
     source.playbackRate.value = playbackRate
     filter.type = 'lowpass'
     filter.frequency.value = lowpass
     filter.Q.value = 0.45
+    panner.pan.value = THREE.MathUtils.clamp(pan, -1, 1)
     gain.gain.setValueAtTime(0.0001, context.currentTime)
-    gain.gain.linearRampToValueAtTime(volume, context.currentTime + 0.035)
+    gain.gain.linearRampToValueAtTime(volume, context.currentTime + 1.4)
     const available = Math.max(0.08, buffer.duration - offset)
     const playDuration = Math.min(duration ?? available, available)
-    gain.gain.setValueAtTime(volume, context.currentTime + Math.max(0.04, playDuration - 0.12))
+    gain.gain.setValueAtTime(volume, context.currentTime + Math.max(1.5, playDuration - 2.4))
     gain.gain.linearRampToValueAtTime(0.0001, context.currentTime + playDuration)
-    source.connect(filter).connect(gain).connect(context.destination)
+    source.connect(filter).connect(panner).connect(gain).connect(context.destination)
     source.start(context.currentTime, Math.min(offset, Math.max(0, buffer.duration - 0.08)), playDuration)
-    source.stop(context.currentTime + playDuration + 0.04)
+    source.stop(context.currentTime + playDuration + 0.08)
   }
 
   private randomZombie(): AudioBuffer | null {
@@ -120,21 +119,15 @@ export class DeadwaterSoundscapeV7 extends DeadwaterSoundscapeV5 {
   override update(dt: number): void {
     this.sirenTimer -= dt
     if (this.sirenTimer > 0) return
-    this.sirenTimer = 28 + Math.random() * 42
+    this.sirenTimer = 72 + Math.random() * 78
     void this.loadSamples()
-
-    const useStorm = Math.random() < 0.72
-    const sample = useStorm ? this.samples.stormSiren : this.samples.warningSiren
+    const sample = this.samples.civilDefenseSiren
     if (!sample) return
 
-    if (useStorm) {
-      const duration = Math.min(sample.duration, 8 + Math.random() * 6)
-      const maximumOffset = Math.max(0, sample.duration - duration)
-      const offset = maximumOffset > 0 ? Math.random() * maximumOffset : 0
-      this.playBuffer(sample, 0.023, 0.94 + Math.random() * 0.08, offset, duration, 1800)
-    } else {
-      const duration = Math.min(sample.duration, 5.5 + Math.random() * 3)
-      this.playBuffer(sample, 0.018, 0.88 + Math.random() * 0.08, 0, duration, 2100)
-    }
+    const duration = Math.min(sample.duration, 23 + Math.random() * 14)
+    const maximumOffset = Math.max(0, sample.duration - duration)
+    const offset = maximumOffset > 0 ? Math.random() * maximumOffset : 0
+    // Slightly left-biased and filtered to suggest the fallout hills beyond the shipyard.
+    this.playBuffer(sample, 0.033, 0.96 + Math.random() * 0.035, offset, duration, 3500, -0.34)
   }
 }
