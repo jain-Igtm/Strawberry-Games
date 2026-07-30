@@ -89,7 +89,12 @@ jobs:
           retention-days: 30
 
       - name: Publish direct-download APK release
-        if: github.event_name == 'push' && github.ref == 'refs/heads/agent/deadwater-zombies'
+        if: >-
+          (github.event_name == 'push' &&
+          github.ref == 'refs/heads/agent/deadwater-zombies') ||
+          (github.event_name == 'pull_request' &&
+          github.event.pull_request.head.ref == 'agent/deadwater-zombies' &&
+          github.event.pull_request.head.repo.full_name == github.repository)
         working-directory: gravenmere/deadwater
         env:
           GH_TOKEN: ${{ github.token }}
