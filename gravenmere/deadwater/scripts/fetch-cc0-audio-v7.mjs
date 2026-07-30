@@ -28,18 +28,11 @@ const assets = [
     ],
   },
   {
-    name: 'storm-siren.ogg',
+    name: 'civil-defense-siren.ogg',
     required: true,
     urls: [
-      'https://opengameart.org/sites/default/files/storm_3_siren.ogg',
-      'https://raw.githubusercontent.com/charliedavenport/FPS_Project/bcf450b2153ba6c1e1edad0967a53294ec7d0731/Assets/Sound/storm_3_siren.ogg',
-    ],
-  },
-  {
-    name: 'warning-siren.mp3',
-    required: false,
-    urls: [
-      'https://opengameart.org/sites/default/files/siren_0.mp3',
+      'https://commons.wikimedia.org/wiki/Special:Redirect/file/Civil-defense-siren-waver.ogg',
+      'https://upload.wikimedia.org/wikipedia/commons/6/6f/Civil-defense-siren-waver.ogg',
     ],
   },
 ]
@@ -59,7 +52,7 @@ async function downloadCandidate(url) {
       const response = await fetch(url, {
         redirect: 'follow',
         headers: {
-          'User-Agent': 'Ashfall-Deadwater-build/7.0',
+          'User-Agent': 'Ashfall-Deadwater-build/8.0',
           Accept: 'audio/ogg,audio/mpeg,audio/*;q=0.9,*/*;q=0.2',
         },
       })
