@@ -1,12 +1,12 @@
 {
   "name": "ashfall-deadwater",
   "private": true,
-  "version": "0.5.1",
+  "version": "0.6.0",
   "type": "module",
   "scripts": {
-    "predev": "node scripts/run-feedback-pass.mjs && node scripts/fix-controls-v3.mjs && node scripts/run-world-pass-v4.mjs && node scripts/patch-environment-v5.mjs && node scripts/apply-expansion-v5.mjs && node scripts/fix-expansion-materials-v5.mjs",
+    "predev": "node scripts/run-feedback-pass.mjs && node scripts/fix-controls-v3.mjs && node scripts/run-world-pass-v4.mjs && node scripts/patch-environment-v5.mjs && node scripts/apply-expansion-v5.mjs && node scripts/fix-expansion-materials-v5.mjs && node scripts/apply-polish-v6.mjs && node scripts/fix-terrain-winding-v6.mjs",
     "dev": "vite --host 0.0.0.0",
-    "prebuild": "node scripts/run-feedback-pass.mjs && node scripts/fix-controls-v3.mjs && node scripts/run-world-pass-v4.mjs && node scripts/patch-environment-v5.mjs && node scripts/apply-expansion-v5.mjs && node scripts/fix-expansion-materials-v5.mjs",
+    "prebuild": "node scripts/run-feedback-pass.mjs && node scripts/fix-controls-v3.mjs && node scripts/run-world-pass-v4.mjs && node scripts/patch-environment-v5.mjs && node scripts/apply-expansion-v5.mjs && node scripts/fix-expansion-materials-v5.mjs && node scripts/apply-polish-v6.mjs && node scripts/fix-terrain-winding-v6.mjs",
     "build": "tsc --noEmit && vite build",
     "test": "vitest run",
     "configure:android": "node scripts/configure-android.mjs",
