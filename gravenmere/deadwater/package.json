@@ -1,13 +1,15 @@
 {
   "name": "ashfall-deadwater",
   "private": true,
-  "version": "0.18.2",
+  "version": "0.18.3",
   "type": "module",
   "scripts": {
     "prepare:audio": "node scripts/fetch-cc0-audio-v7.mjs",
-    "predev": "npm run prepare:audio",
+    "prepare:visual-feedback": "node scripts/apply-visual-feedback-v20.mjs",
+    "predev": "npm run prepare:audio && npm run prepare:visual-feedback",
     "dev": "vite --host 0.0.0.0",
-    "prebuild": "npm run prepare:audio",
+    "pretest": "npm run prepare:visual-feedback",
+    "prebuild": "npm run prepare:audio && npm run prepare:visual-feedback",
     "build": "tsc --noEmit && vite build",
     "test": "vitest run",
     "configure:android": "node scripts/configure-android.mjs",
