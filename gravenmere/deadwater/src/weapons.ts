@@ -1,4 +1,11 @@
-export type WeaponId = 'carbine' | 'smg' | 'shotgun' | 'marksman'
+export type WeaponId =
+  | 'carbine'
+  | 'smg'
+  | 'shotgun'
+  | 'marksman'
+  | 'lmg'
+  | 'harpoon'
+  | 'arc'
 
 export type WeaponDefinition = {
   id: WeaponId
@@ -15,6 +22,8 @@ export type WeaponDefinition = {
   viewScale: [number, number, number]
   viewPosition: [number, number, number]
   accent: number
+  scopeFov?: number
+  special?: boolean
 }
 
 export const WEAPONS: Record<WeaponId, WeaponDefinition> = {
@@ -81,6 +90,58 @@ export const WEAPONS: Record<WeaponId, WeaponDefinition> = {
     viewScale: [1.02, 0.96, 1.33],
     viewPosition: [0.31, -0.3, -0.76],
     accent: 0x4e6870,
+    scopeFov: 28,
+  },
+  lmg: {
+    id: 'lmg',
+    name: 'FOUNDRY 76 LMG',
+    magazineSize: 76,
+    startingReserve: 304,
+    fireDelay: 0.092,
+    reloadTime: 2.75,
+    damage: 31,
+    headshotMultiplier: 1.72,
+    pellets: 1,
+    spread: 0.006,
+    automatic: true,
+    viewScale: [1.12, 1.02, 1.2],
+    viewPosition: [0.3, -0.33, -0.72],
+    accent: 0xb18b35,
+  },
+  harpoon: {
+    id: 'harpoon',
+    name: 'LEVIATHAN HARPOON',
+    magazineSize: 5,
+    startingReserve: 35,
+    fireDelay: 0.82,
+    reloadTime: 2.2,
+    damage: 168,
+    headshotMultiplier: 2.55,
+    pellets: 1,
+    spread: 0.0007,
+    automatic: false,
+    viewScale: [1.04, 1.04, 1.58],
+    viewPosition: [0.29, -0.31, -0.84],
+    accent: 0x4b8a8f,
+    scopeFov: 31,
+    special: true,
+  },
+  arc: {
+    id: 'arc',
+    name: 'ARC-FURNACE PROTOTYPE',
+    magazineSize: 18,
+    startingReserve: 90,
+    fireDelay: 0.24,
+    reloadTime: 2.1,
+    damage: 94,
+    headshotMultiplier: 2.05,
+    pellets: 1,
+    spread: 0.0018,
+    automatic: false,
+    viewScale: [0.98, 1.05, 1.24],
+    viewPosition: [0.32, -0.29, -0.7],
+    accent: 0x4cc9d8,
+    special: true,
   },
 }
 
