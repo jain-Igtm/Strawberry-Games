@@ -53,17 +53,17 @@ if (!source.includes(marker)) {
   relightNorthCountryLayer('true-mid-utah-cliffs-v27', 0x5a5049, 0.9)
   relightNorthCountryLayer('true-far-utah-escarpment-v27', 0x555653, 0.82)
 
-  const ground = context.scene.getObjectByName('continuous-dry-north-country-v27')
-  if (ground instanceof THREE.Mesh && !Array.isArray(ground.material)) {
-    const material = ground.material as THREE.MeshStandardMaterial
+  const relitGround = context.scene.getObjectByName('continuous-dry-north-country-v27')
+  if (relitGround instanceof THREE.Mesh && !Array.isArray(relitGround.material)) {
+    const material = relitGround.material as THREE.MeshStandardMaterial
     material.color.setHex(0x665148)
     material.roughness = 1
     material.metalness = 0
     material.needsUpdate = true
   }
-  const apron = context.scene.getObjectByName('north-country-transition-apron-v27')
-  if (apron instanceof THREE.Mesh && !Array.isArray(apron.material)) {
-    const material = apron.material as THREE.MeshStandardMaterial
+  const relitApron = context.scene.getObjectByName('north-country-transition-apron-v27')
+  if (relitApron instanceof THREE.Mesh && !Array.isArray(relitApron.material)) {
+    const material = relitApron.material as THREE.MeshStandardMaterial
     material.color.setHex(0x665148)
     material.roughness = 1
     material.metalness = 0
