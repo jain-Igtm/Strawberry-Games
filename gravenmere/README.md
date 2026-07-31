@@ -2,6 +2,12 @@
 
 World Explorer is a phone-first first-person exploration game centered on the connected ranges of Gravenmere. It is designed for Android landscape play with a left movement joystick, right-side drag look, and large touch actions.
 
+## Pinned side game: Ashfall Deadwater
+
+The World Explorer project now includes a separate mobile zombie shooter at [`deadwater/`](deadwater/). **Ashfall: Deadwater** uses the same phone-first control and Android-build approach without replacing Gravenmere. The current build contains the hand-planned Town map: neighborhood streets, dense city and shopping blocks, enterable factories, a two-storey balcony bar, a block-spanning hospital interior, a working weapon forge, a points-based gas station, a huge burning inaccessible forest, distant fallout hills, textured weapons, zombies, trees and sky, and endlessly escalating zombie waves.
+
+Its dedicated GitHub Actions workflow builds `Ashfall-Deadwater.apk` as a separate Android artifact.
+
 ## Gravenmere plan
 
 The southern school is generated from a fixed circulation plan rather than room-by-room improvisation:

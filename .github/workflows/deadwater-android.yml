@@ -1,0 +1,107 @@
+name: Build Ashfall Deadwater Android APK
+
+on:
+  workflow_dispatch:
+  pull_request:
+    paths:
+      - "gravenmere/deadwater/**"
+      - ".github/workflows/deadwater-android.yml"
+  push:
+    branches:
+      - main
+      - agent/deadwater-zombies
+    paths:
+      - "gravenmere/deadwater/**"
+      - ".github/workflows/deadwater-android.yml"
+
+permissions:
+  contents: write
+
+concurrency:
+  group: deadwater-android-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  apk:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+
+    steps:
+      - name: Check out World Explorer project
+        uses: actions/checkout@v4
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 24
+
+      - name: Set up Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 21
+
+      - name: Install dependencies
+        working-directory: gravenmere/deadwater
+        run: npm install --no-audit --no-fund
+
+      - name: Run game-rule tests
+        working-directory: gravenmere/deadwater
+        run: npm test
+
+      - name: Build and synchronize Android
+        working-directory: gravenmere/deadwater
+        run: |
+          set -o pipefail
+          npm run build 2>&1 | tee build-output.txt
+          npx cap add android
+          npm run configure:android
+          npx cap sync android
+          chmod +x android/gradlew
+
+      - name: Upload build diagnostics
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: Ashfall-Deadwater-build-diagnostics
+          path: gravenmere/deadwater/build-output.txt
+          if-no-files-found: ignore
+          retention-days: 7
+
+      - name: Compile installable APK
+        working-directory: gravenmere/deadwater/android
+        run: ./gradlew assembleDebug --no-daemon --stacktrace
+
+      - name: Prepare APK and checksum
+        working-directory: gravenmere/deadwater
+        run: |
+          cp android/app/build/outputs/apk/debug/app-debug.apk Ashfall-Deadwater.apk
+          sha256sum Ashfall-Deadwater.apk > Ashfall-Deadwater.apk.sha256
+
+      - name: Upload Deadwater APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: Ashfall-Deadwater-Android
+          path: |
+            gravenmere/deadwater/Ashfall-Deadwater.apk
+            gravenmere/deadwater/Ashfall-Deadwater.apk.sha256
+          if-no-files-found: error
+          retention-days: 30
+
+      - name: Publish direct-download APK release
+        if: >-
+          (github.event_name == 'push' &&
+          github.ref == 'refs/heads/agent/deadwater-zombies') ||
+          (github.event_name == 'pull_request' &&
+          github.event.pull_request.head.ref == 'agent/deadwater-zombies' &&
+          github.event.pull_request.head.repo.full_name == github.repository)
+        working-directory: gravenmere/deadwater
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          tag="ashfall-deadwater-${GITHUB_RUN_NUMBER}"
+          gh release create "$tag" \
+            Ashfall-Deadwater.apk \
+            Ashfall-Deadwater.apk.sha256 \
+            --title "Ashfall: Deadwater Android build ${GITHUB_RUN_NUMBER}" \
+            --notes "Install Ashfall-Deadwater.apk on Android. Version 0.18.2 restores the Castle Romeo blast as a static neutral-gray plume with sky-feathered edges, and replaces the detailed zombie skin with an optimized 32px four-tone treatment while preserving adult scale, forward movement, navigation, and natural animation."
