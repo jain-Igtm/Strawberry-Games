@@ -1,11 +1,11 @@
 {
   "name": "ashfall-deadwater",
   "private": true,
-  "version": "0.18.11",
+  "version": "0.18.12",
   "type": "module",
   "scripts": {
     "prepare:audio": "node scripts/fetch-cc0-audio-v7.mjs",
-    "prepare:visual-feedback": "node scripts/apply-visual-feedback-v20.mjs && node scripts/fix-visual-feedback-v20.mjs && node scripts/apply-visual-feedback-v21.mjs && node scripts/apply-visual-feedback-v22.mjs && node scripts/stabilize-visual-feedback-v23.mjs && node scripts/apply-fixed-utah-horizon-v24.mjs && node scripts/apply-atmospheric-depth-v25.mjs && node scripts/apply-inland-bluffs-v26.mjs && node scripts/apply-unmistakable-inland-depth-v27.mjs && node scripts/apply-shared-horizon-light-v28.mjs && node scripts/apply-overcast-horizon-grade-v29.mjs",
+    "prepare:visual-feedback": "node scripts/apply-visual-feedback-v20.mjs && node scripts/fix-visual-feedback-v20.mjs && node scripts/apply-visual-feedback-v21.mjs && node scripts/apply-visual-feedback-v22.mjs && node scripts/stabilize-visual-feedback-v23.mjs && node scripts/apply-fixed-utah-horizon-v24.mjs && node scripts/apply-atmospheric-depth-v25.mjs && node scripts/apply-inland-bluffs-v26.mjs && node scripts/apply-unmistakable-inland-depth-v27.mjs && node scripts/apply-shared-horizon-light-v28.mjs && node scripts/apply-overcast-horizon-grade-v29.mjs && node scripts/bake-correct-horizon-grade-v30.mjs",
     "predev": "npm run prepare:audio && npm run prepare:visual-feedback",
     "dev": "vite --host 0.0.0.0",
     "pretest": "npm run prepare:visual-feedback",
