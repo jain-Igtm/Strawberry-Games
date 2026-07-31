@@ -33,7 +33,7 @@ jobs:
           npm install --no-save playwright@1.54.2
           npx playwright install --with-deps chromium
 
-      - name: Download creator-provided hospital source packs
+      - name: Download creator-provided hospital source pack
         run: node scripts/download-madduck-hospital.mjs asset-inspection/madduck-downloads
 
       - name: Install Blender converter
@@ -45,7 +45,6 @@ jobs:
         run: |
           mkdir -p asset-inspection/madduck-source asset-inspection/madduck-output
           unzip -q 'asset-inspection/madduck-downloads/blend_file+textures.zip' -d asset-inspection/madduck-source/blend
-          unzip -q asset-inspection/madduck-downloads/FBX_models_no_textures.zip -d asset-inspection/madduck-source/fbx
           find asset-inspection/madduck-source -type f -printf '%P\t%s bytes\n' | sort > asset-inspection/madduck-output/source-listing.txt
           cp asset-inspection/madduck-downloads/SOURCE.txt asset-inspection/madduck-output/SOURCE.txt
           BLEND_FILE="$(find asset-inspection/madduck-source/blend -type f -iname '*.blend' -print -quit)"
