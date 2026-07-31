@@ -1,0 +1,60 @@
+name: Render St. Agnes Visual Review
+
+on:
+  push:
+    branches:
+      - agent/st-agnes-playable-apk
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  render-st-agnes:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: gravenmere/deadwater
+
+    steps:
+      - name: Check out St. Agnes branch
+        uses: actions/checkout@v4
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Install game dependencies
+        run: npm install
+
+      - name: Build complete game
+        run: npm run build
+
+      - name: Install Playwright Chromium
+        run: |
+          npm install --no-save playwright@1.54.2
+          npx playwright install --with-deps chromium
+
+      - name: Start real game server
+        run: |
+          nohup npm run dev -- --host 127.0.0.1 > /tmp/st-agnes-vite.log 2>&1 &
+          for attempt in {1..40}; do
+            if curl --fail --silent http://127.0.0.1:5173/ >/dev/null; then
+              exit 0
+            fi
+            sleep 1
+          done
+          cat /tmp/st-agnes-vite.log
+          exit 1
+
+      - name: Capture entrance, lobby and wards
+        run: node scripts/capture-st-agnes-v2.mjs
+
+      - name: Upload visual review
+        uses: actions/upload-artifact@v4
+        with:
+          name: St-Agnes-V2-Visual-Review
+          path: gravenmere/deadwater/visual-review/st-agnes-v2
+          if-no-files-found: error
+          retention-days: 30
