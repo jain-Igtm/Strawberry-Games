@@ -64,7 +64,8 @@ jobs:
       - name: Verify side-by-side package and hospital asset
         run: |
           APK='android/app/build/outputs/apk/debug/app-debug.apk'
-          aapt dump badging "$APK" | tee /tmp/st-agnes-badging.txt
+          AAPT="$ANDROID_HOME/build-tools/36.0.0/aapt"
+          "$AAPT" dump badging "$APK" | tee /tmp/st-agnes-badging.txt
           grep -q "package: name='com.jainigtm.deadwater.stagnes'" /tmp/st-agnes-badging.txt
           grep -q "application-label:'Ashfall: St. Agnes'" /tmp/st-agnes-badging.txt
           unzip -l "$APK" | grep -q 'assets/public/assets/st-agnes/st-agnes-kit.glb'
