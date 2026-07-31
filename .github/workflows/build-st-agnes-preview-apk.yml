@@ -4,9 +4,36 @@ on:
   push:
     branches:
       - agent/st-agnes-playable-apk
+    paths:
+      - '.github/workflows/build-st-agnes-preview-apk.yml'
+      - 'gravenmere/deadwater/src/**'
+      - 'gravenmere/deadwater/public/**'
+      - 'gravenmere/deadwater/package.json'
+      - 'gravenmere/deadwater/package-lock.json'
+      - 'gravenmere/deadwater/capacitor.config.ts'
+      - 'gravenmere/deadwater/scripts/configure-android.mjs'
+      - 'gravenmere/deadwater/scripts/fetch-cc0-audio-v7.mjs'
+      - 'gravenmere/deadwater/scripts/apply-visual-feedback-v*.mjs'
+      - 'gravenmere/deadwater/scripts/fix-visual-feedback-v*.mjs'
+      - 'gravenmere/deadwater/scripts/stabilize-visual-feedback-v*.mjs'
+      - 'gravenmere/deadwater/scripts/apply-fixed-utah-horizon-v*.mjs'
+      - 'gravenmere/deadwater/scripts/apply-atmospheric-depth-v*.mjs'
+      - 'gravenmere/deadwater/scripts/apply-inland-bluffs-v*.mjs'
+      - 'gravenmere/deadwater/scripts/apply-unmistakable-inland-depth-v*.mjs'
+      - 'gravenmere/deadwater/scripts/apply-shared-horizon-light-v*.mjs'
+      - 'gravenmere/deadwater/scripts/apply-overcast-horizon-grade-v*.mjs'
+      - 'gravenmere/deadwater/scripts/bake-correct-horizon-grade-v*.mjs'
+      - 'gravenmere/deadwater/scripts/apply-st-agnes-preview-mode.mjs'
   pull_request:
     branches:
       - agent/st-agnes-modular-hospital
+    paths:
+      - 'gravenmere/deadwater/src/**'
+      - 'gravenmere/deadwater/public/**'
+      - 'gravenmere/deadwater/package.json'
+      - 'gravenmere/deadwater/package-lock.json'
+      - 'gravenmere/deadwater/capacitor.config.ts'
+      - 'gravenmere/deadwater/scripts/configure-android.mjs'
   workflow_dispatch:
 
 permissions:
