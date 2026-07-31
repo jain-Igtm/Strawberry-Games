@@ -1,0 +1,10 @@
+{
+  "appId": "com.jainigtm.ashfall.raycaster",
+  "appName": "Ashfall Texture Test",
+  "webDir": "www",
+  "bundledWebRuntime": false,
+  "android": {
+    "allowMixedContent": false,
+    "backgroundColor": "#151311"
+  }
+}
