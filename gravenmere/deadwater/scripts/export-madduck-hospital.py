@@ -1,5 +1,6 @@
 import bpy
 import json
+import math
 import os
 import sys
 from mathutils import Vector
@@ -15,6 +16,86 @@ def argument_value(name, default=None):
 
 output_directory = os.path.abspath(argument_value('--output', 'asset-inspection/madduck-output'))
 os.makedirs(output_directory, exist_ok=True)
+source_root = os.path.dirname(os.path.abspath(bpy.data.filepath))
+textures_root = os.path.join(source_root, 'textures')
+
+texture_map = {
+    'Walls_1': 'Walls_1/Walls_1_BaseColor.png',
+    'Doorway_1': 'Doorway_1/Doorway_1_BaseColor.png',
+    'Floors_1': 'Floors_1/Floors_1_BaseColor.png',
+    'Ceiling_1': 'ceiling_1/Ceiling_1_BaseColor.png',
+    'Ceiling_light': 'Ceiling_light/Ceiling_light_BaseColor.png',
+    'Chairs_tables_1': 'Chairs_table_1/Chairs_tables_1_BaseColor.png',
+    'Wheel_chair': 'wheel_chair/Wheel_chair_BaseColor.png',
+    'Bed': 'bed/Bed_BaseColor.png',
+    'Door_mat': 'Door_1/Door_1_BaseColor.png',
+    'Magazine': 'Magazine/Magazine_Base_color.png',
+    'Exit_sign': 'exit_sign/Exit_sign_Base_color.png',
+    'IV_Pole': 'Iv_pole/IV_pole_bag_Base_color.png',
+    'IV_bag': 'Iv_bag/IV_Bag_IV_pole_bag_BaseColor.png',
+}
+
+fallback_colors = {
+    'Window': (0.34, 0.58, 0.65, 0.36),
+    'Phone_ExitSign': (0.12, 0.15, 0.16, 1.0),
+    'Plant': (0.16, 0.31, 0.17, 1.0),
+}
+
+
+def configure_material(material):
+    material.use_nodes = True
+    nodes = material.node_tree.nodes
+    links = material.node_tree.links
+    nodes.clear()
+
+    output = nodes.new('ShaderNodeOutputMaterial')
+    shader = nodes.new('ShaderNodeBsdfPrincipled')
+    output.location = (420, 0)
+    shader.location = (80, 0)
+    links.new(shader.outputs['BSDF'], output.inputs['Surface'])
+
+    shader.inputs['Roughness'].default_value = 0.72
+    shader.inputs['Metallic'].default_value = 0.02
+
+    relative_texture = texture_map.get(material.name)
+    if relative_texture:
+        texture_path = os.path.join(textures_root, relative_texture)
+        if os.path.exists(texture_path):
+            image = bpy.data.images.load(texture_path, check_existing=True)
+            texture = nodes.new('ShaderNodeTexImage')
+            texture.image = image
+            texture.location = (-420, 40)
+            links.new(texture.outputs['Color'], shader.inputs['Base Color'])
+            links.new(texture.outputs['Alpha'], shader.inputs['Alpha'])
+        else:
+            print(f'WARNING: missing texture for {material.name}: {texture_path}')
+            shader.inputs['Base Color'].default_value = (0.58, 0.6, 0.58, 1.0)
+    else:
+        shader.inputs['Base Color'].default_value = fallback_colors.get(
+            material.name,
+            (0.58, 0.6, 0.58, 1.0),
+        )
+
+    if material.name == 'Window':
+        shader.inputs['Roughness'].default_value = 0.18
+        shader.inputs['Metallic'].default_value = 0.0
+        shader.inputs['Alpha'].default_value = 0.32
+        material.surface_render_method = 'DITHERED'
+    elif material.name == 'Ceiling_light':
+        shader.inputs['Emission Color'].default_value = (0.85, 0.95, 1.0, 1.0)
+        shader.inputs['Emission Strength'].default_value = 1.2
+        shader.inputs['Roughness'].default_value = 0.32
+    elif material.name == 'Exit_sign':
+        shader.inputs['Emission Color'].default_value = (0.2, 0.8, 0.28, 1.0)
+        shader.inputs['Emission Strength'].default_value = 0.55
+    elif material.name == 'IV_bag':
+        shader.inputs['Roughness'].default_value = 0.24
+        shader.inputs['Alpha'].default_value = 0.72
+        material.surface_render_method = 'DITHERED'
+
+
+for material in bpy.data.materials:
+    configure_material(material)
 
 mesh_objects = [obj for obj in bpy.context.scene.objects if obj.type == 'MESH']
 if not mesh_objects:
@@ -73,15 +154,15 @@ world = bpy.context.scene.world or bpy.data.worlds.new('Inspection World')
 bpy.context.scene.world = world
 world.use_nodes = True
 background = world.node_tree.nodes.get('Background')
-background.inputs['Color'].default_value = (0.025, 0.03, 0.035, 1.0)
-background.inputs['Strength'].default_value = 0.55
+background.inputs['Color'].default_value = (0.055, 0.065, 0.075, 1.0)
+background.inputs['Strength'].default_value = 1.05
 
 camera_data = bpy.data.cameras.new('Inspection Camera')
 camera = bpy.data.objects.new('Inspection Camera', camera_data)
 bpy.context.collection.objects.link(camera)
 bpy.context.scene.camera = camera
 camera_data.type = 'ORTHO'
-camera_data.ortho_scale = extent * 1.22
+camera_data.ortho_scale = extent * 1.16
 camera_data.lens = 48
 
 
@@ -90,21 +171,21 @@ def look_at(obj, target):
     obj.rotation_euler = direction.to_track_quat('-Z', 'Y').to_euler()
 
 
-def add_area(name, location, energy, size):
-    data = bpy.data.lights.new(name, type='AREA')
-    data.energy = energy
-    data.shape = 'DISK'
-    data.size = size
-    light = bpy.data.objects.new(name, data)
-    bpy.context.collection.objects.link(light)
-    light.location = location
-    look_at(light, center)
-    return light
+sun_data = bpy.data.lights.new('Inspection Sun', type='SUN')
+sun_data.energy = 4.0
+sun_data.angle = math.radians(18)
+sun = bpy.data.objects.new('Inspection Sun', sun_data)
+bpy.context.collection.objects.link(sun)
+sun.rotation_euler = (math.radians(38), math.radians(-28), math.radians(-34))
 
-
-add_area('Key', center + Vector((extent * 0.8, -extent * 1.0, extent * 1.25)), 1800, extent * 0.65)
-add_area('Fill', center + Vector((-extent * 0.95, -extent * 0.35, extent * 0.65)), 1100, extent * 0.8)
-add_area('Rim', center + Vector((0, extent * 1.1, extent * 1.0)), 1400, extent * 0.55)
+fill_data = bpy.data.lights.new('Inspection Fill', type='AREA')
+fill_data.energy = 3500
+fill_data.shape = 'DISK'
+fill_data.size = extent * 1.2
+fill = bpy.data.objects.new('Inspection Fill', fill_data)
+bpy.context.collection.objects.link(fill)
+fill.location = center + Vector((-extent * 0.55, -extent * 0.45, extent * 0.8))
+look_at(fill, center)
 
 scene = bpy.context.scene
 try:
@@ -116,6 +197,10 @@ scene.render.resolution_y = 900
 scene.render.resolution_percentage = 100
 scene.render.image_settings.file_format = 'PNG'
 scene.render.film_transparent = False
+scene.view_settings.view_transform = 'Standard'
+scene.view_settings.look = 'Medium High Contrast'
+scene.view_settings.exposure = 1.0
+scene.view_settings.gamma = 1.0
 
 views = {
     'asset-sheet-isometric.png': Vector((1.25, -1.45, 1.05)),
