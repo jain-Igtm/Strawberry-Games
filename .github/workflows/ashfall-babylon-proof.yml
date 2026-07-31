@@ -1,0 +1,43 @@
+name: Ashfall Babylon Visual Proof
+
+on:
+  pull_request:
+    branches:
+      - agent/deadwater-zombies
+    paths:
+      - 'gravenmere/deadwater-babylon-proof/**'
+      - '.github/workflows/ashfall-babylon-proof.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  render-proof:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: gravenmere/deadwater-babylon-proof
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Install dependencies
+        run: npm install
+      - name: Build proof
+        run: npm run build
+      - name: Install Chromium
+        run: npx playwright install --with-deps chromium
+      - name: Start preview
+        run: |
+          npm run preview > /tmp/ashfall-babylon-preview.log 2>&1 &
+          npx wait-on http://127.0.0.1:4173
+      - name: Capture visual proof
+        run: npm run capture
+      - name: Upload proof screenshots
+        uses: actions/upload-artifact@v4
+        with:
+          name: ashfall-babylon-visual-proof
+          path: gravenmere/deadwater-babylon-proof/artifacts/
+          if-no-files-found: error
