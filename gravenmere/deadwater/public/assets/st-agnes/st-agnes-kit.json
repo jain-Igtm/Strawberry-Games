@@ -1,0 +1,51 @@
+{
+  "version": 1,
+  "grid": 4,
+  "modules": {
+    "Wall": {
+      "width": 4.0,
+      "depth": 0.28,
+      "height": 3.2
+    },
+    "WallDoorway": {
+      "width": 4.0,
+      "depth": 0.28,
+      "height": 3.2
+    },
+    "Wall_Corner": {
+      "width": 4.0,
+      "depth": 4.0,
+      "height": 3.2
+    },
+    "Floor": {
+      "width": 4.0,
+      "depth": 4.0,
+      "height": 0.16
+    },
+    "Ceiling": {
+      "width": 4.0,
+      "depth": 4.0,
+      "height": 0.12
+    },
+    "Pillar": {
+      "width": 0.42,
+      "depth": 0.42,
+      "height": 3.2
+    },
+    "Stairs": {
+      "width": 4.0,
+      "depth": 6.0,
+      "height": 3.2
+    },
+    "Stairs_Landing": {
+      "width": 4.0,
+      "depth": 4.0,
+      "height": 0.22
+    },
+    "DoorwayConnector": {
+      "width": 0.42,
+      "depth": 0.42,
+      "height": 3.2
+    }
+  }
+}
