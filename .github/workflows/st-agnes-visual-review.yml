@@ -4,9 +4,24 @@ on:
   push:
     branches:
       - agent/st-agnes-playable-apk
+    paths:
+      - '.github/workflows/st-agnes-visual-review.yml'
+      - 'gravenmere/deadwater/src/**'
+      - 'gravenmere/deadwater/public/**'
+      - 'gravenmere/deadwater/package.json'
+      - 'gravenmere/deadwater/package-lock.json'
+      - 'gravenmere/deadwater/scripts/capture-st-agnes-v2.mjs'
+      - 'gravenmere/deadwater/scripts/apply-st-agnes-preview-mode.mjs'
   pull_request:
     branches:
       - agent/st-agnes-modular-hospital
+    paths:
+      - 'gravenmere/deadwater/src/**'
+      - 'gravenmere/deadwater/public/**'
+      - 'gravenmere/deadwater/package.json'
+      - 'gravenmere/deadwater/package-lock.json'
+      - 'gravenmere/deadwater/scripts/capture-st-agnes-v2.mjs'
+      - 'gravenmere/deadwater/scripts/apply-st-agnes-preview-mode.mjs'
   workflow_dispatch:
 
 permissions:
