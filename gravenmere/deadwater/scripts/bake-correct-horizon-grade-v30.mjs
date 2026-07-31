@@ -48,8 +48,17 @@ if (!source.includes(marker)) {
       alphaTest?: number
     }
     const mapV30 = previousV30.map ?? null
-    const canvasV30 = mapV30?.image
-    if (!(canvasV30 instanceof HTMLCanvasElement)) {
+    const canvasV30 = mapV30?.image as {
+      width?: number
+      height?: number
+      getContext?: (kind: '2d') => CanvasRenderingContext2D | null
+    } | undefined
+    if (
+      !canvasV30 ||
+      typeof canvasV30.getContext !== 'function' ||
+      typeof canvasV30.width !== 'number' ||
+      typeof canvasV30.height !== 'number'
+    ) {
       throw new Error('Horizon texture is not canvas-backed: ' + objectNameV30)
     }
 
