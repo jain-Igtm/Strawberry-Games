@@ -42,6 +42,14 @@ fallback_colors = {
 }
 
 
+def enable_transparency(material):
+    if hasattr(material, 'surface_render_method'):
+        material.surface_render_method = 'DITHERED'
+    elif hasattr(material, 'blend_method'):
+        material.blend_method = 'BLEND'
+        material.show_transparent_back = True
+
+
 def configure_material(material):
     material.use_nodes = True
     nodes = material.node_tree.nodes
@@ -80,7 +88,7 @@ def configure_material(material):
         shader.inputs['Roughness'].default_value = 0.18
         shader.inputs['Metallic'].default_value = 0.0
         shader.inputs['Alpha'].default_value = 0.32
-        material.surface_render_method = 'DITHERED'
+        enable_transparency(material)
     elif material.name == 'Ceiling_light':
         shader.inputs['Emission Color'].default_value = (0.85, 0.95, 1.0, 1.0)
         shader.inputs['Emission Strength'].default_value = 1.2
@@ -91,7 +99,7 @@ def configure_material(material):
     elif material.name == 'IV_bag':
         shader.inputs['Roughness'].default_value = 0.24
         shader.inputs['Alpha'].default_value = 0.72
-        material.surface_render_method = 'DITHERED'
+        enable_transparency(material)
 
 
 for material in bpy.data.materials:
