@@ -1,0 +1,39 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover,user-scalable=no">
+  <meta name="theme-color" content="#181513">
+  <title>Ashfall — Texture Engine Spike</title>
+  <link rel="stylesheet" href="./styles.css">
+</head>
+<body>
+  <main id="shell">
+    <canvas id="game" aria-label="Ashfall game view"></canvas>
+    <div id="damage-overlay" aria-hidden="true"></div>
+
+    <section id="hud" aria-label="Game status">
+      <div class="hud-panel stat"><span>HEALTH</span><strong id="health">100</strong></div>
+      <div class="hud-panel district"><strong id="district">MAIN STREET</strong><small id="fps">60 FPS · WAVE 1</small></div>
+      <button class="hud-panel stat ammo" type="button"><span>AMMO</span><strong id="ammo">48</strong></button>
+    </section>
+
+    <div id="crosshair" aria-hidden="true"><i></i><b></b></div>
+    <div id="interaction-text" hidden></div>
+    <button id="fire-button" type="button" aria-label="Fire weapon">FIRE</button>
+    <button id="interact-button" type="button" aria-label="Interact" hidden>USE</button>
+
+    <section id="start-overlay">
+      <div class="start-card">
+        <p class="eyebrow">ASHFALL / ENGINE TEST 02</p>
+        <h1>DOCK TOWN</h1>
+        <p id="status-line">LOADING TEXTURE ENGINE…</p>
+        <p class="explain">A dependency-free, texture-based first-person renderer. Same authored town coordinates. New collision, new interiors, no Three.js.</p>
+        <button id="start-button" type="button">ENTER DOCK TOWN</button>
+        <p class="controls">PHONE: drag left to move · drag right to look · tap FIRE<br>DESKTOP: WASD · mouse · click · E to use stairs · R to reload</p>
+      </div>
+    </section>
+  </main>
+  <script type="module" src="./js/game.js"></script>
+</body>
+</html>
