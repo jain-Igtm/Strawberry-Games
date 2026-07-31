@@ -4,6 +4,9 @@ on:
   push:
     branches:
       - agent/st-agnes-playable-apk
+  pull_request:
+    branches:
+      - agent/st-agnes-modular-hospital
   workflow_dispatch:
 
 permissions:
