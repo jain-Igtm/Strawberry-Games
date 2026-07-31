@@ -4,9 +4,16 @@ on:
   push:
     branches:
       - agent/st-agnes-playable-apk
+    paths:
+      - '.github/workflows/inspect-authored-hospital-assets.yml'
+      - 'gravenmere/deadwater/scripts/download-madduck-hospital.mjs'
+      - 'gravenmere/deadwater/scripts/export-madduck-hospital.py'
   pull_request:
     branches:
       - agent/st-agnes-modular-hospital
+    paths:
+      - 'gravenmere/deadwater/scripts/download-madduck-hospital.mjs'
+      - 'gravenmere/deadwater/scripts/export-madduck-hospital.py'
   workflow_dispatch:
 
 permissions:
