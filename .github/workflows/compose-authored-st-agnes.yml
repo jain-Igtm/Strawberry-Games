@@ -6,6 +6,7 @@ on:
       - agent/st-agnes-playable-apk
     paths:
       - 'gravenmere/deadwater/scripts/compose-authored-st-agnes-lite.py'
+      - 'gravenmere/deadwater/scripts/polish-authored-st-agnes.py'
       - 'gravenmere/deadwater/scripts/download-madduck-hospital.mjs'
       - '.github/workflows/compose-authored-st-agnes.yml'
   pull_request:
@@ -13,6 +14,7 @@ on:
       - agent/st-agnes-modular-hospital
     paths:
       - 'gravenmere/deadwater/scripts/compose-authored-st-agnes-lite.py'
+      - 'gravenmere/deadwater/scripts/polish-authored-st-agnes.py'
       - 'gravenmere/deadwater/scripts/download-madduck-hospital.mjs'
       - '.github/workflows/compose-authored-st-agnes.yml'
   workflow_dispatch:
@@ -60,14 +62,14 @@ jobs:
 
       - name: Extract authored source scene
         run: |
-          mkdir -p authored-st-agnes-source/blend authored-st-agnes-lite-output
+          mkdir -p authored-st-agnes-source/blend authored-st-agnes-lite-output authored-st-agnes-polished-output
           unzip -q 'authored-st-agnes-source/downloads/blend_file+textures.zip' -d authored-st-agnes-source/blend
-          cp authored-st-agnes-source/downloads/SOURCE.txt authored-st-agnes-lite-output/SOURCE.txt
+          cp authored-st-agnes-source/downloads/SOURCE.txt authored-st-agnes-polished-output/SOURCE.txt
           BLEND_FILE="$(find authored-st-agnes-source/blend -type f -iname '*.blend' -print -quit)"
           test -n "$BLEND_FILE"
           printf '%s\n' "$BLEND_FILE" > authored-st-agnes-lite-output/blend-path.txt
 
-      - name: Compose lightweight full-footprint hospital and render review views
+      - name: Compose lightweight full-footprint hospital
         env:
           LIBGL_ALWAYS_SOFTWARE: '1'
           MESA_LOADER_DRIVER_OVERRIDE: llvmpipe
@@ -78,38 +80,49 @@ jobs:
             --python scripts/compose-authored-st-agnes-lite.py \
             -- --output authored-st-agnes-lite-output
 
-      - name: Verify composed game scene and review images
+      - name: Polish ceilings and lighting, add signage, and batch for mobile
+        env:
+          LIBGL_ALWAYS_SOFTWARE: '1'
+          MESA_LOADER_DRIVER_OVERRIDE: llvmpipe
         run: |
-          test -s authored-st-agnes-lite-output/st-agnes-authored-lite.glb
-          test -s authored-st-agnes-lite-output/st-agnes-authored-lite-stats.json
-          test -s authored-st-agnes-lite-output/LICENSE-NOTICE.txt
-          test -s authored-st-agnes-lite-output/lobby.png
-          test -s authored-st-agnes-lite-output/ward-a.png
-          test -s authored-st-agnes-lite-output/patient-room.png
-          test -s authored-st-agnes-lite-output/emergency.png
+          xvfb-run -a blender --background --factory-startup \
+            --python-exit-code 1 \
+            --python scripts/polish-authored-st-agnes.py \
+            -- \
+            --input authored-st-agnes-lite-output/st-agnes-authored-lite.glb \
+            --output authored-st-agnes-polished-output
+
+      - name: Verify polished game scene and review images
+        run: |
+          test -s authored-st-agnes-polished-output/st-agnes-authored-polished.glb
+          test -s authored-st-agnes-polished-output/st-agnes-authored-polished-stats.json
+          test -s authored-st-agnes-polished-output/polished-lobby.png
+          test -s authored-st-agnes-polished-output/polished-ward-a.png
+          test -s authored-st-agnes-polished-output/polished-patient-room.png
+          test -s authored-st-agnes-polished-output/polished-emergency.png
           python3 - <<'PY'
           import json
           from pathlib import Path
-          stats = json.loads(Path('authored-st-agnes-lite-output/st-agnes-authored-lite-stats.json').read_text())
+          stats = json.loads(Path('authored-st-agnes-polished-output/st-agnes-authored-polished-stats.json').read_text())
           assert stats['footprint']['width'] == 76
           assert stats['footprint']['depth'] == 46
-          assert 0 < stats['mesh_objects'] < 800
+          assert 0 < stats['objects_after_batching'] < stats['objects_before_batching']
+          assert stats['objects_after_batching'] < 100
           assert stats['glb_bytes'] > 100000
           print(json.dumps(stats, indent=2))
           PY
 
-      - name: Upload composed hospital review
+      - name: Upload polished hospital review
         uses: actions/upload-artifact@v4
         with:
-          name: Composed-Authored-St-Agnes-Lite
+          name: Polished-Authored-St-Agnes
           path: |
-            gravenmere/deadwater/authored-st-agnes-lite-output/st-agnes-authored-lite.glb
-            gravenmere/deadwater/authored-st-agnes-lite-output/st-agnes-authored-lite-stats.json
-            gravenmere/deadwater/authored-st-agnes-lite-output/LICENSE-NOTICE.txt
-            gravenmere/deadwater/authored-st-agnes-lite-output/SOURCE.txt
-            gravenmere/deadwater/authored-st-agnes-lite-output/lobby.png
-            gravenmere/deadwater/authored-st-agnes-lite-output/ward-a.png
-            gravenmere/deadwater/authored-st-agnes-lite-output/patient-room.png
-            gravenmere/deadwater/authored-st-agnes-lite-output/emergency.png
+            gravenmere/deadwater/authored-st-agnes-polished-output/st-agnes-authored-polished.glb
+            gravenmere/deadwater/authored-st-agnes-polished-output/st-agnes-authored-polished-stats.json
+            gravenmere/deadwater/authored-st-agnes-polished-output/SOURCE.txt
+            gravenmere/deadwater/authored-st-agnes-polished-output/polished-lobby.png
+            gravenmere/deadwater/authored-st-agnes-polished-output/polished-ward-a.png
+            gravenmere/deadwater/authored-st-agnes-polished-output/polished-patient-room.png
+            gravenmere/deadwater/authored-st-agnes-polished-output/polished-emergency.png
           if-no-files-found: error
           retention-days: 14
