@@ -5,14 +5,14 @@ on:
     branches:
       - agent/st-agnes-playable-apk
     paths:
-      - 'gravenmere/deadwater/scripts/compose-authored-st-agnes.py'
+      - 'gravenmere/deadwater/scripts/compose-authored-st-agnes-lite.py'
       - 'gravenmere/deadwater/scripts/download-madduck-hospital.mjs'
       - '.github/workflows/compose-authored-st-agnes.yml'
   pull_request:
     branches:
       - agent/st-agnes-modular-hospital
     paths:
-      - 'gravenmere/deadwater/scripts/compose-authored-st-agnes.py'
+      - 'gravenmere/deadwater/scripts/compose-authored-st-agnes-lite.py'
       - 'gravenmere/deadwater/scripts/download-madduck-hospital.mjs'
       - '.github/workflows/compose-authored-st-agnes.yml'
   workflow_dispatch:
@@ -23,6 +23,7 @@ permissions:
 jobs:
   compose-authored-st-agnes:
     runs-on: ubuntu-latest
+    timeout-minutes: 25
     defaults:
       run:
         working-directory: gravenmere/deadwater
@@ -59,42 +60,40 @@ jobs:
 
       - name: Extract authored source scene
         run: |
-          mkdir -p authored-st-agnes-source/blend authored-st-agnes-output
+          mkdir -p authored-st-agnes-source/blend authored-st-agnes-lite-output
           unzip -q 'authored-st-agnes-source/downloads/blend_file+textures.zip' -d authored-st-agnes-source/blend
-          cp authored-st-agnes-source/downloads/SOURCE.txt authored-st-agnes-output/SOURCE.txt
+          cp authored-st-agnes-source/downloads/SOURCE.txt authored-st-agnes-lite-output/SOURCE.txt
           BLEND_FILE="$(find authored-st-agnes-source/blend -type f -iname '*.blend' -print -quit)"
           test -n "$BLEND_FILE"
-          printf '%s\n' "$BLEND_FILE" > authored-st-agnes-output/blend-path.txt
+          printf '%s\n' "$BLEND_FILE" > authored-st-agnes-lite-output/blend-path.txt
 
-      - name: Compose full hospital and render six review views
+      - name: Compose lightweight full-footprint hospital and render review views
         env:
           LIBGL_ALWAYS_SOFTWARE: '1'
           MESA_LOADER_DRIVER_OVERRIDE: llvmpipe
         run: |
-          BLEND_FILE="$(cat authored-st-agnes-output/blend-path.txt)"
+          BLEND_FILE="$(cat authored-st-agnes-lite-output/blend-path.txt)"
           xvfb-run -a blender --background "$BLEND_FILE" \
             --python-exit-code 1 \
-            --python scripts/compose-authored-st-agnes.py \
-            -- --output authored-st-agnes-output
+            --python scripts/compose-authored-st-agnes-lite.py \
+            -- --output authored-st-agnes-lite-output
 
       - name: Verify composed game scene and review images
         run: |
-          test -s authored-st-agnes-output/st-agnes-authored.glb
-          test -s authored-st-agnes-output/st-agnes-authored-stats.json
-          test -s authored-st-agnes-output/LICENSE-NOTICE.txt
-          test -s authored-st-agnes-output/lobby.png
-          test -s authored-st-agnes-output/central-corridor.png
-          test -s authored-st-agnes-output/ward-a.png
-          test -s authored-st-agnes-output/ward-b.png
-          test -s authored-st-agnes-output/patient-room.png
-          test -s authored-st-agnes-output/emergency.png
+          test -s authored-st-agnes-lite-output/st-agnes-authored-lite.glb
+          test -s authored-st-agnes-lite-output/st-agnes-authored-lite-stats.json
+          test -s authored-st-agnes-lite-output/LICENSE-NOTICE.txt
+          test -s authored-st-agnes-lite-output/lobby.png
+          test -s authored-st-agnes-lite-output/ward-a.png
+          test -s authored-st-agnes-lite-output/patient-room.png
+          test -s authored-st-agnes-lite-output/emergency.png
           python3 - <<'PY'
           import json
           from pathlib import Path
-          stats = json.loads(Path('authored-st-agnes-output/st-agnes-authored-stats.json').read_text())
+          stats = json.loads(Path('authored-st-agnes-lite-output/st-agnes-authored-lite-stats.json').read_text())
           assert stats['footprint']['width'] == 76
           assert stats['footprint']['depth'] == 46
-          assert stats['mesh_objects'] > 0
+          assert 0 < stats['mesh_objects'] < 800
           assert stats['glb_bytes'] > 100000
           print(json.dumps(stats, indent=2))
           PY
@@ -102,17 +101,15 @@ jobs:
       - name: Upload composed hospital review
         uses: actions/upload-artifact@v4
         with:
-          name: Composed-Authored-St-Agnes
+          name: Composed-Authored-St-Agnes-Lite
           path: |
-            gravenmere/deadwater/authored-st-agnes-output/st-agnes-authored.glb
-            gravenmere/deadwater/authored-st-agnes-output/st-agnes-authored-stats.json
-            gravenmere/deadwater/authored-st-agnes-output/LICENSE-NOTICE.txt
-            gravenmere/deadwater/authored-st-agnes-output/SOURCE.txt
-            gravenmere/deadwater/authored-st-agnes-output/lobby.png
-            gravenmere/deadwater/authored-st-agnes-output/central-corridor.png
-            gravenmere/deadwater/authored-st-agnes-output/ward-a.png
-            gravenmere/deadwater/authored-st-agnes-output/ward-b.png
-            gravenmere/deadwater/authored-st-agnes-output/patient-room.png
-            gravenmere/deadwater/authored-st-agnes-output/emergency.png
+            gravenmere/deadwater/authored-st-agnes-lite-output/st-agnes-authored-lite.glb
+            gravenmere/deadwater/authored-st-agnes-lite-output/st-agnes-authored-lite-stats.json
+            gravenmere/deadwater/authored-st-agnes-lite-output/LICENSE-NOTICE.txt
+            gravenmere/deadwater/authored-st-agnes-lite-output/SOURCE.txt
+            gravenmere/deadwater/authored-st-agnes-lite-output/lobby.png
+            gravenmere/deadwater/authored-st-agnes-lite-output/ward-a.png
+            gravenmere/deadwater/authored-st-agnes-lite-output/patient-room.png
+            gravenmere/deadwater/authored-st-agnes-lite-output/emergency.png
           if-no-files-found: error
           retention-days: 14
