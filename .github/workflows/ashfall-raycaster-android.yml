@@ -7,6 +7,12 @@ on:
     paths:
       - 'gravenmere/deadwater-raycaster/**'
       - '.github/workflows/ashfall-raycaster-android.yml'
+  pull_request:
+    branches:
+      - agent/deadwater-zombies
+    paths:
+      - 'gravenmere/deadwater-raycaster/**'
+      - '.github/workflows/ashfall-raycaster-android.yml'
   workflow_dispatch:
 
 permissions:
@@ -45,6 +51,6 @@ jobs:
       - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
-          name: ashfall-raycaster-debug-apk
+          name: ashfall-texture-test-apk
           path: gravenmere/deadwater-raycaster/android/app/build/outputs/apk/debug/app-debug.apk
           if-no-files-found: error
