@@ -10,9 +10,10 @@ const browser = await chromium.launch({
 })
 
 const page = await browser.newPage({
-  viewport: { width: 1560, height: 720 },
+  viewport: { width: 1280, height: 720 },
   deviceScaleFactor: 1,
 })
+page.setDefaultTimeout(120000)
 
 const errors = []
 page.on('pageerror', (error) => {
@@ -22,23 +23,26 @@ page.on('console', (message) => {
   if (message.type() === 'error') errors.push(`console: ${message.text()}`)
 })
 
+await page.goto('http://127.0.0.1:5173/?hospitalPreview=lobby', {
+  waitUntil: 'domcontentloaded',
+})
+await page.waitForFunction(
+  () => window.__ST_AGNES_READY__ === true,
+  undefined,
+  { timeout: 60000 },
+)
+
 const views = ['entrance', 'lobby', 'west-ward', 'east-ward']
 for (const view of views) {
-  await page.goto(`http://127.0.0.1:5173/?hospitalPreview=${view}`, {
-    waitUntil: 'domcontentloaded',
-  })
-  await page.waitForFunction(
-    () => window.__ST_AGNES_READY__ === true,
-    undefined,
-    { timeout: 30000 },
-  )
   await page.evaluate((selectedView) => {
     window.setStAgnesPreview?.(selectedView)
   }, view)
-  await page.waitForTimeout(1400)
+  await page.waitForTimeout(450)
   await page.screenshot({
     path: `${outputDirectory}/${view}.png`,
     fullPage: false,
+    timeout: 120000,
+    animations: 'allow',
   })
 }
 
