@@ -64,12 +64,12 @@ if (!source.includes(marker)) {
 
     const drawV30 = canvasV30.getContext('2d')
     if (!drawV30) throw new Error('Could not grade horizon canvas: ' + objectNameV30)
-    drawV30.save()
     drawV30.globalCompositeOperation = 'source-atop'
     drawV30.globalAlpha = overlayAlphaV30
     drawV30.fillStyle = overlayV30
     drawV30.fillRect(0, 0, canvasV30.width, canvasV30.height)
-    drawV30.restore()
+    drawV30.globalCompositeOperation = 'source-over'
+    drawV30.globalAlpha = 1
     if (mapV30) mapV30.needsUpdate = true
 
     const replacementV30 = new THREE.MeshBasicMaterial({
