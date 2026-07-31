@@ -32,24 +32,10 @@ for (const view of views) {
     undefined,
     { timeout: 30000 },
   )
-
-  const begin = page.getByRole('button', { name: /begin wave one/i })
-  if (await begin.isVisible()) {
-    await begin.click()
-  }
-  await page.waitForTimeout(700)
-
   await page.evaluate((selectedView) => {
-    let remainingFrames = 150
-    const holdPreview = () => {
-      window.setStAgnesPreview?.(selectedView)
-      remainingFrames -= 1
-      if (remainingFrames > 0) requestAnimationFrame(holdPreview)
-    }
-    holdPreview()
+    window.setStAgnesPreview?.(selectedView)
   }, view)
-
-  await page.waitForTimeout(2200)
+  await page.waitForTimeout(1400)
   await page.screenshot({
     path: `${outputDirectory}/${view}.png`,
     fullPage: false,
