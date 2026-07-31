@@ -1,6 +1,5 @@
 import bpy
 import json
-import math
 import os
 import sys
 from mathutils import Vector
@@ -108,13 +107,15 @@ add_area('Fill', center + Vector((-extent * 0.95, -extent * 0.35, extent * 0.65)
 add_area('Rim', center + Vector((0, extent * 1.1, extent * 1.0)), 1400, extent * 0.55)
 
 scene = bpy.context.scene
-scene.render.engine = 'BLENDER_EEVEE_NEXT' if hasattr(scene, 'eevee') else 'BLENDER_EEVEE'
+try:
+    scene.render.engine = 'BLENDER_EEVEE_NEXT'
+except TypeError:
+    scene.render.engine = 'BLENDER_EEVEE'
 scene.render.resolution_x = 1600
 scene.render.resolution_y = 900
 scene.render.resolution_percentage = 100
 scene.render.image_settings.file_format = 'PNG'
 scene.render.film_transparent = False
-scene.view_settings.look = 'AgX - Medium High Contrast' if 'AgX - Medium High Contrast' else scene.view_settings.look
 
 views = {
     'asset-sheet-isometric.png': Vector((1.25, -1.45, 1.05)),
