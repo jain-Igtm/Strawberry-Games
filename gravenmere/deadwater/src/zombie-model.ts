@@ -2,7 +2,7 @@ import * as THREE from 'three'
 
 export type ZombieAnimationState = 'walk' | 'run' | 'attack' | 'death'
 
-export const ZOMBIE_DISPLAY_HEIGHT = 2.08
+export const ZOMBIE_DISPLAY_HEIGHT = 2.16
 export const ZOMBIE_FORWARD_YAW = -Math.PI / 2
 
 export type ZombieVisual = {
@@ -12,217 +12,103 @@ export type ZombieVisual = {
   disposed: boolean
 }
 
-let figureTexture: THREE.CanvasTexture | null = null
+let clothTexture: THREE.CanvasTexture | null = null
 
-function makeFigureTexture(): THREE.CanvasTexture {
-  if (figureTexture) return figureTexture
+function makeClothTexture(): THREE.CanvasTexture {
+  if (clothTexture) return clothTexture
 
   const canvas = document.createElement('canvas')
-  canvas.width = 128
-  canvas.height = 256
+  canvas.width = 96
+  canvas.height = 96
   const draw = canvas.getContext('2d')!
-  draw.clearRect(0, 0, canvas.width, canvas.height)
-  draw.lineJoin = 'round'
-  draw.lineCap = 'round'
+  draw.fillStyle = '#303537'
+  draw.fillRect(0, 0, canvas.width, canvas.height)
 
-  const fillOutlined = (fill: string): void => {
-    draw.fillStyle = fill
-    draw.fill()
-    draw.strokeStyle = '#171b1c'
-    draw.lineWidth = 4
-    draw.stroke()
+  // Broad vertical folds, irregular stains, and stitched repairs keep the robes
+  // visibly textured without introducing animation frames or expensive assets.
+  for (let x = 4; x < canvas.width; x += 9) {
+    const shade = 26 + ((x * 17) % 22)
+    draw.globalAlpha = 0.22
+    draw.fillStyle = `rgb(${shade},${shade + 3},${shade + 4})`
+    draw.fillRect(x, 0, 3 + (x % 4), canvas.height)
   }
 
-  // Rear coat shadow gives the silhouette a connected human shape.
-  draw.beginPath()
-  draw.moveTo(38, 62)
-  draw.lineTo(27, 89)
-  draw.lineTo(33, 151)
-  draw.lineTo(40, 184)
-  draw.lineTo(52, 175)
-  draw.lineTo(62, 188)
-  draw.lineTo(73, 176)
-  draw.lineTo(87, 186)
-  draw.lineTo(96, 148)
-  draw.lineTo(101, 88)
-  draw.lineTo(89, 62)
-  draw.closePath()
-  fillOutlined('#303638')
-
-  // Head and neck. Kept deliberately plain and gray rather than monster-faced.
-  draw.fillStyle = '#555d5f'
-  draw.beginPath()
-  draw.arc(65, 39, 18, 0, Math.PI * 2)
-  draw.fill()
-  draw.strokeStyle = '#171b1c'
-  draw.lineWidth = 4
-  draw.stroke()
-  draw.fillStyle = '#4b5355'
-  draw.fillRect(57, 51, 16, 17)
-
-  // Ragged coat front.
-  draw.beginPath()
-  draw.moveTo(39, 65)
-  draw.lineTo(53, 57)
-  draw.lineTo(76, 58)
-  draw.lineTo(91, 68)
-  draw.lineTo(88, 153)
-  draw.lineTo(82, 184)
-  draw.lineTo(72, 174)
-  draw.lineTo(64, 188)
-  draw.lineTo(55, 175)
-  draw.lineTo(45, 185)
-  draw.lineTo(40, 151)
-  draw.closePath()
-  fillOutlined('#3b4244')
-
-  // Left arm: hanging, slightly crooked, torn above the wrist.
-  draw.beginPath()
-  draw.moveTo(39, 69)
-  draw.lineTo(27, 78)
-  draw.lineTo(20, 126)
-  draw.lineTo(27, 159)
-  draw.lineTo(39, 155)
-  draw.lineTo(37, 124)
-  draw.lineTo(45, 82)
-  draw.closePath()
-  fillOutlined('#353c3e')
-  draw.fillStyle = '#545c5e'
-  draw.beginPath()
-  draw.moveTo(25, 155)
-  draw.lineTo(36, 153)
-  draw.lineTo(38, 171)
-  draw.lineTo(28, 177)
-  draw.lineTo(22, 168)
-  draw.closePath()
-  draw.fill()
-
-  // Right arm: longer torn sleeve with the hand visible.
-  draw.beginPath()
-  draw.moveTo(90, 69)
-  draw.lineTo(102, 80)
-  draw.lineTo(108, 126)
-  draw.lineTo(101, 158)
-  draw.lineTo(89, 154)
-  draw.lineTo(92, 122)
-  draw.lineTo(84, 82)
-  draw.closePath()
-  fillOutlined('#333a3c')
-  draw.fillStyle = '#525a5c'
-  draw.beginPath()
-  draw.moveTo(92, 153)
-  draw.lineTo(103, 156)
-  draw.lineTo(106, 170)
-  draw.lineTo(99, 178)
-  draw.lineTo(90, 170)
-  draw.closePath()
-  draw.fill()
-
-  // Separated legs make the figure read as a person at distance.
-  draw.beginPath()
-  draw.moveTo(44, 174)
-  draw.lineTo(61, 174)
-  draw.lineTo(59, 229)
-  draw.lineTo(50, 245)
-  draw.lineTo(37, 242)
-  draw.lineTo(40, 219)
-  draw.closePath()
-  fillOutlined('#292f31')
-
-  draw.beginPath()
-  draw.moveTo(67, 174)
-  draw.lineTo(84, 174)
-  draw.lineTo(90, 222)
-  draw.lineTo(91, 242)
-  draw.lineTo(77, 246)
-  draw.lineTo(68, 229)
-  draw.closePath()
-  fillOutlined('#272d2f')
-
-  // Flat boot shapes avoid the block-foot look of the rejected mannequin.
+  draw.globalAlpha = 0.34
   draw.fillStyle = '#171b1c'
-  draw.beginPath()
-  draw.moveTo(37, 238)
-  draw.lineTo(51, 239)
-  draw.lineTo(60, 248)
-  draw.lineTo(34, 250)
-  draw.closePath()
-  draw.fill()
-  draw.beginPath()
-  draw.moveTo(77, 239)
-  draw.lineTo(91, 237)
-  draw.lineTo(99, 247)
-  draw.lineTo(76, 250)
-  draw.closePath()
-  draw.fill()
-
-  // Patches, seams, and a few cut-out tears. Low detail, but visibly tattered.
-  draw.strokeStyle = '#22282a'
-  draw.lineWidth = 2
-  draw.beginPath()
-  draw.moveTo(48, 91)
-  draw.lineTo(81, 91)
-  draw.moveTo(51, 126)
-  draw.lineTo(78, 131)
-  draw.moveTo(58, 62)
-  draw.lineTo(57, 169)
-  draw.stroke()
-
-  draw.fillStyle = '#51585a'
-  draw.fillRect(68, 103, 14, 19)
-  draw.fillRect(43, 137, 12, 15)
-  draw.strokeStyle = '#252b2d'
+  draw.fillRect(11, 19, 21, 12)
+  draw.fillRect(58, 47, 25, 16)
+  draw.fillRect(25, 72, 18, 11)
+  draw.strokeStyle = '#555d5f'
   draw.lineWidth = 1
-  draw.strokeRect(68.5, 103.5, 13, 18)
-  draw.strokeRect(43.5, 137.5, 11, 14)
+  draw.strokeRect(11.5, 19.5, 20, 11)
+  draw.strokeRect(58.5, 47.5, 24, 15)
+  draw.strokeRect(25.5, 72.5, 17, 10)
 
-  draw.globalCompositeOperation = 'destination-out'
-  draw.beginPath()
-  draw.moveTo(38, 109)
-  draw.lineTo(47, 114)
-  draw.lineTo(40, 124)
-  draw.closePath()
-  draw.fill()
-  draw.beginPath()
-  draw.moveTo(84, 143)
-  draw.lineTo(91, 151)
-  draw.lineTo(83, 162)
-  draw.closePath()
-  draw.fill()
-  draw.beginPath()
-  draw.moveTo(72, 199)
-  draw.lineTo(82, 205)
-  draw.lineTo(75, 217)
-  draw.closePath()
-  draw.fill()
-  draw.globalCompositeOperation = 'source-over'
+  draw.globalAlpha = 0.28
+  draw.fillStyle = '#72787a'
+  for (let index = 0; index < 70; index += 1) {
+    const x = (index * 37) % canvas.width
+    const y = (index * 61) % canvas.height
+    draw.fillRect(x, y, 1 + (index % 3), 1)
+  }
+  draw.globalAlpha = 1
 
-  figureTexture = new THREE.CanvasTexture(canvas)
-  figureTexture.colorSpace = THREE.SRGBColorSpace
-  figureTexture.wrapS = THREE.ClampToEdgeWrapping
-  figureTexture.wrapT = THREE.ClampToEdgeWrapping
-  figureTexture.minFilter = THREE.LinearMipmapLinearFilter
-  figureTexture.magFilter = THREE.LinearFilter
-  figureTexture.generateMipmaps = true
-  return figureTexture
+  clothTexture = new THREE.CanvasTexture(canvas)
+  clothTexture.colorSpace = THREE.SRGBColorSpace
+  clothTexture.wrapS = THREE.RepeatWrapping
+  clothTexture.wrapT = THREE.RepeatWrapping
+  clothTexture.repeat.set(1.2, 2.1)
+  clothTexture.minFilter = THREE.LinearMipmapLinearFilter
+  clothTexture.magFilter = THREE.LinearFilter
+  clothTexture.generateMipmaps = true
+  return clothTexture
 }
 
-function makeFigureMaterial(): THREE.MeshStandardMaterial {
+function clothMaterial(color: number, emissiveIntensity = 0.18): THREE.MeshStandardMaterial {
   const material = new THREE.MeshStandardMaterial({
-    color: 0xffffff,
-    map: makeFigureTexture(),
-    transparent: true,
-    alphaTest: 0.18,
-    side: THREE.DoubleSide,
-    depthWrite: true,
+    color,
+    map: makeClothTexture(),
     roughness: 1,
     metalness: 0,
-    emissive: 0x101415,
-    emissiveIntensity: 0.26,
+    flatShading: true,
+    emissive: 0x0d1112,
+    emissiveIntensity,
   })
-  material.userData.baseEmissive = 0x101415
-  material.userData.baseEmissiveIntensity = 0.26
+  material.userData.baseEmissive = 0x0d1112
+  material.userData.baseEmissiveIntensity = emissiveIntensity
   return material
+}
+
+function solidMaterial(
+  color: number,
+  emissive = 0x080a0a,
+  emissiveIntensity = 0.12,
+): THREE.MeshStandardMaterial {
+  const material = new THREE.MeshStandardMaterial({
+    color,
+    roughness: 1,
+    metalness: 0,
+    flatShading: true,
+    emissive,
+    emissiveIntensity,
+    side: THREE.DoubleSide,
+  })
+  material.userData.baseEmissive = emissive
+  material.userData.baseEmissiveIntensity = emissiveIntensity
+  return material
+}
+
+function register(
+  group: THREE.Group,
+  parts: THREE.Mesh[],
+  mesh: THREE.Mesh,
+): THREE.Mesh {
+  mesh.castShadow = false
+  mesh.receiveShadow = false
+  mesh.frustumCulled = true
+  group.add(mesh)
+  parts.push(mesh)
+  return mesh
 }
 
 export const zombieAssetReady: Promise<boolean> = Promise.resolve(true)
@@ -236,23 +122,104 @@ export function didZombieAssetFail(): boolean {
 }
 
 export function createTexturedZombieVisual(): ZombieVisual {
-  const material = makeFigureMaterial()
   const group = new THREE.Group()
-  group.name = 'static-textured-dark-gray-person'
+  group.name = 'static-hooded-gliding-figure'
   group.userData.flashActive = false
 
   const parts: THREE.Mesh[] = []
-  const geometry = new THREE.PlaneGeometry(1.05, ZOMBIE_DISPLAY_HEIGHT)
-  geometry.translate(0, ZOMBIE_DISPLAY_HEIGHT / 2, 0)
+  const robeMaterial = clothMaterial(0x394044, 0.2)
+  const hoodMaterial = clothMaterial(0x30363a, 0.17)
+  const sleeveMaterial = clothMaterial(0x343b3f, 0.18)
+  const handMaterial = solidMaterial(0x4a5052, 0x0c0f10, 0.14)
+  const voidMaterial = solidMaterial(0x070909, 0x000000, 0)
 
-  for (const rotation of [0, Math.PI / 2]) {
-    const card = new THREE.Mesh(geometry, material)
-    card.rotation.y = rotation
-    card.castShadow = false
-    card.receiveShadow = false
-    card.frustumCulled = true
-    group.add(card)
-    parts.push(card)
+  // A single floor-length robe replaces both legs. Its bottom edge stays on the
+  // terrain while the whole group translates, so the figure visibly glides.
+  const robe = register(
+    group,
+    parts,
+    new THREE.Mesh(
+      new THREE.CylinderGeometry(0.28, 0.68, 1.48, 8, 2, false),
+      robeMaterial,
+    ),
+  )
+  robe.position.y = 0.74
+
+  // A broad cowl connects the robe, hood, and sleeves into one silhouette.
+  const cowl = register(
+    group,
+    parts,
+    new THREE.Mesh(
+      new THREE.CylinderGeometry(0.43, 0.34, 0.46, 8, 1, false),
+      hoodMaterial,
+    ),
+  )
+  cowl.position.y = 1.48
+
+  const hood = register(
+    group,
+    parts,
+    new THREE.Mesh(new THREE.SphereGeometry(0.4, 8, 6), hoodMaterial),
+  )
+  hood.position.set(0, 1.87, 0.015)
+  hood.scale.set(1.02, 1.16, 1.0)
+
+  // The face is only a recessed black opening; there are no eyes or facial
+  // details that can turn the enemy into another mannequin-like character.
+  const faceVoid = register(
+    group,
+    parts,
+    new THREE.Mesh(new THREE.CircleGeometry(0.235, 16), voidMaterial),
+  )
+  faceVoid.position.set(0, 1.87, -0.365)
+  faceVoid.rotation.y = Math.PI
+  faceVoid.scale.set(0.9, 1.18, 1)
+
+  // Both sleeves point along local -Z. Main.ts already rotates that local
+  // direction toward the player's path, so the arms remain outstretched while
+  // the body glides without a walk, run, or attack cycle.
+  for (const side of [-1, 1]) {
+    const shoulder = register(
+      group,
+      parts,
+      new THREE.Mesh(new THREE.SphereGeometry(0.2, 7, 5), sleeveMaterial),
+    )
+    shoulder.position.set(side * 0.35, 1.54, -0.06)
+
+    const sleeve = register(
+      group,
+      parts,
+      new THREE.Mesh(
+        new THREE.CylinderGeometry(0.105, 0.18, 0.9, 6, 1, false),
+        sleeveMaterial,
+      ),
+    )
+    sleeve.position.set(side * 0.35, 1.53, -0.48)
+    sleeve.rotation.x = Math.PI / 2
+
+    const hand = register(
+      group,
+      parts,
+      new THREE.Mesh(new THREE.SphereGeometry(0.12, 7, 5), handMaterial),
+    )
+    hand.position.set(side * 0.35, 1.52, -0.94)
+    hand.scale.set(0.82, 0.9, 1.18)
+  }
+
+  // A few overlapping cloth flaps break up the otherwise perfectly level hem.
+  for (const [x, z, yaw] of [
+    [-0.38, -0.18, -0.18],
+    [-0.13, -0.3, -0.05],
+    [0.16, -0.27, 0.08],
+    [0.41, -0.12, 0.2],
+  ] as Array<[number, number, number]>) {
+    const flap = register(
+      group,
+      parts,
+      new THREE.Mesh(new THREE.PlaneGeometry(0.34, 0.34), robeMaterial),
+    )
+    flap.position.set(x, 0.17, z)
+    flap.rotation.set(-0.04, yaw, 0)
   }
 
   group.rotation.y = ZOMBIE_FORWARD_YAW
@@ -279,8 +246,7 @@ export function advanceZombieAnimation(
   _dt: number,
   _distanceToPlayer: number,
 ): void {
-  // The textured figure translates through the world without any sprite frames,
-  // limb motion, attack motion, idle cycle, or death animation.
+  // Deliberately empty: the floor-length figures only translate over terrain.
 }
 
 export function disposeZombieVisual(visual: ZombieVisual): void {
