@@ -31,28 +31,19 @@ try {
   await noThanks.click()
   await page.locator('.upload').first().waitFor({ state: 'visible', timeout: 60000 })
 
-  const requestedFiles = [
-    { pattern: /blend_file\+textures\.zip/i, output: 'blend_file+textures.zip' },
-    { pattern: /FBX_models_no_textures\.zip/i, output: 'FBX_models_no_textures.zip' },
-  ]
+  const row = page.locator('.upload').filter({ hasText: /blend_file\+textures\.zip/i }).first()
+  if (!(await row.count())) throw new Error('Could not find the complete textured hospital pack.')
+  const button = row.locator('a.download_btn, button.download_btn, a.button, button.button').first()
+  if (!(await button.count())) throw new Error('Could not find the complete-pack download button.')
 
-  for (const requested of requestedFiles) {
-    const row = page.locator('.upload').filter({ hasText: requested.pattern }).first()
-    if (!(await row.count())) {
-      throw new Error(`Could not find itch.io file row for ${requested.output}`)
-    }
-    const button = row.locator('a.download_btn, button.download_btn, a.button, button.button').first()
-    if (!(await button.count())) {
-      throw new Error(`Could not find download button for ${requested.output}`)
-    }
-    const downloadPromise = page.waitForEvent('download', { timeout: 90000 })
-    await button.click()
-    const download = await downloadPromise
-    await download.saveAs(resolve(destination, requested.output))
-    const failure = await download.failure()
-    if (failure) throw new Error(`${requested.output} download failed: ${failure}`)
-    console.log(`Downloaded ${requested.output}`)
-  }
+  const downloadPromise = page.waitForEvent('download', { timeout: 90000 })
+  await button.click()
+  const download = await downloadPromise
+  const output = resolve(destination, 'blend_file+textures.zip')
+  await download.saveAs(output)
+  const failure = await download.failure()
+  if (failure) throw new Error(`Hospital source download failed: ${failure}`)
+  console.log('Downloaded blend_file+textures.zip')
 
   writeFileSync(
     resolve(destination, 'SOURCE.txt'),
