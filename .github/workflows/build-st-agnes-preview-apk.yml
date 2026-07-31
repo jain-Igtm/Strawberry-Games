@@ -1,0 +1,79 @@
+name: Build Ashfall St. Agnes Side-by-Side APK
+
+on:
+  push:
+    branches:
+      - agent/st-agnes-playable-apk
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build-st-agnes-apk:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: gravenmere/deadwater
+
+    steps:
+      - name: Check out St. Agnes playable branch
+        uses: actions/checkout@v4
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Set up Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+
+      - name: Set up Android SDK
+        uses: android-actions/setup-android@v3
+
+      - name: Install Android SDK packages
+        run: |
+          yes | sdkmanager --licenses >/dev/null || true
+          sdkmanager "platform-tools" "platforms;android-36" "build-tools;36.0.0"
+
+      - name: Install game dependencies
+        run: npm install
+
+      - name: Build the complete Three.js game
+        run: npm run build
+
+      - name: Create separate Android project
+        run: |
+          rm -rf android
+          npx cap add android
+          npx cap sync android
+          npm run configure:android
+
+      - name: Build playable debug APK
+        run: |
+          cd android
+          chmod +x gradlew
+          ./gradlew assembleDebug --stacktrace
+
+      - name: Verify side-by-side package and hospital asset
+        run: |
+          APK='android/app/build/outputs/apk/debug/app-debug.apk'
+          aapt dump badging "$APK" | tee /tmp/st-agnes-badging.txt
+          grep -q "package: name='com.jainigtm.deadwater.stagnes'" /tmp/st-agnes-badging.txt
+          grep -q "application-label:'Ashfall: St. Agnes'" /tmp/st-agnes-badging.txt
+          unzip -l "$APK" | grep -q 'assets/public/assets/st-agnes/st-agnes-kit.glb'
+          cp "$APK" Ashfall-St-Agnes-Preview.apk
+          sha256sum Ashfall-St-Agnes-Preview.apk | tee Ashfall-St-Agnes-Preview.sha256
+
+      - name: Upload installable APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: Ashfall-St-Agnes-Preview-APK
+          path: |
+            gravenmere/deadwater/Ashfall-St-Agnes-Preview.apk
+            gravenmere/deadwater/Ashfall-St-Agnes-Preview.sha256
+          if-no-files-found: error
+          retention-days: 30
