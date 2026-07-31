@@ -2,15 +2,12 @@ import { readFileSync, writeFileSync } from 'node:fs'
 import { resolve } from 'node:path'
 
 const root = resolve(import.meta.dirname, '..')
+const packageName = 'com.jainigtm.deadwater.stagnes'
+const packagePath = packageName.replaceAll('.', '/')
 const manifestPath = resolve(root, 'android/app/src/main/AndroidManifest.xml')
-const activityPath = resolve(
-  root,
-  'android/app/src/main/java/com/jainigtm/deadwater/MainActivity.java',
-)
-const backgroundPath = resolve(
-  root,
-  'android/app/src/main/res/values/ic_launcher_background.xml',
-)
+const activityPath = resolve(root, `android/app/src/main/java/${packagePath}/MainActivity.java`)
+const backgroundPath = resolve(root, 'android/app/src/main/res/values/ic_launcher_background.xml')
+const stringsPath = resolve(root, 'android/app/src/main/res/values/strings.xml')
 const buildGradlePath = resolve(root, 'android/app/build.gradle')
 
 let manifest = readFileSync(manifestPath, 'utf8')
@@ -39,7 +36,7 @@ writeFileSync(manifestPath, manifest)
 
 writeFileSync(
   activityPath,
-  `package com.jainigtm.deadwater;
+  `package ${packageName};
 
 import android.os.Bundle;
 import android.view.View;
@@ -75,13 +72,19 @@ public class MainActivity extends BridgeActivity {
 `,
 )
 
+let strings = readFileSync(stringsPath, 'utf8')
+strings = strings
+  .replace(/<string name="app_name">[^<]*<\/string>/, '<string name="app_name">Ashfall: St. Agnes</string>')
+  .replace(/<string name="title_activity_main">[^<]*<\/string>/, '<string name="title_activity_main">Ashfall: St. Agnes</string>')
+writeFileSync(stringsPath, strings)
+
 let background = readFileSync(backgroundPath, 'utf8')
 background = background.replace(/#[0-9A-Fa-f]{6}/, '#1A0D09')
 writeFileSync(backgroundPath, background)
 
 let buildGradle = readFileSync(buildGradlePath, 'utf8')
-buildGradle = buildGradle.replace(/versionCode \d+/, 'versionCode 31')
-buildGradle = buildGradle.replace(/versionName "[^"]+"/, 'versionName "0.18.12"')
+buildGradle = buildGradle.replace(/versionCode \d+/, 'versionCode 312')
+buildGradle = buildGradle.replace(/versionName "[^"]+"/, 'versionName "0.18.12-stagnes"')
 writeFileSync(buildGradlePath, buildGradle)
 
-console.log('Configured landscape, fullscreen Ashfall Android 0.18.12 (31) project.')
+console.log('Configured side-by-side Ashfall: St. Agnes Android preview build.')
