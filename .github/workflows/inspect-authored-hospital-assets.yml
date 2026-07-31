@@ -36,10 +36,18 @@ jobs:
       - name: Download creator-provided hospital source pack
         run: node scripts/download-madduck-hospital.mjs asset-inspection/madduck-downloads
 
-      - name: Install Blender converter
+      - name: Install Blender converter and headless graphics libraries
         run: |
           sudo apt-get update
-          sudo apt-get install -y blender python3-numpy
+          sudo apt-get install -y \
+            blender \
+            python3-numpy \
+            xvfb \
+            libegl1 \
+            libgl1 \
+            libglx0 \
+            libopengl0 \
+            libgl1-mesa-dri
 
       - name: Extract and inventory source files
         run: |
@@ -52,9 +60,12 @@ jobs:
           printf '%s\n' "$BLEND_FILE" > asset-inspection/madduck-output/blend-path.txt
 
       - name: Export textured GLB and render asset sheets
+        env:
+          LIBGL_ALWAYS_SOFTWARE: '1'
+          MESA_LOADER_DRIVER_OVERRIDE: llvmpipe
         run: |
           BLEND_FILE="$(cat asset-inspection/madduck-output/blend-path.txt)"
-          blender --background "$BLEND_FILE" \
+          xvfb-run -a blender --background "$BLEND_FILE" \
             --python-exit-code 1 \
             --python scripts/export-madduck-hospital.py \
             -- --output asset-inspection/madduck-output
