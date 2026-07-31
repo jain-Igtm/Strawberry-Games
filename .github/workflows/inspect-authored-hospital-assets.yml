@@ -1,0 +1,76 @@
+name: Inspect Authored Hospital Assets
+
+on:
+  push:
+    branches:
+      - agent/st-agnes-playable-apk
+  pull_request:
+    branches:
+      - agent/st-agnes-modular-hospital
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  inspect-hospital-assets:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: gravenmere/deadwater
+
+    steps:
+      - name: Check out isolated St. Agnes branch
+        uses: actions/checkout@v4
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Install browser downloader
+        run: |
+          npm install --no-save playwright@1.54.2
+          npx playwright install --with-deps chromium
+
+      - name: Download creator-provided hospital source packs
+        run: node scripts/download-madduck-hospital.mjs asset-inspection/madduck-downloads
+
+      - name: Install Blender converter
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y blender
+
+      - name: Extract and inventory source files
+        run: |
+          mkdir -p asset-inspection/madduck-source asset-inspection/madduck-output
+          unzip -q 'asset-inspection/madduck-downloads/blend_file+textures.zip' -d asset-inspection/madduck-source/blend
+          unzip -q asset-inspection/madduck-downloads/FBX_models_no_textures.zip -d asset-inspection/madduck-source/fbx
+          find asset-inspection/madduck-source -type f -printf '%P\t%s bytes\n' | sort > asset-inspection/madduck-output/source-listing.txt
+          cp asset-inspection/madduck-downloads/SOURCE.txt asset-inspection/madduck-output/SOURCE.txt
+          BLEND_FILE="$(find asset-inspection/madduck-source/blend -type f -iname '*.blend' -print -quit)"
+          test -n "$BLEND_FILE"
+          printf '%s\n' "$BLEND_FILE" > asset-inspection/madduck-output/blend-path.txt
+
+      - name: Export textured GLB and render asset sheets
+        run: |
+          BLEND_FILE="$(cat asset-inspection/madduck-output/blend-path.txt)"
+          blender --background "$BLEND_FILE" \
+            --python scripts/export-madduck-hospital.py \
+            -- --output asset-inspection/madduck-output
+
+      - name: Verify converted asset pack
+        run: |
+          test -s asset-inspection/madduck-output/madduck-hospital-assets.glb
+          test -s asset-inspection/madduck-output/inventory.json
+          test -s asset-inspection/madduck-output/asset-sheet-isometric.png
+          test -s asset-inspection/madduck-output/asset-sheet-front.png
+          test -s asset-inspection/madduck-output/asset-sheet-top.png
+
+      - name: Upload asset inspection only
+        uses: actions/upload-artifact@v4
+        with:
+          name: Authored-Hospital-Asset-Inspection
+          path: gravenmere/deadwater/asset-inspection/madduck-output
+          if-no-files-found: error
+          retention-days: 14
