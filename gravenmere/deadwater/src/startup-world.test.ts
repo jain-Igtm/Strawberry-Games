@@ -11,6 +11,7 @@ import {
   MUTED_ZOMBIE_DIFFUSE_WEBP_V19,
 } from './generated-visual-assets-v19'
 import {
+  AUTHORED_ZOMBIE_BODY_YAW_V37,
   AUTHORED_ZOMBIE_INDEX_COUNT_V37,
   AUTHORED_ZOMBIE_INDICES_BASE64_V37,
   AUTHORED_ZOMBIE_POSITIONS_BASE64_V37,
@@ -103,6 +104,7 @@ describe('production startup geometry', () => {
   it('packages the post-blast plume and authored static zombie offline', () => {
     expect(ZOMBIE_DISPLAY_HEIGHT).toBeGreaterThanOrEqual(2)
     expect(ZOMBIE_FORWARD_YAW).toBe(-Math.PI / 2)
+    expect(AUTHORED_ZOMBIE_BODY_YAW_V37).toBe(Math.PI)
     expect(AUTHORED_ZOMBIE_VERTEX_COUNT_V37).toBe(2_169)
     expect(AUTHORED_ZOMBIE_INDEX_COUNT_V37).toBe(10_722)
     expect(atob(AUTHORED_ZOMBIE_POSITIONS_BASE64_V37).length).toBe(

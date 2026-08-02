@@ -15,7 +15,8 @@ The v37 runtime asset samples the source walk clip at 20 percent and bakes that
 natural asymmetric stance into one static mesh. It then:
 
 - normalizes the soles to `y = 0` and the figure to a 2.28 m display height;
-- rotates the source once into Ashfall's local forward-axis convention;
+- rotates the source body once from its authored local `+Z` face direction into
+  Ashfall's local `-Z` movement-facing convention;
 - strips the skeleton, bones, clips, animation mixer, normal map, and specular map;
 - neutralizes blood-red pixels into charcoal grime, desaturates the diffuse map,
   cold-grades it, and stores it as a 256 px WebP with no visible gore;

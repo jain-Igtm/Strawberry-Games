@@ -1,5 +1,6 @@
 import * as THREE from 'three'
 import {
+  AUTHORED_ZOMBIE_BODY_YAW_V37,
   AUTHORED_ZOMBIE_INDEX_COUNT_V37,
   AUTHORED_ZOMBIE_INDICES_BASE64_V37,
   AUTHORED_ZOMBIE_POSITIONS_BASE64_V37,
@@ -142,6 +143,9 @@ function buildSharedGeometry(): THREE.BufferGeometry {
   body.setAttribute('position', new THREE.BufferAttribute(positions, 3))
   body.setAttribute('uv', new THREE.BufferAttribute(uvs, 2))
   body.setIndex(new THREE.BufferAttribute(indices, 1))
+  // Pixelhouse's baked body faces local +Z. Ashfall's movement-facing yaw is
+  // defined around local -Z, so turn the shared body once before merging hair.
+  body.rotateY(AUTHORED_ZOMBIE_BODY_YAW_V37)
   body.computeVertexNormals()
   tintGeometry(body, 0xffffff)
 
