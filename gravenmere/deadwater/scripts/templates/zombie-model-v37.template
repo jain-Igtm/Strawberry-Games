@@ -1,0 +1,297 @@
+import * as THREE from 'three'
+import {
+  AUTHORED_ZOMBIE_BODY_YAW_V37,
+  AUTHORED_ZOMBIE_INDEX_COUNT_V37,
+  AUTHORED_ZOMBIE_INDICES_BASE64_V37,
+  AUTHORED_ZOMBIE_POSITIONS_BASE64_V37,
+  AUTHORED_ZOMBIE_TEXTURE_WEBP_V37,
+  AUTHORED_ZOMBIE_UVS_BASE64_V37,
+  AUTHORED_ZOMBIE_VERTEX_COUNT_V37,
+} from './generated-authored-zombie-v37'
+
+// DEADWATER_AUTHORED_STATIC_INFECTED_V37
+export type ZombieAnimationState = 'walk' | 'run' | 'attack' | 'death'
+
+export const ZOMBIE_DISPLAY_HEIGHT = 2.28
+export const ZOMBIE_FORWARD_YAW = -Math.PI / 2
+export const ZOMBIE_MESHES_PER_VISUAL = 1
+
+export type ZombieVisual = {
+  group: THREE.Group
+  parts: THREE.Mesh[]
+  mesh: THREE.Mesh<THREE.BufferGeometry, THREE.MeshStandardMaterial>
+  animationState: ZombieAnimationState
+  deathProgress: number
+  fallDirection: number
+  disposed: boolean
+}
+
+let sharedGeometry: THREE.BufferGeometry | null = null
+let sharedTexture: THREE.Texture | null = null
+let assetFailed = false
+
+function decodeBase64(base64: string): Uint8Array {
+  const decoded = atob(base64)
+  const bytes = new Uint8Array(decoded.length)
+  for (let index = 0; index < decoded.length; index += 1) {
+    bytes[index] = decoded.charCodeAt(index)
+  }
+  return bytes
+}
+
+function floatArray(base64: string): Float32Array {
+  const bytes = decodeBase64(base64)
+  return new Float32Array(bytes.buffer, bytes.byteOffset, bytes.byteLength / 4).slice()
+}
+
+function indexArray(base64: string): Uint16Array {
+  const bytes = decodeBase64(base64)
+  return new Uint16Array(bytes.buffer, bytes.byteOffset, bytes.byteLength / 2).slice()
+}
+
+function tintGeometry(geometry: THREE.BufferGeometry, color: number): THREE.BufferGeometry {
+  if (!geometry.getAttribute('normal')) geometry.computeVertexNormals()
+  const positions = geometry.getAttribute('position')
+  if (!geometry.getAttribute('uv')) {
+    geometry.setAttribute('uv', new THREE.BufferAttribute(new Float32Array(positions.count * 2), 2))
+  }
+  const tint = new THREE.Color(color)
+  const colors = new Float32Array(positions.count * 3)
+  for (let index = 0; index < positions.count; index += 1) {
+    colors[index * 3] = tint.r
+    colors[index * 3 + 1] = tint.g
+    colors[index * 3 + 2] = tint.b
+  }
+  geometry.setAttribute('color', new THREE.BufferAttribute(colors, 3))
+  return geometry
+}
+
+function mergeIndexed(parts: THREE.BufferGeometry[]): THREE.BufferGeometry {
+  let vertexCount = 0
+  let indexCount = 0
+  for (const part of parts) {
+    const positions = part.getAttribute('position')
+    const indices = part.getIndex()
+    if (!positions || !indices) throw new Error('The baked zombie contains incomplete geometry')
+    vertexCount += positions.count
+    indexCount += indices.count
+  }
+
+  const positions = new Float32Array(vertexCount * 3)
+  const normals = new Float32Array(vertexCount * 3)
+  const colors = new Float32Array(vertexCount * 3)
+  const uvs = new Float32Array(vertexCount * 2)
+  const indices = new Uint16Array(indexCount)
+  let vertexOffset = 0
+  let indexOffset = 0
+
+  for (const part of parts) {
+    const partPositions = part.getAttribute('position')
+    const partNormals = part.getAttribute('normal')
+    const partColors = part.getAttribute('color')
+    const partUvs = part.getAttribute('uv')
+    const partIndices = part.getIndex()!
+    for (let index = 0; index < partPositions.count; index += 1) {
+      const target3 = (vertexOffset + index) * 3
+      const target2 = (vertexOffset + index) * 2
+      positions[target3] = partPositions.getX(index)
+      positions[target3 + 1] = partPositions.getY(index)
+      positions[target3 + 2] = partPositions.getZ(index)
+      normals[target3] = partNormals.getX(index)
+      normals[target3 + 1] = partNormals.getY(index)
+      normals[target3 + 2] = partNormals.getZ(index)
+      colors[target3] = partColors.getX(index)
+      colors[target3 + 1] = partColors.getY(index)
+      colors[target3 + 2] = partColors.getZ(index)
+      uvs[target2] = partUvs.getX(index)
+      uvs[target2 + 1] = partUvs.getY(index)
+    }
+    for (let index = 0; index < partIndices.count; index += 1) {
+      indices[indexOffset + index] = vertexOffset + partIndices.getX(index)
+    }
+    vertexOffset += partPositions.count
+    indexOffset += partIndices.count
+  }
+
+  const merged = new THREE.BufferGeometry()
+  merged.setAttribute('position', new THREE.BufferAttribute(positions, 3))
+  merged.setAttribute('normal', new THREE.BufferAttribute(normals, 3))
+  merged.setAttribute('color', new THREE.BufferAttribute(colors, 3))
+  merged.setAttribute('uv', new THREE.BufferAttribute(uvs, 2))
+  merged.setIndex(new THREE.BufferAttribute(indices, 1))
+  merged.computeBoundingBox()
+  merged.computeBoundingSphere()
+  for (const part of parts) part.dispose()
+  return merged
+}
+
+function buildSharedGeometry(): THREE.BufferGeometry {
+  if (sharedGeometry) return sharedGeometry
+
+  const positions = floatArray(AUTHORED_ZOMBIE_POSITIONS_BASE64_V37)
+  const uvs = floatArray(AUTHORED_ZOMBIE_UVS_BASE64_V37)
+  const indices = indexArray(AUTHORED_ZOMBIE_INDICES_BASE64_V37)
+  if (
+    positions.length !== AUTHORED_ZOMBIE_VERTEX_COUNT_V37 * 3 ||
+    uvs.length !== AUTHORED_ZOMBIE_VERTEX_COUNT_V37 * 2 ||
+    indices.length !== AUTHORED_ZOMBIE_INDEX_COUNT_V37
+  ) {
+    throw new Error('The baked zombie asset failed its size check')
+  }
+
+  const body = new THREE.BufferGeometry()
+  body.setAttribute('position', new THREE.BufferAttribute(positions, 3))
+  body.setAttribute('uv', new THREE.BufferAttribute(uvs, 2))
+  body.setIndex(new THREE.BufferAttribute(indices, 1))
+  // Pixelhouse's baked body faces local +Z. Ashfall's movement-facing yaw is
+  // defined around local -Z, so turn the shared body once before merging hair.
+  body.rotateY(AUTHORED_ZOMBIE_BODY_YAW_V37)
+  body.computeVertexNormals()
+  tintGeometry(body, 0xffffff)
+
+  // A shallow cap and broken fringe give the authored head greasy hair without
+  // hiding the face under another hood. They are merged into the same shared draw.
+  const hair = 0x0a0b0b
+  const cap = tintGeometry(
+    new THREE.SphereGeometry(0.195, 10, 5, 0, Math.PI * 2, 0, Math.PI * 0.59),
+    hair,
+  )
+  cap.scale(1, 0.88, 0.92)
+  cap.translate(-0.04, 2.105, -0.29)
+
+  const leftFringe = tintGeometry(new THREE.BoxGeometry(0.095, 0.14, 0.04), hair)
+  leftFringe.rotateZ(-0.14)
+  leftFringe.translate(-0.09, 2.11, -0.46)
+  const rightFringe = tintGeometry(new THREE.BoxGeometry(0.085, 0.11, 0.04), hair)
+  rightFringe.rotateZ(0.11)
+  rightFringe.translate(0.065, 2.135, -0.465)
+
+  sharedGeometry = mergeIndexed([body, cap, leftFringe, rightFringe])
+  return sharedGeometry
+}
+
+function texture(): THREE.Texture {
+  if (sharedTexture) return sharedTexture
+  sharedTexture = new THREE.TextureLoader().load(
+    AUTHORED_ZOMBIE_TEXTURE_WEBP_V37,
+    (loaded) => {
+      loaded.colorSpace = THREE.SRGBColorSpace
+      loaded.minFilter = THREE.LinearMipmapLinearFilter
+      loaded.magFilter = THREE.LinearFilter
+      loaded.generateMipmaps = true
+      loaded.anisotropy = 2
+      loaded.needsUpdate = true
+    },
+    undefined,
+    () => { assetFailed = true },
+  )
+  sharedTexture.colorSpace = THREE.SRGBColorSpace
+  sharedTexture.minFilter = THREE.LinearMipmapLinearFilter
+  sharedTexture.magFilter = THREE.LinearFilter
+  sharedTexture.generateMipmaps = true
+  sharedTexture.anisotropy = 2
+  return sharedTexture
+}
+
+function makeMaterial(): THREE.MeshStandardMaterial {
+  const shade = 0.91 + Math.random() * 0.09
+  const material = new THREE.MeshStandardMaterial({
+    color: new THREE.Color(shade, shade * 0.99, shade * 0.97),
+    map: texture(),
+    vertexColors: true,
+    roughness: 1,
+    metalness: 0,
+    flatShading: false,
+    side: THREE.DoubleSide,
+    emissive: 0x091112,
+    emissiveMap: texture(),
+    emissiveIntensity: 0.18,
+  })
+  material.userData.baseEmissive = 0x091112
+  material.userData.baseEmissiveIntensity = 0.18
+  return material
+}
+
+export const zombieAssetReady: Promise<boolean> = Promise.resolve(true)
+
+export function isZombieAssetReady(): boolean {
+  return true
+}
+
+export function didZombieAssetFail(): boolean {
+  return assetFailed
+}
+
+export function createTexturedZombieVisual(): ZombieVisual {
+  const group = new THREE.Group()
+  group.name = 'authored-static-infected-v37'
+  group.userData.flashActive = false
+
+  const mesh = new THREE.Mesh(buildSharedGeometry(), makeMaterial())
+  mesh.name = 'single-draw-baked-human-infected'
+  mesh.castShadow = false
+  mesh.receiveShadow = false
+  mesh.frustumCulled = true
+  group.add(mesh)
+  group.rotation.y = ZOMBIE_FORWARD_YAW
+
+  return {
+    group,
+    parts: [mesh],
+    mesh,
+    animationState: Math.random() < 0.32 ? 'run' : 'walk',
+    deathProgress: 0,
+    fallDirection: Math.random() < 0.5 ? -1 : 1,
+    disposed: false,
+  }
+}
+
+export function setZombieAnimation(
+  visual: ZombieVisual,
+  next: ZombieAnimationState,
+  _playbackRate = 1,
+): void {
+  if (visual.disposed || visual.animationState === 'death' || visual.animationState === next) return
+  if (next === 'death') {
+    beginZombieDeath(visual)
+    return
+  }
+  visual.animationState = next
+}
+
+export function showZombieHit(_visual: ZombieVisual): void {
+  // Main.ts already drives the brief material flash; the baked living pose stays still.
+}
+
+export function beginZombieDeath(visual: ZombieVisual): void {
+  if (visual.disposed || visual.animationState === 'death') return
+  visual.animationState = 'death'
+  visual.deathProgress = 0
+  visual.mesh.material.color.setHex(0xc0bbb2)
+  visual.mesh.material.emissive.setHex(0x3b160e)
+  visual.mesh.material.emissiveIntensity = 0.48
+}
+
+export function advanceZombieAnimation(
+  visual: ZombieVisual,
+  dt: number,
+  _distanceToPlayer: number,
+): void {
+  // Walking, running and attacking only translate through the existing game logic.
+  // No living bob, sway, stretch, frame switch, bone update, or animation mixer runs.
+  if (visual.disposed || visual.animationState !== 'death') return
+  visual.deathProgress = Math.min(1, visual.deathProgress + dt / 0.62)
+  const fall = 1 - Math.pow(1 - visual.deathProgress, 3)
+  visual.mesh.rotation.x = -fall * 1.42
+  visual.mesh.rotation.z = fall * visual.fallDirection * 0.19
+  visual.mesh.position.y = -fall * 0.17
+  visual.mesh.position.z = -fall * 0.11
+  visual.mesh.material.emissiveIntensity = Math.max(0.05, (1 - fall) * 0.48)
+}
+
+export function disposeZombieVisual(visual: ZombieVisual): void {
+  if (visual.disposed) return
+  visual.disposed = true
+  visual.mesh.material.dispose()
+  // Geometry and texture remain shared across the full horde and session.
+}
