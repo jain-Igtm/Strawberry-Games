@@ -11,6 +11,14 @@ import {
   MUTED_ZOMBIE_DIFFUSE_WEBP_V19,
 } from './generated-visual-assets-v19'
 import {
+  AUTHORED_ZOMBIE_INDEX_COUNT_V37,
+  AUTHORED_ZOMBIE_INDICES_BASE64_V37,
+  AUTHORED_ZOMBIE_POSITIONS_BASE64_V37,
+  AUTHORED_ZOMBIE_TEXTURE_WEBP_V37,
+  AUTHORED_ZOMBIE_UVS_BASE64_V37,
+  AUTHORED_ZOMBIE_VERTEX_COUNT_V37,
+} from './generated-authored-zombie-v37'
+import {
   ZOMBIE_DISPLAY_HEIGHT,
   ZOMBIE_FORWARD_YAW,
 } from './zombie-model'
@@ -92,9 +100,22 @@ describe('production startup geometry', () => {
     expect(expansion.vehicles.length).toBeGreaterThan(0)
   })
 
-  it('packages the post-blast plume and grounded animated zombie offline', () => {
+  it('packages the post-blast plume and authored static zombie offline', () => {
     expect(ZOMBIE_DISPLAY_HEIGHT).toBeGreaterThanOrEqual(2)
     expect(ZOMBIE_FORWARD_YAW).toBe(-Math.PI / 2)
+    expect(AUTHORED_ZOMBIE_VERTEX_COUNT_V37).toBe(2_169)
+    expect(AUTHORED_ZOMBIE_INDEX_COUNT_V37).toBe(10_722)
+    expect(atob(AUTHORED_ZOMBIE_POSITIONS_BASE64_V37).length).toBe(
+      AUTHORED_ZOMBIE_VERTEX_COUNT_V37 * 3 * 4,
+    )
+    expect(atob(AUTHORED_ZOMBIE_UVS_BASE64_V37).length).toBe(
+      AUTHORED_ZOMBIE_VERTEX_COUNT_V37 * 2 * 4,
+    )
+    expect(atob(AUTHORED_ZOMBIE_INDICES_BASE64_V37).length).toBe(
+      AUTHORED_ZOMBIE_INDEX_COUNT_V37 * 2,
+    )
+    expect(AUTHORED_ZOMBIE_TEXTURE_WEBP_V37.startsWith('data:image/webp;base64,UklG')).toBe(true)
+    expect(AUTHORED_ZOMBIE_TEXTURE_WEBP_V37.length).toBeLessThan(20_000)
     expect(CASTLE_ROMEO_GRAY_WEBP_V19.startsWith('data:image/webp;base64,UklG')).toBe(true)
     expect(MUTED_ZOMBIE_DIFFUSE_WEBP_V19.startsWith('data:image/webp;base64,UklG')).toBe(true)
     for (const glb of [
