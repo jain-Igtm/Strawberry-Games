@@ -103,7 +103,9 @@ describe('production startup geometry', () => {
 
   it('packages the post-blast plume and authored static zombie offline', () => {
     expect(ZOMBIE_DISPLAY_HEIGHT).toBeGreaterThanOrEqual(2)
-    expect(ZOMBIE_FORWARD_YAW).toBe(-Math.PI / 2)
+    // The authored body is baked to local -Z, which is the same direction used
+    // by main.ts when it converts measured movement into a world yaw.
+    expect(ZOMBIE_FORWARD_YAW).toBe(0)
     expect(AUTHORED_ZOMBIE_BODY_YAW_V37).toBe(Math.PI)
     expect(AUTHORED_ZOMBIE_VERTEX_COUNT_V37).toBe(2_169)
     expect(AUTHORED_ZOMBIE_INDEX_COUNT_V37).toBe(10_722)
