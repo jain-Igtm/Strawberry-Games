@@ -35,6 +35,12 @@ breathy consonants, room echo, and polyphonic input can still produce artifacts.
 Signalsmith Stretch and Signalsmith Linear are vendored under their MIT licenses in
 `app/src/main/cpp/third_party/`.
 
+## Sideload signing
+
+CI debug APKs use the intentionally public development key stored as
+`pitchstudio-debug.p12.b64`. This gives sideloaded test builds a stable Android identity so future
+APK versions install as updates. It is not a production or Play Store signing key.
+
 ## Build
 
 The GitHub Actions workflow at `.github/workflows/build-pitch-studio-apk.yml` runs the pitch

@@ -1,6 +1,14 @@
+import java.util.Base64
+
 plugins {
     id("com.android.application")
 }
+
+val stableDebugStore = layout.buildDirectory.file("signing/pitchstudio-debug.p12").get().asFile
+stableDebugStore.parentFile.mkdirs()
+stableDebugStore.writeBytes(Base64.getMimeDecoder().decode(
+    rootProject.file("pitchstudio-debug.p12.b64").readText()
+))
 
 android {
     namespace = "com.strawberry.pitchstudio"
@@ -33,7 +41,20 @@ android {
         }
     }
 
+    signingConfigs {
+        create("stableDebug") {
+            storeFile = stableDebugStore
+            storePassword = "strawberry-debug"
+            keyAlias = "pitchstudio"
+            keyPassword = "strawberry-debug"
+            storeType = "PKCS12"
+        }
+    }
+
     buildTypes {
+        debug {
+            signingConfig = signingConfigs.getByName("stableDebug")
+        }
         release {
             isMinifyEnabled = false
             proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro")
