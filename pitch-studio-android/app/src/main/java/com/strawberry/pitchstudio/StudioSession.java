@@ -242,14 +242,14 @@ final class StudioSession {
                     .put(note.sourceMidi).put(note.targetMidi).put(note.confidence).put(note.rms));
         }
         root.put("notes", noteArray);
-        Files.writeString(file.toPath(), root.toString(), StandardCharsets.UTF_8);
+        Files.write(file.toPath(), root.toString().getBytes(StandardCharsets.UTF_8));
     }
 
     static StudioSession load(File file) {
         StudioSession session = new StudioSession();
         if (!file.exists()) return session;
         try {
-            JSONObject root = new JSONObject(Files.readString(file.toPath(), StandardCharsets.UTF_8));
+            JSONObject root = new JSONObject(new String(Files.readAllBytes(file.toPath()), StandardCharsets.UTF_8));
             session.durationSec = root.optDouble("duration", 0);
             session.depthPercent = root.optInt("depth", 100);
             session.tuneTimeMs = root.optInt("tuneTime", 80);
