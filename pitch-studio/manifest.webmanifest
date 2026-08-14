@@ -1,0 +1,14 @@
+{
+  "name": "Strawberry Pitch",
+  "short_name": "Pitch",
+  "description": "Touch-first pitch monitoring, vocal recording, pitch editing, and MIDI export.",
+  "start_url": "./",
+  "scope": "./",
+  "display": "standalone",
+  "orientation": "any",
+  "background_color": "#090b0f",
+  "theme_color": "#0b0d11",
+  "icons": [
+    { "src": "icon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any maskable" }
+  ]
+}
