@@ -4,12 +4,14 @@ Native Android pitch monitor and editable vocal piano roll. The app records mono
 tracks sung pitch with a YIN detector, keeps the complete pitch history, segments voiced audio
 into large touch targets, and lets the singer drag each detected note vertically by semitone.
 
-## Working in version 0.2
+## Working in version 0.3
 
 - live note, cents, frequency-confidence, and pitch trace while recording
 - retained two-axis scroll, pinch zoom, fit-to-take, and tap-to-scrub timeline
+- frame-smoothed recording follow instead of detector-frame scroll jumps
 - readable F2–F5-style keyboard rows with octave labels
-- non-destructive note selection, vertical dragging, and undo
+- finger-sized note grab targets, vertical dragging, and undo
+- optional, subdued yellow pitch curve showing the exact sung contour beneath note blocks
 - corrected preview using native formant-aware spectral pitch rendering
 - Formant Lock for preserving vocal identity while notes move
 - independent ±12-semitone Formant Shift for changing vocal color without changing note pitch

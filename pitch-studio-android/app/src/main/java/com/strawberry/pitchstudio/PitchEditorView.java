@@ -6,6 +6,7 @@ import android.graphics.Color;
 import android.graphics.Paint;
 import android.graphics.Path;
 import android.graphics.RectF;
+import android.os.SystemClock;
 import android.view.GestureDetector;
 import android.view.MotionEvent;
 import android.view.ScaleGestureDetector;
@@ -31,7 +32,7 @@ final class PitchEditorView extends View {
     private static final int ACCENT = Color.rgb(124, 244, 202);
     private static final int ACCENT_DARK = Color.rgb(33, 123, 103);
     private static final int PINK = Color.rgb(255, 85, 117);
-    private static final int TRACE = Color.rgb(255, 215, 109);
+    private static final int TRACE = Color.argb(150, 255, 215, 109);
 
     private final float density;
     private final Paint paint = new Paint(Paint.ANTI_ALIAS_FLAG);
@@ -45,8 +46,11 @@ final class PitchEditorView extends View {
     private float rowHeight;
     private float pixelsPerSecond;
     private float scrollPixels;
+    private float targetScrollPixels;
     private double topMidi = 78;
+    private double targetTopMidi = 78;
     private double playhead;
+    private double displayPlayhead;
     private double cursor;
     private StudioSession.PitchFrame liveFrame;
     private int selectedNoteId = -1;
@@ -58,6 +62,9 @@ final class PitchEditorView extends View {
     private boolean draggingNote;
     private boolean panning;
     private boolean recording;
+    private boolean motionPosted;
+    private long followPausedUntil;
+    private final Runnable motionAnimator = this::animateMotionFrame;
 
     PitchEditorView(Context context) {
         super(context);
@@ -77,6 +84,7 @@ final class PitchEditorView extends View {
                 pixelsPerSecond = clamp(pixelsPerSecond * detector.getScaleFactor(), 32 * density, 330 * density);
                 scrollPixels += (float) (anchorTime * pixelsPerSecond - (focus - keyboardWidth))
                         - (float) (anchorTime * before - (focus - keyboardWidth));
+                targetScrollPixels = scrollPixels;
                 clampScroll();
                 invalidate();
                 return true;
@@ -87,6 +95,7 @@ final class PitchEditorView extends View {
                 if (event.getX() > keyboardWidth) {
                     pixelsPerSecond = 78 * density;
                     scrollPixels = Math.max(0, (float) (cursor * pixelsPerSecond - getWidth() * 0.35));
+                    targetScrollPixels = scrollPixels;
                     invalidate();
                     return true;
                 }
@@ -97,6 +106,8 @@ final class PitchEditorView extends View {
 
     void setSession(StudioSession session) {
         this.session = session;
+        targetScrollPixels = scrollPixels;
+        targetTopMidi = topMidi;
         invalidate();
     }
 
@@ -104,6 +115,10 @@ final class PitchEditorView extends View {
 
     void setRecording(boolean recording) {
         this.recording = recording;
+        targetScrollPixels = scrollPixels;
+        targetTopMidi = topMidi;
+        displayPlayhead = playhead;
+        if (recording) ensureMotion();
         invalidate();
     }
 
@@ -113,10 +128,11 @@ final class PitchEditorView extends View {
             cursor = frame.timeSec;
             playhead = frame.timeSec;
             float desired = (float) (frame.timeSec * pixelsPerSecond - (getWidth() - keyboardWidth) * 0.72);
-            if (desired > scrollPixels) scrollPixels = desired;
+            if (desired > targetScrollPixels) targetScrollPixels = desired;
             double wantedTop = Math.round(frame.midi) + Math.max(6, getHeight() / rowHeight * 0.38);
-            topMidi += (wantedTop - topMidi) * 0.08;
+            targetTopMidi = wantedTop;
             clampScroll();
+            ensureMotion();
         }
         invalidate();
     }
@@ -126,8 +142,10 @@ final class PitchEditorView extends View {
         cursor = seconds;
         float rightEdge = (float) (seconds * pixelsPerSecond - scrollPixels + keyboardWidth);
         if (rightEdge > getWidth() * 0.88f) {
-            scrollPixels = Math.max(0, (float) (seconds * pixelsPerSecond - (getWidth() - keyboardWidth) * 0.72));
+            targetScrollPixels = Math.max(0,
+                    (float) (seconds * pixelsPerSecond - (getWidth() - keyboardWidth) * 0.72));
         }
+        ensureMotion();
         invalidate();
     }
 
@@ -138,6 +156,7 @@ final class PitchEditorView extends View {
         pixelsPerSecond = clamp((float) ((getWidth() - keyboardWidth - 24 * density) / session.durationSec),
                 32 * density, 180 * density);
         scrollPixels = 0;
+        targetScrollPixels = 0;
         List<StudioSession.NoteBlock> notes = session.noteSnapshot();
         if (!notes.isEmpty()) {
             double min = 127, max = 0;
@@ -146,6 +165,7 @@ final class PitchEditorView extends View {
                 max = Math.max(max, Math.max(note.sourceMidi, note.targetMidi));
             }
             topMidi = Math.min(96, max + Math.max(2, (getHeight() / rowHeight - (max - min)) * 0.5));
+            targetTopMidi = topMidi;
         }
         invalidate();
     }
@@ -155,8 +175,8 @@ final class PitchEditorView extends View {
         drawRows(canvas);
         drawTimeGrid(canvas);
         if (session != null) {
+            if (session.showPitchTrace) drawPitchTrace(canvas, session.frameSnapshot());
             drawNotes(canvas, session.noteSnapshot());
-            drawPitchTrace(canvas, session.frameSnapshot());
         }
         drawPlayhead(canvas);
         drawKeyboard(canvas);
@@ -247,7 +267,7 @@ final class PitchEditorView extends View {
             previousTime = frame.timeSec;
         }
         linePaint.setStyle(Paint.Style.STROKE);
-        linePaint.setStrokeWidth(2.1f * density);
+        linePaint.setStrokeWidth(1.4f * density);
         linePaint.setStrokeCap(Paint.Cap.ROUND);
         linePaint.setStrokeJoin(Paint.Join.ROUND);
         linePaint.setColor(TRACE);
@@ -255,7 +275,7 @@ final class PitchEditorView extends View {
     }
 
     private void drawPlayhead(Canvas canvas) {
-        float x = timeToX(playhead);
+        float x = timeToX(displayPlayhead);
         if (x >= keyboardWidth && x <= getWidth()) {
             linePaint.setColor(recording ? PINK : Color.WHITE);
             linePaint.setStrokeWidth(1.5f * density);
@@ -322,12 +342,14 @@ final class PitchEditorView extends View {
         if (event.getPointerCount() > 1 || scaleDetector.isInProgress()) {
             draggingNote = false;
             panning = false;
+            followPausedUntil = SystemClock.uptimeMillis() + 1200;
             return true;
         }
         float x = event.getX();
         float y = event.getY();
         switch (event.getActionMasked()) {
             case MotionEvent.ACTION_DOWN -> {
+                followPausedUntil = Long.MAX_VALUE;
                 downX = lastX = x;
                 downY = lastY = y;
                 StudioSession.NoteBlock hit = x > keyboardWidth ? hitNote(x, y) : null;
@@ -360,6 +382,8 @@ final class PitchEditorView extends View {
                         topMidi += dy / rowHeight;
                     }
                     clampScroll();
+                    targetScrollPixels = scrollPixels;
+                    targetTopMidi = topMidi;
                 }
                 lastX = x;
                 lastY = y;
@@ -377,10 +401,13 @@ final class PitchEditorView extends View {
                         && Math.hypot(x - downX, y - downY) < 9 * density && x > keyboardWidth) {
                     cursor = Math.max(0, xToTime(x));
                     playhead = cursor;
+                    displayPlayhead = cursor;
                     if (listener != null) listener.onCursorChanged(cursor);
                 }
                 draggingNote = false;
                 panning = false;
+                followPausedUntil = SystemClock.uptimeMillis() + 1200;
+                ensureMotion();
                 invalidate();
                 return true;
             }
@@ -391,14 +418,28 @@ final class PitchEditorView extends View {
     private StudioSession.NoteBlock hitNote(float x, float y) {
         if (session == null) return null;
         List<StudioSession.NoteBlock> notes = session.noteSnapshot();
+        StudioSession.NoteBlock best = null;
+        float bestDistance = Float.MAX_VALUE;
         for (int i = notes.size() - 1; i >= 0; i--) {
             StudioSession.NoteBlock note = notes.get(i);
-            float left = timeToX(note.startSec) - 5 * density;
-            float right = timeToX(note.endSec) + 5 * density;
+            float visualLeft = timeToX(note.startSec);
+            float visualRight = Math.max(visualLeft + 8 * density, timeToX(note.endSec));
+            float centerX = (visualLeft + visualRight) * 0.5f;
+            float grabWidth = Math.max(44 * density, visualRight - visualLeft + 22 * density);
+            float left = centerX - grabWidth * 0.5f;
+            float right = centerX + grabWidth * 0.5f;
             float centerY = midiToY(note.targetMidi);
-            if (x >= left && x <= right && Math.abs(y - centerY) <= rowHeight * 0.52f) return note;
+            float verticalDistance = Math.abs(y - centerY);
+            if (x >= left && x <= right && verticalDistance <= rowHeight * 0.72f) {
+                float distance = verticalDistance / rowHeight
+                        + Math.abs(x - centerX) / grabWidth * 0.12f;
+                if (distance < bestDistance) {
+                    best = note;
+                    bestDistance = distance;
+                }
+            }
         }
-        return null;
+        return best;
     }
 
     private float timeToX(double seconds) {
@@ -417,7 +458,32 @@ final class PitchEditorView extends View {
         float max = session == null ? 0 : Math.max(0,
                 (float) (session.durationSec * pixelsPerSecond - (getWidth() - keyboardWidth) * 0.25));
         scrollPixels = clamp(scrollPixels, 0, max);
+        targetScrollPixels = clamp(targetScrollPixels, 0, max);
         topMidi = Math.max(36, Math.min(102, topMidi));
+        targetTopMidi = Math.max(36, Math.min(102, targetTopMidi));
+    }
+
+    private void ensureMotion() {
+        if (motionPosted) return;
+        motionPosted = true;
+        postOnAnimation(motionAnimator);
+    }
+
+    private void animateMotionFrame() {
+        motionPosted = false;
+        boolean canFollow = !panning && !draggingNote
+                && SystemClock.uptimeMillis() >= followPausedUntil;
+        if (canFollow) {
+            scrollPixels += (targetScrollPixels - scrollPixels) * 0.16f;
+            topMidi += (targetTopMidi - topMidi) * 0.12;
+        }
+        displayPlayhead += (playhead - displayPlayhead) * 0.28;
+        clampScroll();
+        invalidate();
+        boolean unsettled = Math.abs(targetScrollPixels - scrollPixels) > 0.2f
+                || Math.abs(targetTopMidi - topMidi) > 0.01
+                || Math.abs(playhead - displayPlayhead) > 0.001;
+        if (recording || unsettled) ensureMotion();
     }
 
     static String noteName(int midi) {

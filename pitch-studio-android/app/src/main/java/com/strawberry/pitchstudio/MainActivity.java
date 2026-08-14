@@ -141,6 +141,12 @@ public final class MainActivity extends Activity implements AudioEngine.Listener
                 value -> value + " ms", value -> {
                     session.tuneTimeMs = value; session.markChanged(); scheduleSave();
                 }));
+        controls.addView(toggleParameter("PITCH CURVE", "Exact sung contour beneath the notes",
+                session.showPitchTrace, enabled -> {
+                    session.showPitchTrace = enabled; scheduleSave(); editor.invalidate();
+                    status.setText(enabled ? "Pitch curve shown • yellow is the exact sung contour"
+                            : "Pitch curve hidden • editable notes only");
+                }));
         controls.addView(toggleParameter("FORMANT LOCK", "Preserve vocal identity while retuning",
                 session.formantPreserve, enabled -> {
                     session.formantPreserve = enabled; session.markChanged(); scheduleSave();
@@ -392,10 +398,10 @@ public final class MainActivity extends Activity implements AudioEngine.Listener
         tile.setPadding(dp(10), dp(6), dp(10), dp(4));
         GradientDrawable background = new GradientDrawable();
         background.setColor(PANEL);
-        background.setCornerRadius(dp(11));
-        background.setStroke(dp(1), Color.rgb(45, 63, 71));
+        background.setCornerRadius(dp(14));
+        background.setStroke(dp(1), Color.rgb(37, 52, 59));
         tile.setBackground(background);
-        LinearLayout.LayoutParams params = new LinearLayout.LayoutParams(dp(154), dp(91));
+        LinearLayout.LayoutParams params = new LinearLayout.LayoutParams(dp(148), dp(91));
         params.setMargins(0, 0, dp(7), 0);
         tile.setLayoutParams(params);
         return tile;

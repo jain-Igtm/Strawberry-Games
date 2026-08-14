@@ -72,6 +72,7 @@ final class StudioSession {
     int tuneTimeMs = 80;
     boolean formantPreserve = true;
     int formantCents = 0;
+    boolean showPitchTrace = true;
     float gainDb = 0f;
     int bpm = 120;
     private long revision;
@@ -229,6 +230,7 @@ final class StudioSession {
         root.put("tuneTime", tuneTimeMs);
         root.put("formantPreserve", formantPreserve);
         root.put("formant", formantCents);
+        root.put("showPitchTrace", showPitchTrace);
         root.put("gain", gainDb);
         root.put("bpm", bpm);
         JSONArray frameArray = new JSONArray();
@@ -257,6 +259,7 @@ final class StudioSession {
             session.tuneTimeMs = root.optInt("tuneTime", 80);
             session.formantPreserve = root.optBoolean("formantPreserve", true);
             session.formantCents = root.optInt("formant", 0);
+            session.showPitchTrace = root.optBoolean("showPitchTrace", true);
             session.gainDb = (float) root.optDouble("gain", 0);
             session.bpm = root.optInt("bpm", 120);
             JSONArray frameArray = root.optJSONArray("frames");
