@@ -20,6 +20,7 @@ import android.widget.Button;
 import android.widget.HorizontalScrollView;
 import android.widget.LinearLayout;
 import android.widget.SeekBar;
+import android.widget.Switch;
 import android.widget.TextView;
 import android.widget.Toast;
 
@@ -140,13 +141,22 @@ public final class MainActivity extends Activity implements AudioEngine.Listener
                 value -> value + " ms", value -> {
                     session.tuneTimeMs = value; session.markChanged(); scheduleSave();
                 }));
+        controls.addView(toggleParameter("FORMANT LOCK", "Preserve vocal identity while retuning",
+                session.formantPreserve, enabled -> {
+                    session.formantPreserve = enabled; session.markChanged(); scheduleSave();
+                    status.setText(enabled ? "Formant lock on • vocal color stays put while notes move"
+                            : "Formant lock off • pitch shifts also move vocal color");
+                }));
+        controls.addView(parameter("FORMANT SHIFT", -1200, 1200, session.formantCents,
+                value -> String.format(Locale.US, "%+.1f st", value / 100f), value -> {
+                    session.formantCents = value; session.markChanged(); scheduleSave();
+                }));
         controls.addView(parameter("VOLUME", 0, 24, Math.round(session.gainDb) + 12,
                 value -> String.format(Locale.US, "%+.0f dB", (float) value - 12), value -> {
                     session.gainDb = value - 12; session.markChanged(); scheduleSave();
                 }));
         controls.addView(parameter("MIDI TEMPO", 40, 220, session.bpm,
                 value -> value + " BPM", value -> { session.bpm = value; scheduleSave(); }));
-        controls.addView(infoTile("FORMANT", "DSP pass 2", "Pitch edits work now; true formant locking is next."));
         scroller.addView(controls);
         root.addView(scroller, new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, dp(108)));
         setContentView(root);
@@ -341,6 +351,29 @@ public final class MainActivity extends Activity implements AudioEngine.Listener
         return tile;
     }
 
+    private LinearLayout toggleParameter(String name, String detail, boolean initial,
+                                         BooleanChanged changed) {
+        LinearLayout tile = tileBase();
+        TextView title = label(name, 10, MUTED, Typeface.BOLD);
+        title.setLetterSpacing(0.1f);
+        TextView body = label(detail, 10, MUTED, Typeface.NORMAL);
+        body.setMaxLines(2);
+        Switch toggle = new Switch(this);
+        toggle.setText(initial ? "ON" : "OFF");
+        toggle.setTextColor(TEXT);
+        toggle.setTextSize(14);
+        toggle.setChecked(initial);
+        toggle.setButtonTintList(android.content.res.ColorStateList.valueOf(ACCENT));
+        toggle.setOnCheckedChangeListener((button, enabled) -> {
+            toggle.setText(enabled ? "ON" : "OFF");
+            changed.changed(enabled);
+        });
+        tile.addView(title);
+        tile.addView(toggle, new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, dp(38)));
+        tile.addView(body);
+        return tile;
+    }
+
     private LinearLayout infoTile(String name, String value, String detail) {
         LinearLayout tile = tileBase();
         TextView title = label(name, 10, MUTED, Typeface.BOLD);
@@ -413,4 +446,5 @@ public final class MainActivity extends Activity implements AudioEngine.Listener
 
     private interface ValueText { String text(int value); }
     private interface ValueChanged { void changed(int value); }
+    private interface BooleanChanged { void changed(boolean value); }
 }

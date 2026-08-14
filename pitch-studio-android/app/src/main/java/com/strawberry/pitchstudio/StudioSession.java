@@ -70,6 +70,7 @@ final class StudioSession {
     double durationSec;
     int depthPercent = 100;
     int tuneTimeMs = 80;
+    boolean formantPreserve = true;
     int formantCents = 0;
     float gainDb = 0f;
     int bpm = 120;
@@ -226,6 +227,7 @@ final class StudioSession {
         root.put("duration", durationSec);
         root.put("depth", depthPercent);
         root.put("tuneTime", tuneTimeMs);
+        root.put("formantPreserve", formantPreserve);
         root.put("formant", formantCents);
         root.put("gain", gainDb);
         root.put("bpm", bpm);
@@ -253,6 +255,7 @@ final class StudioSession {
             session.durationSec = root.optDouble("duration", 0);
             session.depthPercent = root.optInt("depth", 100);
             session.tuneTimeMs = root.optInt("tuneTime", 80);
+            session.formantPreserve = root.optBoolean("formantPreserve", true);
             session.formantCents = root.optInt("formant", 0);
             session.gainDb = (float) root.optDouble("gain", 0);
             session.bpm = root.optInt("bpm", 120);
