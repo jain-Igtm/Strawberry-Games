@@ -1,0 +1,125 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, viewport-fit=cover" />
+    <meta name="theme-color" content="#0b0d11" />
+    <meta name="description" content="A touch-first vocal pitch monitor, recorder, piano-roll editor, and MIDI exporter." />
+    <title>Strawberry Pitch</title>
+    <link rel="manifest" href="manifest.webmanifest" />
+    <link rel="icon" href="icon.svg" type="image/svg+xml" />
+    <link rel="stylesheet" href="styles.css?v=1" />
+  </head>
+  <body>
+    <main id="appShell">
+      <header class="app-bar">
+        <div>
+          <p class="eyebrow">STRAWBERRY AUDIO</p>
+          <h1>Pitch</h1>
+        </div>
+        <div class="app-actions">
+          <button id="newTakeButton" class="icon-button" aria-label="Start a new take" title="New take">
+            <span aria-hidden="true">＋</span>
+          </button>
+          <button id="importButton" class="icon-button" aria-label="Import an audio file" title="Import audio">
+            <span aria-hidden="true">↥</span>
+          </button>
+          <input id="audioInput" type="file" accept="audio/*,.wav,.mp3,.m4a,.aac,.ogg,.webm" hidden />
+        </div>
+      </header>
+
+      <section class="meter-card" aria-label="Live pitch meter">
+        <div class="meter-note-wrap">
+          <span id="currentNote" class="meter-note">—</span>
+          <span id="currentOctave" class="meter-octave"></span>
+        </div>
+        <div class="meter-center">
+          <div class="meter-label-row"><span>−50</span><strong id="centsReadout">READY</strong><span>+50</span></div>
+          <div class="cent-meter" aria-hidden="true">
+            <div class="cent-meter-center"></div>
+            <div id="centNeedle" class="cent-needle"></div>
+          </div>
+          <div class="meter-facts"><span id="hzReadout">Tap Monitor</span><span id="clarityReadout">A4 = 440 Hz</span></div>
+        </div>
+        <button id="monitorButton" class="monitor-button" aria-pressed="false">
+          <span class="monitor-dot"></span><span>Monitor</span>
+        </button>
+      </section>
+
+      <nav class="tool-strip" aria-label="Pitch editor tools">
+        <button id="selectTool" class="tool-button active" aria-pressed="true"><span>↖</span>Select</button>
+        <button id="snapButton" class="tool-button active" aria-pressed="true"><span>⌗</span>Snap</button>
+        <button id="undoButton" class="tool-button" disabled><span>↶</span>Undo</button>
+        <button id="redoButton" class="tool-button" disabled><span>↷</span>Redo</button>
+        <label class="zoom-control" aria-label="Timeline zoom">
+          <span>−</span><input id="zoomSlider" type="range" min="56" max="240" value="112" /><span>＋</span>
+        </label>
+      </nav>
+
+      <section id="workspace" class="workspace" aria-label="Scrollable pitch editor">
+        <div class="roll-corner"><span>NOTE</span></div>
+        <div id="timelineViewport" class="timeline-viewport"><canvas id="timelineCanvas"></canvas></div>
+        <div id="noteRail" class="note-rail"><canvas id="railCanvas"></canvas></div>
+        <div id="rollScroller" class="roll-scroller" tabindex="0" aria-label="Pitch grid. Scroll through time and notes.">
+          <canvas id="rollCanvas"></canvas>
+          <div id="emptyState" class="empty-state">
+            <div class="empty-orbit"><span></span></div>
+            <h2>Your voice lands here</h2>
+            <p>Tap record and sing. The board stays wide, scrollable, and editable after you stop.</p>
+          </div>
+        </div>
+        <div id="playhead" class="playhead" aria-hidden="true"></div>
+      </section>
+
+      <section id="noteInspector" class="note-inspector" aria-label="Selected note controls" aria-hidden="true">
+        <div class="inspector-heading">
+          <div><span class="eyebrow">SELECTED NOTE</span><strong id="selectedNoteName">C4</strong></div>
+          <button id="closeInspector" class="icon-button small" aria-label="Close note controls">×</button>
+        </div>
+        <div class="control-carousel">
+          <label class="parameter-control"><span>Pitch</span><output id="pitchOutput">0 ct</output><input id="pitchControl" type="range" min="-1200" max="1200" value="0" step="1" /></label>
+          <label class="parameter-control"><span>Tune time</span><output id="tuneTimeOutput">90 ms</output><input id="tuneTimeControl" type="range" min="0" max="400" value="90" step="5" /></label>
+          <label class="parameter-control"><span>Depth</span><output id="depthOutput">100%</output><input id="depthControl" type="range" min="0" max="100" value="100" /></label>
+          <label class="parameter-control"><span>Formant</span><output id="formantOutput">0.0</output><input id="formantControl" type="range" min="-12" max="12" value="0" step="0.1" /></label>
+          <label class="parameter-control"><span>Volume</span><output id="gainOutput">0 dB</output><input id="gainControl" type="range" min="-24" max="12" value="0" step="0.5" /></label>
+          <label class="parameter-control"><span>Drift</span><output id="driftOutput">0%</output><input id="driftControl" type="range" min="0" max="100" value="0" /></label>
+        </div>
+        <div class="inspector-actions">
+          <button id="splitButton" class="secondary-button">Split at playhead</button>
+          <button id="deleteNoteButton" class="danger-button">Delete note</button>
+        </div>
+      </section>
+
+      <footer class="transport">
+        <div class="take-status"><span id="takeStatus">No take</span><small id="timeReadout">00:00.0</small></div>
+        <div class="transport-controls">
+          <button id="rewindButton" class="transport-button" aria-label="Go to beginning" disabled>Ⅰ◀</button>
+          <button id="playButton" class="transport-button primary" aria-label="Play or pause" disabled>▶</button>
+          <button id="recordButton" class="record-button" aria-label="Start recording"><span></span></button>
+          <button id="stopButton" class="transport-button" aria-label="Stop" disabled>■</button>
+        </div>
+        <button id="exportButton" class="export-button" disabled>Export</button>
+      </footer>
+    </main>
+
+    <dialog id="exportDialog" class="sheet-dialog">
+      <form method="dialog">
+        <div class="sheet-handle"></div>
+        <div class="sheet-title"><div><span class="eyebrow">KEEP EVERYTHING</span><h2>Export take</h2></div><button class="icon-button small" value="cancel" aria-label="Close export menu">×</button></div>
+        <div class="export-grid">
+          <button id="wavExport" type="button" class="export-option"><strong>WAV</strong><span>Full-quality mono recording</span></button>
+          <button id="mp3Export" type="button" class="export-option"><strong>MP3</strong><span>Compact 192 kbps copy</span></button>
+          <button id="midiExport" type="button" class="export-option"><strong>MIDI</strong><span>Your edited note positions</span></button>
+          <button id="sessionExport" type="button" class="export-option"><strong>SESSION</strong><span>Pitch points and all edits</span></button>
+        </div>
+        <label class="tempo-field">MIDI tempo <input id="tempoInput" type="number" min="20" max="300" value="125" inputmode="numeric" /><span>BPM</span></label>
+        <p class="export-note">WAV and MP3 contain the recorded take. MIDI and Session carry the pitch edits. Rendered vocal correction is the next audio-engine layer.</p>
+      </form>
+    </dialog>
+
+    <div id="toast" class="toast" role="status" aria-live="polite"></div>
+
+    <script src="https://cdn.jsdelivr.net/npm/lamejs@1.2.1/lame.min.js" crossorigin="anonymous"></script>
+    <script type="module" src="app.js?v=1"></script>
+  </body>
+</html>
