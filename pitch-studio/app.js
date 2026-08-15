@@ -70,9 +70,12 @@ const state = {
   playStartedAt: 0,
   playOffset: 0,
   playAnimation: 0,
+  recordingVisualAnimation: 0,
+  renderAnimation: 0,
   monitorAnimation: 0,
   lastPitchAt: 0,
   lastLiveSegmentAt: 0,
+  followSuppressedUntil: 0,
   drag: null,
   toastTimer: 0,
   wakeLock: null,
@@ -110,20 +113,27 @@ function download(blob, filename) {
 
 function setCanvasSize(canvas, width, height) {
   const dpr = Math.min(window.devicePixelRatio || 1, 2);
-  canvas.style.width = `${width}px`;
-  canvas.style.height = `${height}px`;
-  canvas.width = Math.max(1, Math.round(width * dpr));
-  canvas.height = Math.max(1, Math.round(height * dpr));
+  const pixelWidth = Math.max(1, Math.round(width * dpr));
+  const pixelHeight = Math.max(1, Math.round(height * dpr));
+  if (canvas.style.width !== `${width}px`) canvas.style.width = `${width}px`;
+  if (canvas.style.height !== `${height}px`) canvas.style.height = `${height}px`;
+  if (canvas.width !== pixelWidth || canvas.height !== pixelHeight) {
+    canvas.width = pixelWidth;
+    canvas.height = pixelHeight;
+  }
   const context = canvas.getContext("2d");
   context.setTransform(dpr, 0, 0, dpr, 0, 0);
+  context.clearRect(0, 0, width, height);
   return context;
 }
 
 function rollDimensions() {
   const viewportWidth = Math.max(280, ui.rollScroller.clientWidth || window.innerWidth - 66);
-  const seconds = Math.max(MIN_ROLL_SECONDS, state.duration + 1.25);
+  const seconds = Math.max(MIN_ROLL_SECONDS, state.duration + 1.8);
+  const rawWidth = Math.max(viewportWidth * 1.4, seconds * state.pxPerSecond);
+  const chunkWidth = Math.max(480, viewportWidth);
   return {
-    width: Math.ceil(Math.max(viewportWidth * 1.3, seconds * state.pxPerSecond)),
+    width: Math.ceil(rawWidth / chunkWidth) * chunkWidth,
     height: (MAX_MIDI - MIN_MIDI + 1) * LANE_HEIGHT,
   };
 }
@@ -264,6 +274,14 @@ function drawRoll() {
   ui.empty.hidden = Boolean(state.samples || state.isRecording || state.points.length);
 }
 
+function scheduleRollDraw() {
+  if (state.renderAnimation) return;
+  state.renderAnimation = requestAnimationFrame(() => {
+    state.renderAnimation = 0;
+    drawRoll();
+  });
+}
+
 function syncCanvasTransforms() {
   const { scrollLeft, scrollTop } = ui.rollScroller;
   ui.rail.style.transform = `translateY(${-scrollTop}px)`;
@@ -276,15 +294,36 @@ function updatePlayhead(time) {
   ui.time.textContent = formatTime(state.playPosition);
   const left = 66 + timeToX(state.playPosition) - ui.rollScroller.scrollLeft;
   const workspaceWidth = $("#workspace").clientWidth;
+  const hasLiveTimeline = state.samples || state.isRecording;
   ui.playhead.style.left = `${left}px`;
-  ui.playhead.style.display = state.samples && left >= 66 && left <= workspaceWidth ? "block" : "none";
+  ui.playhead.style.display = hasLiveTimeline && left >= 66 && left <= workspaceWidth ? "block" : "none";
+}
+
+function followTime(time, anchor = .68, strength = .32) {
+  if (performance.now() < state.followSuppressedUntil) return;
+  const viewport = ui.rollScroller.clientWidth;
+  if (!viewport) return;
+  const maxScroll = Math.max(0, ui.rollScroller.scrollWidth - viewport);
+  const target = clamp(timeToX(time) - viewport * anchor, 0, maxScroll);
+  const delta = target - ui.rollScroller.scrollLeft;
+  if (Math.abs(delta) < .35) return;
+  ui.rollScroller.scrollLeft += delta * strength;
+}
+
+function recordingVisualLoop() {
+  if (!state.isRecording) return;
+  const time = (performance.now() - state.recordingStartedAt) / 1000;
+  state.duration = Math.max(MIN_ROLL_SECONDS, time + .7);
+  updatePlayhead(time);
+  followTime(time, .7, .42);
+  state.recordingVisualAnimation = requestAnimationFrame(recordingVisualLoop);
 }
 
 function noteAtPoint(x, y) {
   for (let i = state.notes.length - 1; i >= 0; i -= 1) {
     const note = state.notes[i];
-    const top = midiToY(note.targetMidi + (note.shift || 0)) - 18;
-    if (x >= timeToX(note.start) - 5 && x <= timeToX(note.end) + 5 && y >= top && y <= top + 36) return note;
+    const centerY = midiToY(note.targetMidi + (note.shift || 0));
+    if (x >= timeToX(note.start) - 9 && x <= timeToX(note.end) + 9 && y >= centerY - 24 && y <= centerY + 24) return note;
   }
   return null;
 }
@@ -444,12 +483,10 @@ function monitorLoop() {
     const lastPoint = state.points.at(-1);
     if (!lastPoint || time - lastPoint.time >= .028) state.points.push({ time, midi: measured.midi, hz: measured.hz, clarity: measured.clarity, rms: measured.rms });
     state.duration = Math.max(MIN_ROLL_SECONDS, time + .7);
-    if (performance.now() - state.lastLiveSegmentAt > 230) {
+    if (performance.now() - state.lastLiveSegmentAt > 260) {
       state.notes = buildNoteSegments(state.points);
       state.lastLiveSegmentAt = performance.now();
-      drawRoll();
-      ui.rollScroller.scrollLeft = Math.max(0, timeToX(time) - ui.rollScroller.clientWidth * .68);
-      updatePlayhead(time);
+      scheduleRollDraw();
     }
   }
   state.monitorAnimation = requestAnimationFrame(monitorLoop);
@@ -493,6 +530,7 @@ async function startRecording() {
     ui.monitor.setAttribute("aria-pressed", "true");
     ui.monitor.querySelector("span:last-child").textContent = "Listening";
     cancelAnimationFrame(state.monitorAnimation);
+    cancelAnimationFrame(state.recordingVisualAnimation);
     state.chunks = [];
     state.samples = null;
     state.points = [];
@@ -505,6 +543,8 @@ async function startRecording() {
     state.takeName = `Take ${state.takeNumber}`;
     state.takeNumber += 1;
     state.recordingStartedAt = performance.now();
+    state.lastLiveSegmentAt = 0;
+    state.followSuppressedUntil = 0;
     state.isRecording = true;
     ui.record.classList.add("recording");
     ui.record.setAttribute("aria-label", "Stop recording");
@@ -514,9 +554,11 @@ async function startRecording() {
     ui.export.disabled = true;
     ui.takeStatus.textContent = `Recording ${state.takeName}`;
     ui.empty.hidden = true;
+    ui.rollScroller.scrollLeft = 0;
     drawRoll();
     await requestWakeLock();
     monitorLoop();
+    recordingVisualLoop();
   } catch (error) {
     showToast(error.name === "NotAllowedError" ? "Allow microphone access to record." : error.message, 4000);
   }
@@ -525,6 +567,7 @@ async function startRecording() {
 async function stopRecording() {
   if (!state.isRecording) return;
   state.isRecording = false;
+  cancelAnimationFrame(state.recordingVisualAnimation);
   ui.record.classList.remove("recording");
   ui.record.setAttribute("aria-label", "Start recording");
   ui.stop.disabled = true;
@@ -634,6 +677,7 @@ async function play() {
   state.playSource = source;
   state.playOffset = state.playPosition;
   state.playStartedAt = state.audioContext.currentTime;
+  state.followSuppressedUntil = 0;
   source.start(0, state.playOffset);
   source.onended = () => {
     if (state.playSource !== source) return;
@@ -651,8 +695,7 @@ function playbackLoop() {
   const elapsed = state.audioContext.currentTime - state.playStartedAt;
   const time = clamp(state.playOffset + elapsed, 0, state.duration);
   updatePlayhead(time);
-  const x = timeToX(time);
-  if (x - ui.rollScroller.scrollLeft > ui.rollScroller.clientWidth * .82) ui.rollScroller.scrollLeft = Math.max(0, x - ui.rollScroller.clientWidth * .25);
+  followTime(time, .7, .26);
   state.playAnimation = requestAnimationFrame(playbackLoop);
 }
 
@@ -781,7 +824,7 @@ function exportMidiFile() {
 function exportSession() {
   const session = {
     app: "Strawberry Pitch",
-    version: 1,
+    version: 2,
     name: state.takeName,
     savedAt: new Date().toISOString(),
     sampleRate: state.sampleRate,
@@ -851,6 +894,10 @@ async function deleteLatestTake() {
 }
 
 ui.rollScroller.addEventListener("scroll", syncCanvasTransforms, { passive: true });
+ui.rollScroller.addEventListener("pointerdown", () => {
+  if (state.playSource) state.followSuppressedUntil = performance.now() + 1400;
+}, { passive: true });
+
 ui.roll.addEventListener("pointerdown", (event) => {
   const rect = ui.roll.getBoundingClientRect();
   const scaleX = Number.parseFloat(ui.roll.style.width) / rect.width;
@@ -869,11 +916,13 @@ ui.roll.addEventListener("pointerdown", (event) => {
   pushUndo();
   state.drag = { pointerId: event.pointerId, noteId: note.id, startY: y, initialShift: note.shift || 0 };
   ui.roll.setPointerCapture(event.pointerId);
+  ui.roll.classList.add("dragging-note");
   ui.roll.style.touchAction = "none";
 });
 
 ui.roll.addEventListener("pointermove", (event) => {
   if (!state.drag || event.pointerId !== state.drag.pointerId) return;
+  event.preventDefault();
   const note = state.notes.find((item) => item.id === state.drag.noteId);
   if (!note) return;
   const rect = ui.roll.getBoundingClientRect();
@@ -882,13 +931,15 @@ ui.roll.addEventListener("pointermove", (event) => {
   const rawShift = state.drag.initialShift - (y - state.drag.startY) / LANE_HEIGHT;
   note.shift = state.snap ? Math.round(rawShift) : Math.round(rawShift * 100) / 100;
   syncInspector(note);
-  drawRoll();
+  scheduleRollDraw();
 });
 
 function finishDrag(event) {
   if (!state.drag || event.pointerId !== state.drag.pointerId) return;
   state.drag = null;
+  ui.roll.classList.remove("dragging-note");
   ui.roll.style.touchAction = "pan-x pan-y";
+  scheduleRollDraw();
   saveLatestTake();
 }
 ui.roll.addEventListener("pointerup", finishDrag);
@@ -910,7 +961,7 @@ for (const [control, property, output, formatter, scale = 1] of [
     note[property] = numeric / scale;
     output.value = formatter(numeric);
     ui.selectedName.textContent = midiToName(note.targetMidi + (note.shift || 0));
-    drawRoll();
+    scheduleRollDraw();
   });
   control.addEventListener("change", saveLatestTake);
 }
@@ -946,7 +997,7 @@ ui.mp3Export.addEventListener("click", exportMp3);
 ui.midiExport.addEventListener("click", exportMidiFile);
 ui.sessionExport.addEventListener("click", exportSession);
 
-window.addEventListener("resize", () => drawRoll());
+window.addEventListener("resize", scheduleRollDraw);
 document.addEventListener("visibilitychange", () => {
   if (document.visibilityState === "visible" && state.isRecording) requestWakeLock();
 });

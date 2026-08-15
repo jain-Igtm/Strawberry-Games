@@ -1,5 +1,5 @@
-const CACHE = "strawberry-pitch-v1";
-const SHELL = ["./", "./index.html", "./styles.css", "./app.js", "./pitch-engine.js", "./manifest.webmanifest", "./icon.svg"];
+const CACHE = "strawberry-pitch-v2";
+const SHELL = ["./", "./index.html", "./styles.css?v=2", "./app.js?v=2", "./pitch-engine.js", "./manifest.webmanifest", "./icon.svg"];
 
 self.addEventListener("install", (event) => {
   event.waitUntil(caches.open(CACHE).then((cache) => cache.addAll(SHELL)).then(() => self.skipWaiting()));
