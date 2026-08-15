@@ -3,6 +3,7 @@ package com.strawberry.pitchstudio;
 import android.Manifest;
 import android.app.Activity;
 import android.app.AlertDialog;
+import android.content.Context;
 import android.content.Intent;
 import android.content.pm.PackageManager;
 import android.graphics.Color;
@@ -13,10 +14,15 @@ import android.os.Bundle;
 import android.os.Handler;
 import android.os.Looper;
 import android.provider.Settings;
+import android.text.Editable;
+import android.text.TextWatcher;
 import android.view.Gravity;
+import android.view.MotionEvent;
 import android.view.View;
 import android.view.ViewGroup;
+import android.view.inputmethod.InputMethodManager;
 import android.widget.Button;
+import android.widget.EditText;
 import android.widget.HorizontalScrollView;
 import android.widget.LinearLayout;
 import android.widget.SeekBar;
@@ -40,6 +46,8 @@ public final class MainActivity extends Activity implements AudioEngine.Listener
     private static final int MUTED = Color.rgb(137, 158, 166);
     private static final int ACCENT = Color.rgb(124, 244, 202);
     private static final int PINK = Color.rgb(255, 85, 117);
+    private static final String PREFS = "pitch-studio-ui";
+    private static final String PREF_LYRICS = "lyrics";
 
     private final Handler ui = new Handler(Looper.getMainLooper());
     private StudioSession session;
@@ -49,9 +57,13 @@ public final class MainActivity extends Activity implements AudioEngine.Listener
     private TextView status;
     private Button recordButton;
     private Button playButton;
+    private Button lyricsButton;
+    private LinearLayout lyricsPanel;
+    private EditText lyricsEdit;
     private File pendingPcm;
     private boolean pendingRecordAfterPermission;
     private Runnable pendingSave;
+    private Runnable pendingLyricsSave;
 
     @Override protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
@@ -75,7 +87,7 @@ public final class MainActivity extends Activity implements AudioEngine.Listener
 
         LinearLayout header = new LinearLayout(this);
         header.setGravity(Gravity.CENTER_VERTICAL);
-        header.setPadding(dp(16), dp(7), dp(14), dp(7));
+        header.setPadding(dp(16), dp(7), dp(10), dp(7));
         header.setBackgroundColor(INK);
         LinearLayout heading = new LinearLayout(this);
         heading.setOrientation(LinearLayout.VERTICAL);
@@ -86,10 +98,53 @@ public final class MainActivity extends Activity implements AudioEngine.Listener
         heading.addView(title);
         heading.addView(status);
         header.addView(heading, new LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1));
-        liveNote = label("—", 22, ACCENT, Typeface.BOLD);
+
+        lyricsButton = compactButton("LYRICS", Color.rgb(255, 215, 109));
+        header.addView(lyricsButton, new LinearLayout.LayoutParams(dp(72), dp(42)));
+
+        liveNote = label("—", 20, ACCENT, Typeface.BOLD);
         liveNote.setGravity(Gravity.END | Gravity.CENTER_VERTICAL);
-        header.addView(liveNote, new LinearLayout.LayoutParams(dp(116), dp(48)));
+        header.addView(liveNote, new LinearLayout.LayoutParams(dp(92), dp(48)));
         root.addView(header, new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, dp(62)));
+
+        lyricsPanel = new LinearLayout(this);
+        lyricsPanel.setOrientation(LinearLayout.VERTICAL);
+        lyricsPanel.setPadding(dp(12), dp(8), dp(12), dp(10));
+        lyricsPanel.setBackgroundColor(SURFACE);
+        lyricsPanel.setVisibility(View.GONE);
+
+        LinearLayout lyricBar = new LinearLayout(this);
+        lyricBar.setGravity(Gravity.CENTER_VERTICAL);
+        TextView lyricTitle = label("LYRICS", 11, MUTED, Typeface.BOLD);
+        lyricTitle.setLetterSpacing(0.12f);
+        lyricBar.addView(lyricTitle, new LinearLayout.LayoutParams(0, dp(34), 1));
+        Button hideLyrics = compactButton("HIDE", MUTED);
+        lyricBar.addView(hideLyrics, new LinearLayout.LayoutParams(dp(68), dp(34)));
+        lyricsPanel.addView(lyricBar, new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, dp(38)));
+
+        lyricsEdit = new EditText(this);
+        lyricsEdit.setText(getSharedPreferences(PREFS, MODE_PRIVATE).getString(PREF_LYRICS, ""));
+        lyricsEdit.setHint("Paste or type your lyrics here…");
+        lyricsEdit.setHintTextColor(Color.rgb(91, 112, 121));
+        lyricsEdit.setTextColor(TEXT);
+        lyricsEdit.setTextSize(18);
+        lyricsEdit.setGravity(Gravity.TOP | Gravity.START);
+        lyricsEdit.setPadding(dp(12), dp(10), dp(12), dp(12));
+        lyricsEdit.setBackground(roundedPanel(Color.rgb(12, 22, 27), Color.rgb(42, 61, 69), 12));
+        lyricsEdit.setVerticalScrollBarEnabled(true);
+        lyricsEdit.setSingleLine(false);
+        lyricsEdit.setMinLines(5);
+        lyricsEdit.setMaxLines(12);
+        lyricsEdit.addTextChangedListener(new TextWatcher() {
+            @Override public void beforeTextChanged(CharSequence s, int start, int count, int after) {}
+            @Override public void onTextChanged(CharSequence s, int start, int before, int count) { scheduleLyricsSave(); }
+            @Override public void afterTextChanged(Editable s) {}
+        });
+        lyricsPanel.addView(lyricsEdit, new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, 0, 1));
+        root.addView(lyricsPanel, new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, dp(230)));
+
+        lyricsButton.setOnClickListener(v -> toggleLyrics());
+        hideLyrics.setOnClickListener(v -> setLyricsVisible(false));
 
         editor = new PitchEditorView(this);
         editor.setListener(this);
@@ -168,11 +223,37 @@ public final class MainActivity extends Activity implements AudioEngine.Listener
         setContentView(root);
     }
 
+    private void toggleLyrics() {
+        setLyricsVisible(lyricsPanel.getVisibility() != View.VISIBLE);
+    }
+
+    private void setLyricsVisible(boolean visible) {
+        lyricsPanel.setVisibility(visible ? View.VISIBLE : View.GONE);
+        lyricsButton.setText(visible ? "CLOSE" : "LYRICS");
+        if (visible) {
+            lyricsEdit.requestFocus();
+            status.setText("Lyrics open • paste, edit, scroll, then record");
+        } else {
+            saveLyricsNow();
+            hideKeyboard();
+        }
+    }
+
+    private void hideKeyboard() {
+        View focused = getCurrentFocus();
+        if (focused == null) return;
+        InputMethodManager input = (InputMethodManager) getSystemService(Context.INPUT_METHOD_SERVICE);
+        if (input != null) input.hideSoftInputFromWindow(focused.getWindowToken(), 0);
+        focused.clearFocus();
+    }
+
     private void recordPressed() {
         if (audio.isRecording()) {
             audio.stopRecording();
             return;
         }
+        hideKeyboard();
+        saveLyricsNow();
         if (checkSelfPermission(Manifest.permission.RECORD_AUDIO) != PackageManager.PERMISSION_GRANTED) {
             pendingRecordAfterPermission = true;
             requestPermissions(new String[]{Manifest.permission.RECORD_AUDIO}, REQUEST_MIC);
@@ -320,6 +401,7 @@ public final class MainActivity extends Activity implements AudioEngine.Listener
 
     @Override protected void onPause() {
         super.onPause();
+        saveLyricsNow();
         if (audio.isRecording()) audio.stopRecording();
         if (audio.isPlaying()) audio.stopPlayback();
         audio.persist();
@@ -329,6 +411,19 @@ public final class MainActivity extends Activity implements AudioEngine.Listener
         if (pendingSave != null) ui.removeCallbacks(pendingSave);
         pendingSave = audio::persist;
         ui.postDelayed(pendingSave, 400);
+    }
+
+    private void scheduleLyricsSave() {
+        if (pendingLyricsSave != null) ui.removeCallbacks(pendingLyricsSave);
+        pendingLyricsSave = this::saveLyricsNow;
+        ui.postDelayed(pendingLyricsSave, 500);
+    }
+
+    private void saveLyricsNow() {
+        if (lyricsEdit == null) return;
+        getSharedPreferences(PREFS, MODE_PRIVATE).edit()
+                .putString(PREF_LYRICS, lyricsEdit.getText().toString())
+                .apply();
     }
 
     private LinearLayout parameter(String name, int min, int max, int initial,
@@ -342,18 +437,27 @@ public final class MainActivity extends Activity implements AudioEngine.Listener
         seek.setProgress(Math.max(0, Math.min(max - min, initial - min)));
         seek.setProgressTintList(android.content.res.ColorStateList.valueOf(ACCENT));
         seek.setThumbTintList(android.content.res.ColorStateList.valueOf(ACCENT));
+        seek.setOnTouchListener((view, event) -> {
+            ViewParentLoop.disallow(view, event.getActionMasked() != MotionEvent.ACTION_UP
+                    && event.getActionMasked() != MotionEvent.ACTION_CANCEL);
+            return false;
+        });
         seek.setOnSeekBarChangeListener(new SeekBar.OnSeekBarChangeListener() {
             @Override public void onProgressChanged(SeekBar seekBar, int progress, boolean fromUser) {
                 int actual = min + progress;
                 value.setText(valueText.text(actual));
                 if (fromUser) changed.changed(actual);
             }
-            @Override public void onStartTrackingTouch(SeekBar seekBar) {}
-            @Override public void onStopTrackingTouch(SeekBar seekBar) {}
+            @Override public void onStartTrackingTouch(SeekBar seekBar) {
+                ViewParentLoop.disallow(seekBar, true);
+            }
+            @Override public void onStopTrackingTouch(SeekBar seekBar) {
+                ViewParentLoop.disallow(seekBar, false);
+            }
         });
         tile.addView(title);
         tile.addView(value);
-        tile.addView(seek, new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, dp(36)));
+        tile.addView(seek, new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, dp(40)));
         return tile;
     }
 
@@ -380,31 +484,23 @@ public final class MainActivity extends Activity implements AudioEngine.Listener
         return tile;
     }
 
-    private LinearLayout infoTile(String name, String value, String detail) {
-        LinearLayout tile = tileBase();
-        TextView title = label(name, 10, MUTED, Typeface.BOLD);
-        title.setLetterSpacing(0.1f);
-        tile.addView(title);
-        tile.addView(label(value, 15, Color.rgb(255, 215, 109), Typeface.BOLD));
-        TextView body = label(detail, 10, MUTED, Typeface.NORMAL);
-        body.setMaxLines(2);
-        tile.addView(body);
-        return tile;
-    }
-
     private LinearLayout tileBase() {
         LinearLayout tile = new LinearLayout(this);
         tile.setOrientation(LinearLayout.VERTICAL);
         tile.setPadding(dp(10), dp(6), dp(10), dp(4));
-        GradientDrawable background = new GradientDrawable();
-        background.setColor(PANEL);
-        background.setCornerRadius(dp(14));
-        background.setStroke(dp(1), Color.rgb(37, 52, 59));
-        tile.setBackground(background);
+        tile.setBackground(roundedPanel(PANEL, Color.rgb(37, 52, 59), 14));
         LinearLayout.LayoutParams params = new LinearLayout.LayoutParams(dp(148), dp(91));
         params.setMargins(0, 0, dp(7), 0);
         tile.setLayoutParams(params);
         return tile;
+    }
+
+    private GradientDrawable roundedPanel(int fill, int stroke, int radiusDp) {
+        GradientDrawable background = new GradientDrawable();
+        background.setColor(fill);
+        background.setCornerRadius(dp(radiusDp));
+        background.setStroke(dp(1), stroke);
+        return background;
     }
 
     private Button actionButton(String text, int color) {
@@ -416,11 +512,14 @@ public final class MainActivity extends Activity implements AudioEngine.Listener
         button.setPadding(dp(3), 0, dp(3), 0);
         button.setMinWidth(0);
         button.setMinimumWidth(0);
-        GradientDrawable background = new GradientDrawable();
-        background.setColor(Color.rgb(20, 32, 39));
-        background.setCornerRadius(dp(10));
-        background.setStroke(dp(1), color);
-        button.setBackground(background);
+        button.setBackground(roundedPanel(Color.rgb(20, 32, 39), color, 10));
+        return button;
+    }
+
+    private Button compactButton(String text, int color) {
+        Button button = actionButton(text, color);
+        button.setTextSize(9);
+        button.setPadding(dp(2), 0, dp(2), 0);
         return button;
     }
 
@@ -453,4 +552,14 @@ public final class MainActivity extends Activity implements AudioEngine.Listener
     private interface ValueText { String text(int value); }
     private interface ValueChanged { void changed(int value); }
     private interface BooleanChanged { void changed(boolean value); }
+
+    private static final class ViewParentLoop {
+        static void disallow(View view, boolean disallow) {
+            android.view.ViewParent parent = view.getParent();
+            while (parent != null) {
+                parent.requestDisallowInterceptTouchEvent(disallow);
+                parent = parent.getParent();
+            }
+        }
+    }
 }
