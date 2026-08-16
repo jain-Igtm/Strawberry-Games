@@ -1,0 +1,39 @@
+name: Publish Arthur Backrooms v0.9.2 Release
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/publish-v092-release.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  actions: read
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Download exact v0.9.2 APK artifact
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh api repos/${{ github.repository }}/actions/artifacts/9264693042/zip > /tmp/v092.zip
+          mkdir -p /tmp/v092
+          unzip -q /tmp/v092.zip -d /tmp/v092
+          APK=$(find /tmp/v092 -type f -name '*.apk' | head -n 1)
+          test -n "$APK"
+          cp "$APK" /tmp/Arthur-Backrooms-Godot-v0.9.2-exact-v07-lights.apk
+          ls -lh /tmp/Arthur-Backrooms-Godot-v0.9.2-exact-v07-lights.apk
+
+      - name: Publish permanent GitHub Release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release delete v0.9.2 --repo "${{ github.repository }}" --yes --cleanup-tag || true
+          gh release create v0.9.2 /tmp/Arthur-Backrooms-Godot-v0.9.2-exact-v07-lights.apk \
+            --repo "${{ github.repository }}" \
+            --target 6021d664212e59f64f106ca636e24f27c4c44138 \
+            --title "Arthur Backrooms Godot v0.9.2 - Exact v0.7 Light Motion" \
+            --notes "Restores the exact stable-v0.7 psychic illumination home equations and world-space anchoring while retaining later scout/spread/combine controls and the v0.9.1 levitation joystick. Built from commit 6021d664212e59f64f106ca636e24f27c4c44138."
