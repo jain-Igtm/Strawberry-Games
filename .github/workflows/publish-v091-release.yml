@@ -1,0 +1,39 @@
+name: Publish Arthur Backrooms v0.9.1 Release
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/publish-v091-release.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  actions: read
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Download exact v0.9.1 APK artifact
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh api repos/${{ github.repository }}/actions/artifacts/9264546003/zip > /tmp/v091.zip
+          mkdir -p /tmp/v091
+          unzip -q /tmp/v091.zip -d /tmp/v091
+          APK=$(find /tmp/v091 -type f -name '*.apk' | head -n 1)
+          test -n "$APK"
+          cp "$APK" /tmp/Arthur-Backrooms-Godot-v0.9.1-controls.apk
+          ls -lh /tmp/Arthur-Backrooms-Godot-v0.9.1-controls.apk
+
+      - name: Publish permanent GitHub Release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release delete v0.9.1 --repo "${{ github.repository }}" --yes --cleanup-tag || true
+          gh release create v0.9.1 /tmp/Arthur-Backrooms-Godot-v0.9.1-controls.apk \
+            --repo "${{ github.repository }}" \
+            --target 8bcb01ab2b938cd2b96984b32d9ea93dc9843a9c \
+            --title "Arthur Backrooms Godot v0.9.1 - Control Hotfix" \
+            --notes "Restores the stable close idle light formation on activation and replaces camera-driven self-levitation with a dedicated vertical levitation joystick. Built from commit 8bcb01ab2b938cd2b96984b32d9ea93dc9843a9c."
