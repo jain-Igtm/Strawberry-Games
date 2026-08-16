@@ -84,15 +84,15 @@ func _physics_process(delta: float) -> void:
 	var move_input := (_desktop_move() + mobile_move).limit_length(1.0)
 
 	if psychic_levitation and not water_swimming:
-		var forward := -global_transform.basis.z
-		forward.y = 0.0
-		forward = forward.normalized()
-		var right := global_transform.basis.x
-		right.y = 0.0
-		right = right.normalized()
-		var desired := (right * move_input.x + forward * move_input.y)
-		velocity.x = desired.x * levitation_speed
-		velocity.z = desired.z * levitation_speed
+		var lev_forward := -global_transform.basis.z
+		lev_forward.y = 0.0
+		lev_forward = lev_forward.normalized()
+		var lev_right := global_transform.basis.x
+		lev_right.y = 0.0
+		lev_right = lev_right.normalized()
+		var lev_desired := (lev_right * move_input.x + lev_forward * move_input.y)
+		velocity.x = lev_desired.x * levitation_speed
+		velocity.z = lev_desired.z * levitation_speed
 		var vertical := levitation_vertical_input
 		if not OS.has_feature("mobile"):
 			vertical = _desktop_levitation_vertical()
@@ -112,16 +112,16 @@ func _physics_process(delta: float) -> void:
 		move_and_slide()
 		return
 
-	var forward := -global_transform.basis.z
-	forward.y = 0.0
-	forward = forward.normalized()
-	var right := global_transform.basis.x
-	right.y = 0.0
-	right = right.normalized()
-	var desired := (right * move_input.x + forward * move_input.y)
+	var ground_forward := -global_transform.basis.z
+	ground_forward.y = 0.0
+	ground_forward = ground_forward.normalized()
+	var ground_right := global_transform.basis.x
+	ground_right.y = 0.0
+	ground_right = ground_right.normalized()
+	var ground_desired := (ground_right * move_input.x + ground_forward * move_input.y)
 	var speed := run_speed if Input.is_key_pressed(KEY_SHIFT) else walk_speed
-	velocity.x = desired.x * speed
-	velocity.z = desired.z * speed
+	velocity.x = ground_desired.x * speed
+	velocity.z = ground_desired.z * speed
 	if not is_on_floor():
 		velocity.y -= gravity * delta
 	else:
