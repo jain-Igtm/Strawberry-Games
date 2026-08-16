@@ -5,8 +5,8 @@ var move_touch := -1
 var look_touch := -1
 var move_origin := Vector2.ZERO
 var move_current := Vector2.ZERO
-var joystick_radius := 92.0
-var knob_radius := 38.0
+var joystick_radius := 126.0
+var knob_radius := 52.0
 
 func _ready() -> void:
 	mouse_filter = Control.MOUSE_FILTER_IGNORE
@@ -60,16 +60,16 @@ func _update_move() -> void:
 func _draw() -> void:
 	if not OS.has_feature("mobile"):
 		return
-	var ghost_center := Vector2(118.0, size.y - 118.0)
+	var ghost_center := Vector2(158.0, size.y - 158.0)
 	if move_touch == -1:
 		draw_circle(ghost_center, joystick_radius, Color(1, 1, 1, 0.075))
-		draw_arc(ghost_center, joystick_radius, 0.0, TAU, 48, Color(1, 1, 1, 0.24), 2.0)
+		draw_arc(ghost_center, joystick_radius, 0.0, TAU, 56, Color(1, 1, 1, 0.24), 2.5)
 		draw_circle(ghost_center, knob_radius, Color(1, 1, 1, 0.12))
 	else:
 		var delta := move_current - move_origin
 		if delta.length() > joystick_radius:
 			delta = delta.normalized() * joystick_radius
 		draw_circle(move_origin, joystick_radius, Color(1, 1, 1, 0.08))
-		draw_arc(move_origin, joystick_radius, 0.0, TAU, 48, Color(1, 1, 1, 0.33), 2.0)
+		draw_arc(move_origin, joystick_radius, 0.0, TAU, 56, Color(1, 1, 1, 0.33), 2.5)
 		draw_circle(move_origin + delta, knob_radius, Color(1, 1, 1, 0.22))
-		draw_arc(move_origin + delta, knob_radius, 0.0, TAU, 36, Color(1, 1, 1, 0.48), 2.0)
+		draw_arc(move_origin + delta, knob_radius, 0.0, TAU, 40, Color(1, 1, 1, 0.48), 2.5)
