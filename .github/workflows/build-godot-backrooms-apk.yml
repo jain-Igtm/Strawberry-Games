@@ -3,7 +3,7 @@ name: Build Godot Backrooms APK
 on:
   workflow_dispatch:
   push:
-    branches: [main]
+    branches: [main, godot-arthur-movement-scout-v08]
     paths:
       - 'godot-backrooms/**'
       - '.github/workflows/build-godot-backrooms-apk.yml'
