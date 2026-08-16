@@ -39,14 +39,14 @@ func _topology_edge(a: Vector2i, b: Vector2i) -> int:
 	# Neighboring 24 m pool chambers meet at centered, deterministic broad openings.
 	# This retains room boundaries without slicing water with arbitrary corridor walls.
 	var boundary_seed: int = _hash(mini(room_a.x, room_b.x), mini(room_a.y, room_b.y), 8127)
-	var half_width := 2 if posmod(boundary_seed, 4) == 0 else 1
+	var half_width: int = 2 if posmod(boundary_seed, 4) == 0 else 1
 	var along_index: int
 	if room_a.x != room_b.x:
 		along_index = _positive_mod(a.y, ROOM_SIZE)
 	else:
 		along_index = _positive_mod(a.x, ROOM_SIZE)
-	var center_left := 2
-	var center_right := 3
+	var center_left: int = 2
+	var center_right: int = 3
 	if half_width == 2:
 		return EDGE_OPEN if along_index >= 1 and along_index <= 4 else EDGE_SOLID
 	return EDGE_OPEN if along_index == center_left or along_index == center_right else EDGE_SOLID
@@ -116,8 +116,8 @@ func _location_descriptor(cell: Vector2i, sample: Dictionary) -> String:
 			return "SLIDE HALL"
 
 func _build_stair_run(root: Node3D, direction_2d: Vector2i) -> void:
-	var direction := Vector3(float(direction_2d.x), 0.0, float(direction_2d.y))
-	var side := Vector3(-direction.z, 0.0, direction.x)
+	var direction: Vector3 = Vector3(float(direction_2d.x), 0.0, float(direction_2d.y))
+	var side: Vector3 = Vector3(-direction.z, 0.0, direction.x)
 	var start_offset: Vector3 = -direction * 0.55
 	var rise: float = STOREY_HEIGHT / float(STAIR_STEPS)
 
@@ -128,7 +128,7 @@ func _build_stair_run(root: Node3D, direction_2d: Vector2i) -> void:
 		var height: float = rise * float(i + 1)
 		var along: Vector3 = start_offset + direction * (float(i) * STAIR_RUN)
 
-		var collision_step := CSGBox3D.new()
+		var collision_step: CSGBox3D = CSGBox3D.new()
 		collision_step.position = along + Vector3(0, height * 0.5, 0)
 		collision_step.size = Vector3(STAIR_WIDTH, height, STAIR_RUN + 0.05)
 		if direction_2d.x != 0:
@@ -139,8 +139,8 @@ func _build_stair_run(root: Node3D, direction_2d: Vector2i) -> void:
 		collision_step.collision_mask = 3
 		root.add_child(collision_step)
 
-		var tread := MeshInstance3D.new()
-		var tread_mesh := BoxMesh.new()
+		var tread: MeshInstance3D = MeshInstance3D.new()
+		var tread_mesh: BoxMesh = BoxMesh.new()
 		tread_mesh.size = Vector3(STAIR_WIDTH, 0.09, STAIR_RUN + 0.06)
 		tread_mesh.material = YELLOW_FLOOR
 		tread.mesh = tread_mesh
@@ -152,7 +152,7 @@ func _build_stair_run(root: Node3D, direction_2d: Vector2i) -> void:
 	var total_run: float = float(STAIR_STEPS - 1) * STAIR_RUN
 	var landing_position: Vector3 = start_offset + direction * (total_run + 0.72)
 	landing_position.y = STOREY_HEIGHT - 0.08
-	var landing := CSGBox3D.new()
+	var landing: CSGBox3D = CSGBox3D.new()
 	landing.position = landing_position
 	landing.size = Vector3(2.55, 0.18, 1.75)
 	if direction_2d.x != 0:
@@ -165,33 +165,33 @@ func _build_stair_run(root: Node3D, direction_2d: Vector2i) -> void:
 
 	# Actual handrails follow the stair slope, with spaced balusters instead of
 	# the old full-height side slabs.
-	var rail_start := start_offset + direction * 0.05 + Vector3.UP * 0.90
-	var rail_end := start_offset + direction * (total_run + 0.25) + Vector3.UP * (STOREY_HEIGHT + 0.90)
-	for sign_value in [-1.0, 1.0]:
-		var lateral := side * (STAIR_WIDTH * 0.56 * sign_value)
+	var rail_start: Vector3 = start_offset + direction * 0.05 + Vector3.UP * 0.90
+	var rail_end: Vector3 = start_offset + direction * (total_run + 0.25) + Vector3.UP * (STOREY_HEIGHT + 0.90)
+	for sign_value: float in [-1.0, 1.0]:
+		var lateral: Vector3 = side * (STAIR_WIDTH * 0.56 * sign_value)
 		_add_sloped_rail(root, rail_start + lateral, rail_end + lateral)
 		for post_i in range(6):
-			var t := float(post_i) / 5.0
-			var base := start_offset + direction * lerpf(0.10, total_run + 0.20, t)
+			var t: float = float(post_i) / 5.0
+			var base: Vector3 = start_offset + direction * lerpf(0.10, total_run + 0.20, t)
 			base.y = lerpf(rise, STOREY_HEIGHT, t)
 			_add_stair_post(root, base + lateral, 0.88)
 
 func _add_sloped_rail(root: Node3D, a: Vector3, b: Vector3) -> void:
-	var delta := b - a
-	var pivot := Node3D.new()
+	var delta: Vector3 = b - a
+	var pivot: Node3D = Node3D.new()
 	pivot.position = (a + b) * 0.5
 	root.add_child(pivot)
 	pivot.look_at(pivot.global_position + delta.normalized(), Vector3.UP)
-	var rail := MeshInstance3D.new()
-	var mesh := BoxMesh.new()
+	var rail: MeshInstance3D = MeshInstance3D.new()
+	var mesh: BoxMesh = BoxMesh.new()
 	mesh.size = Vector3(0.11, 0.11, delta.length())
 	mesh.material = YELLOW_WALL
 	rail.mesh = mesh
 	pivot.add_child(rail)
 
 func _add_stair_post(root: Node3D, base: Vector3, height: float) -> void:
-	var post := MeshInstance3D.new()
-	var mesh := BoxMesh.new()
+	var post: MeshInstance3D = MeshInstance3D.new()
+	var mesh: BoxMesh = BoxMesh.new()
 	mesh.size = Vector3(0.10, height, 0.10)
 	mesh.material = YELLOW_WALL
 	post.mesh = mesh
@@ -199,10 +199,10 @@ func _add_stair_post(root: Node3D, base: Vector3, height: float) -> void:
 	root.add_child(post)
 
 func _make_cut(direction: Vector2i, height: float) -> CSGBox3D:
-	var cut := CSGBox3D.new()
+	var cut: CSGBox3D = CSGBox3D.new()
 	cut.operation = CSGShape3D.OPERATION_SUBTRACTION
-	var cut_width := 2.42
-	var cut_length := 3.86
+	var cut_width: float = 2.42
+	var cut_length: float = 3.86
 	if direction.x != 0:
 		cut.size = Vector3(cut_length, height, cut_width)
 	else:
@@ -214,7 +214,7 @@ func waterslide_arrive(floor_delta: int) -> void:
 	if floor_delta == 0:
 		return
 	_switch_storey(current_level + floor_delta)
-	var pos := player.global_position
+	var pos: Vector3 = player.global_position
 	pos.y = float(current_level) * STOREY_HEIGHT + 0.85
 	player.global_position = pos
 
