@@ -46,9 +46,11 @@ jobs:
           curl -L --fail --retry 3 "$WATER_BASE/loop_water_01.ogg" -o godot-build/arthur_mobile/audio/loop_water_01.ogg
           curl -L --fail --retry 3 "$WATER_BASE/loop_water_02.ogg" -o godot-build/arthur_mobile/audio/loop_water_02.ogg
           curl -L --fail --retry 3 "$WATER_BASE/loop_water_03.ogg" -o godot-build/arthur_mobile/audio/loop_water_03.ogg
+          curl -L --fail --retry 3 "$WATER_BASE/splash_01.ogg" -o godot-build/arthur_mobile/audio/splash_01.ogg
           test -s godot-build/arthur_mobile/audio/loop_water_01.ogg
           test -s godot-build/arthur_mobile/audio/loop_water_02.ogg
           test -s godot-build/arthur_mobile/audio/loop_water_03.ogg
+          test -s godot-build/arthur_mobile/audio/splash_01.ogg
           mkdir -p godot-build/arthur_assets/kaykit/gltf
           cp -a kaykit-furniture/addons/kaykit_furniture_bits/Assets/gltf/. godot-build/arthur_assets/kaykit/gltf/
           cp kaykit-furniture/addons/kaykit_furniture_bits/Assets/LICENSE.txt godot-build/arthur_assets/kaykit/LICENSE.txt
