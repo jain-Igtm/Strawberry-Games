@@ -91,10 +91,10 @@ jobs:
         run: |
           set +e
           GODOT="$HOME/godot/Godot_v4.7.1-stable_linux.x86_64"
-          timeout 20s "$GODOT" --headless --path godot-ashfall-deadwater --script res://ashfall/gameplay_smoke_test.gd 2>&1 | tee /tmp/ashfall-gameplay-smoke.log
+          timeout 20s "$GODOT" --headless --path godot-ashfall-deadwater res://ashfall/gameplay_smoke.tscn 2>&1 | tee /tmp/ashfall-gameplay-smoke.log
           code=${PIPESTATUS[0]}
           if [ "$code" -ne 0 ]; then
-            detail=$(grep -E 'ASHFALL GAMEPLAY SMOKE FAILED|ASHFALL TEST:|SCRIPT ERROR|ERROR:' /tmp/ashfall-gameplay-smoke.log | tail -n 6 | tr '\n' ' ')
+            detail=$(grep -E 'ASHFALL GAMEPLAY SMOKE FAILED|ASHFALL TEST:|SCRIPT ERROR|ERROR:' /tmp/ashfall-gameplay-smoke.log | tail -n 8 | tr '\n' ' ')
             if [ "$code" -eq 124 ]; then detail="Gameplay smoke timed out. Last output: $detail"; fi
             if [ -z "$detail" ]; then detail="Ashfall gameplay smoke failed with exit code $code"; fi
             echo "::error::$detail"
