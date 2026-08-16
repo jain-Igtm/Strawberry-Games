@@ -1,10 +1,14 @@
-[gd_scene load_steps=3 format=3]
+[gd_scene load_steps=4 format=3]
 
 [ext_resource type="Script" path="res://ashfall/main.gd" id="1_main"]
 [ext_resource type="Script" path="res://ashfall/visual_overhaul.gd" id="2_overhaul"]
+[ext_resource type="Script" path="res://ashfall/audio_overhaul.gd" id="3_audio"]
 
 [node name="AshfallDeadwater" type="Node3D"]
 script = ExtResource("1_main")
 
 [node name="VisualOverhaul" type="Node3D" parent="."]
 script = ExtResource("2_overhaul")
+
+[node name="AudioOverhaul" type="Node" parent="."]
+script = ExtResource("3_audio")
