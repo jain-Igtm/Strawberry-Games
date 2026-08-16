@@ -1,0 +1,114 @@
+[gd_scene load_steps=5 format=3]
+
+[ext_resource type="Material" path="res://arthur_mobile/materials/pool_tiles.tres" id="1_tile"]
+[ext_resource type="Material" path="res://arthur_mobile/materials/pool_water.tres" id="2_water"]
+[ext_resource type="Material" path="res://arthur_mobile/materials/pool_plaster.tres" id="3_plaster"]
+
+[sub_resource type="PlaneMesh" id="ChannelWater"]
+material = ExtResource("2_water")
+size = Vector2(3.2, 15.8)
+subdivide_width = 4
+subdivide_depth = 12
+
+[node name="PoolArcade" type="Node3D"]
+
+[node name="WaterLeft" type="MeshInstance3D" parent="."]
+position = Vector3(-5.8, 0.06, 0)
+mesh = SubResource("ChannelWater")
+
+[node name="WaterRight" type="MeshInstance3D" parent="."]
+position = Vector3(5.8, 0.06, 0)
+mesh = SubResource("ChannelWater")
+
+[node name="Walkway" type="CSGBox3D" parent="."]
+position = Vector3(0, 0.06, 0)
+size = Vector3(6.8, 0.12, 17.0)
+material_override = ExtResource("1_tile")
+use_collision = true
+collision_layer = 3
+collision_mask = 3
+
+[node name="LeftLip" type="CSGBox3D" parent="."]
+position = Vector3(-3.95, 0.12, 0)
+size = Vector3(0.35, 0.24, 16.4)
+material_override = ExtResource("1_tile")
+
+[node name="RightLip" type="CSGBox3D" parent="."]
+position = Vector3(3.95, 0.12, 0)
+size = Vector3(0.35, 0.24, 16.4)
+material_override = ExtResource("1_tile")
+
+[node name="ColumnL1" type="CSGCylinder3D" parent="."]
+position = Vector3(-2.8, 2.0, -6.0)
+radius = 0.42
+height = 4.0
+sides = 20
+material_override = ExtResource("1_tile")
+use_collision = true
+collision_layer = 3
+collision_mask = 3
+
+[node name="ColumnR1" type="CSGCylinder3D" parent="."]
+position = Vector3(2.8, 2.0, -6.0)
+radius = 0.42
+height = 4.0
+sides = 20
+material_override = ExtResource("1_tile")
+use_collision = true
+collision_layer = 3
+collision_mask = 3
+
+[node name="ColumnL2" type="CSGCylinder3D" parent="."]
+position = Vector3(-2.8, 2.0, 0)
+radius = 0.42
+height = 4.0
+sides = 20
+material_override = ExtResource("1_tile")
+use_collision = true
+collision_layer = 3
+collision_mask = 3
+
+[node name="ColumnR2" type="CSGCylinder3D" parent="."]
+position = Vector3(2.8, 2.0, 0)
+radius = 0.42
+height = 4.0
+sides = 20
+material_override = ExtResource("1_tile")
+use_collision = true
+collision_layer = 3
+collision_mask = 3
+
+[node name="ColumnL3" type="CSGCylinder3D" parent="."]
+position = Vector3(-2.8, 2.0, 6.0)
+radius = 0.42
+height = 4.0
+sides = 20
+material_override = ExtResource("1_tile")
+use_collision = true
+collision_layer = 3
+collision_mask = 3
+
+[node name="ColumnR3" type="CSGCylinder3D" parent="."]
+position = Vector3(2.8, 2.0, 6.0)
+radius = 0.42
+height = 4.0
+sides = 20
+material_override = ExtResource("1_tile")
+use_collision = true
+collision_layer = 3
+collision_mask = 3
+
+[node name="Beam1" type="CSGBox3D" parent="."]
+position = Vector3(0, 3.62, -6.0)
+size = Vector3(7.0, 0.34, 0.45)
+material_override = ExtResource("3_plaster")
+
+[node name="Beam2" type="CSGBox3D" parent="."]
+position = Vector3(0, 3.62, 0)
+size = Vector3(7.0, 0.34, 0.45)
+material_override = ExtResource("3_plaster")
+
+[node name="Beam3" type="CSGBox3D" parent="."]
+position = Vector3(0, 3.62, 6.0)
+size = Vector3(7.0, 0.34, 0.45)
+material_override = ExtResource("3_plaster")
