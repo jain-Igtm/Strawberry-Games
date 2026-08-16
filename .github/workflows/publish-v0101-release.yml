@@ -1,0 +1,39 @@
+name: Publish Arthur Backrooms v0.10.1 Release
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/publish-v0101-release.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  actions: read
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Download exact v0.10.1 APK artifact
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh api repos/${{ github.repository }}/actions/artifacts/9265396910/zip > /tmp/v0101.zip
+          mkdir -p /tmp/v0101
+          unzip -q /tmp/v0101.zip -d /tmp/v0101
+          APK=$(find /tmp/v0101 -type f -name '*.apk' | head -n 1)
+          test -n "$APK"
+          cp "$APK" /tmp/Arthur-Backrooms-Godot-v0.10.1-vertical-plane-fix.apk
+          ls -lh /tmp/Arthur-Backrooms-Godot-v0.10.1-vertical-plane-fix.apk
+
+      - name: Publish permanent GitHub Release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release delete v0.10.1 --repo "${{ github.repository }}" --yes --cleanup-tag || true
+          gh release create v0.10.1 /tmp/Arthur-Backrooms-Godot-v0.10.1-vertical-plane-fix.apk \
+            --repo "${{ github.repository }}" \
+            --target a7a38f620c4d19ebfa194d997a922d107c864927 \
+            --title "Arthur Backrooms Godot v0.10.1 - Vertical Plane Fix" \
+            --notes "Replaces the heavy seven-storey stack streamer with one active v0.9-preserving procedural plane at a time. Restores original biome geometry, prevents off-floor light bleed, keeps deep pool geometry attached to its floor, and adds lightweight stair-connected vertical storeys. Built from commit a7a38f620c4d19ebfa194d997a922d107c864927."
