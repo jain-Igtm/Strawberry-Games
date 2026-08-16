@@ -6,6 +6,7 @@ const DISTRICT_CELLS: int = 8
 var player: Node3D
 var world: Node
 var current_district: Vector2i = Vector2i(999999, 999999)
+var current_level: int = 999999
 var current_landmark: String = ""
 var seen_districts: Dictionary = {}
 var seen_landmarks: Dictionary = {}
@@ -34,10 +35,13 @@ func _process(delta: float) -> void:
 		floori(float(cell.x) / float(DISTRICT_CELLS)),
 		floori(float(cell.y) / float(DISTRICT_CELLS))
 	)
+	var level: int = int(world.get("current_level"))
 
-	if district != current_district:
+	if district != current_district or level != current_level:
 		current_district = district
-		_enter_district(district)
+		current_level = level
+		current_landmark = ""
+		_enter_district(district, level)
 
 	var landmark: String = ""
 	if world.has_method("parking_landmark_name_at"):
@@ -45,17 +49,16 @@ func _process(delta: float) -> void:
 	if landmark != current_landmark:
 		current_landmark = landmark
 		if not landmark.is_empty():
-			_show_landmark(landmark)
+			_show_landmark(landmark, level)
 
 	if show_timer > 0.0:
 		show_timer -= delta
 		if show_timer <= 0.0:
 			visible = false
 
-func _enter_district(district: Vector2i) -> void:
+func _enter_district(district: Vector2i, level: int) -> void:
 	if world == null or not world.has_method("parking_district_name_at"):
 		return
-	var level: int = int(world.get("current_level"))
 	var key: String = "%d:%d:%d" % [district.x, district.y, level]
 	if seen_districts.has(key):
 		return
@@ -63,12 +66,11 @@ func _enter_district(district: Vector2i) -> void:
 	var district_name: String = String(world.call("parking_district_name_at", player.global_position))
 	if district_name == "CENTRAL ARRIVAL":
 		return
-	text = "ENTERING // %s" % district_name
+	text = "ENTERING // %s // LEVEL %+d" % [district_name, level]
 	visible = true
 	show_timer = 2.6
 
-func _show_landmark(name: String) -> void:
-	var level: int = int(world.get("current_level")) if world != null else 0
+func _show_landmark(name: String, level: int) -> void:
 	var key: String = "%d:%s" % [level, name]
 	if seen_landmarks.has(key):
 		return
