@@ -1,4 +1,4 @@
-[gd_scene load_steps=8 format=3]
+[gd_scene load_steps=9 format=3]
 
 [ext_resource type="Script" path="res://arthur_mobile/yellow_portrait.gd" id="1_script"]
 
@@ -25,8 +25,20 @@ size = Vector2(1.12, 1.42)
 albedo_color = Color(0.045, 0.038, 0.026, 1)
 roughness = 0.9
 
-[node name="YellowPortrait" type="Node3D"]
+[sub_resource type="BoxShape3D" id="PortraitShape"]
+size = Vector3(1.48, 1.82, 0.16)
+
+[node name="YellowPortrait" type="RigidBody3D" groups=["psychic_prop"]]
+freeze = true
+freeze_mode = 0
+mass = 1.1
+collision_layer = 3
+collision_mask = 3
 script = ExtResource("1_script")
+
+[node name="CollisionShape3D" type="CollisionShape3D" parent="."]
+position = Vector3(0, 1.82, 0.02)
+shape = SubResource("PortraitShape")
 
 [node name="Back" type="MeshInstance3D" parent="."]
 position = Vector3(0, 1.82, 0)
