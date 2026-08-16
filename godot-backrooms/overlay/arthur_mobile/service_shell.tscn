@@ -1,0 +1,15 @@
+[gd_scene load_steps=2 format=3]
+
+[ext_resource type="Material" path="res://arthur_mobile/materials/service_concrete.tres" id="1_concrete"]
+
+[node name="ServiceShell" type="Node3D"]
+
+[node name="FloorSkin" type="CSGBox3D" parent="."]
+position = Vector3(0, 0.018, 0)
+material_override = ExtResource("1_concrete")
+size = Vector3(23.7, 0.035, 23.7)
+
+[node name="CeilingSkin" type="CSGBox3D" parent="."]
+position = Vector3(0, 3.965, 0)
+material_override = ExtResource("1_concrete")
+size = Vector3(23.7, 0.05, 23.7)
