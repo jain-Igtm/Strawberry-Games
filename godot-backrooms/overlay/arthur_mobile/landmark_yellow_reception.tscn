@@ -1,0 +1,124 @@
+[gd_scene load_steps=6 format=3]
+
+[ext_resource type="Material" path="res://procedural/assets/wall.tres" id="1_wall"]
+[ext_resource type="PackedScene" path="res://assets/models/crt/crttv_2.scn" id="2_crt"]
+
+[sub_resource type="StandardMaterial3D" id="Mat_counter"]
+albedo_color = Color(0.19, 0.16, 0.10, 1)
+roughness = 0.8
+
+[sub_resource type="StandardMaterial3D" id="Mat_metal"]
+albedo_color = Color(0.075, 0.072, 0.06, 1)
+metallic = 0.55
+roughness = 0.44
+
+[sub_resource type="StandardMaterial3D" id="Mat_glow"]
+albedo_color = Color(0.78, 0.15, 0.075, 1)
+emission_enabled = true
+emission = Color(1.0, 0.12, 0.04, 1)
+emission_energy_multiplier = 2.1
+roughness = 0.35
+
+[node name="YellowReceptionLandmark" type="Node3D"]
+
+[node name="BackWall" type="CSGBox3D" parent="."]
+position = Vector3(0, 2.0, -7.2)
+size = Vector3(11.8, 4.0, 0.35)
+material_override = ExtResource("1_wall")
+use_collision = true
+collision_layer = 3
+collision_mask = 3
+
+[node name="SideWall" type="CSGBox3D" parent="."]
+position = Vector3(-5.8, 2.0, -3.3)
+size = Vector3(0.35, 4.0, 7.8)
+material_override = ExtResource("1_wall")
+use_collision = true
+collision_layer = 3
+collision_mask = 3
+
+[node name="CounterFront" type="CSGBox3D" parent="."]
+position = Vector3(0.4, 0.78, -3.25)
+size = Vector3(8.2, 1.55, 0.65)
+material_override = SubResource("Mat_counter")
+use_collision = true
+collision_layer = 3
+collision_mask = 3
+
+[node name="CounterWing" type="CSGBox3D" parent="."]
+position = Vector3(4.15, 0.78, -1.7)
+size = Vector3(0.65, 1.55, 3.7)
+material_override = SubResource("Mat_counter")
+use_collision = true
+collision_layer = 3
+collision_mask = 3
+
+[node name="CounterTop" type="CSGBox3D" parent="."]
+position = Vector3(0.45, 1.58, -3.18)
+size = Vector3(8.55, 0.12, 0.92)
+material_override = SubResource("Mat_metal")
+use_collision = true
+collision_layer = 3
+collision_mask = 3
+
+[node name="BenchSeat" type="CSGBox3D" parent="."]
+position = Vector3(-1.8, 0.48, 3.6)
+size = Vector3(4.3, 0.18, 1.15)
+material_override = SubResource("Mat_counter")
+use_collision = true
+collision_layer = 3
+collision_mask = 3
+
+[node name="BenchBack" type="CSGBox3D" parent="."]
+position = Vector3(-1.8, 1.0, 4.08)
+size = Vector3(4.3, 1.05, 0.18)
+material_override = SubResource("Mat_counter")
+
+[node name="BenchLegL" type="CSGBox3D" parent="."]
+position = Vector3(-3.35, 0.22, 3.6)
+size = Vector3(0.18, 0.52, 0.85)
+material_override = SubResource("Mat_metal")
+
+[node name="BenchLegR" type="CSGBox3D" parent="."]
+position = Vector3(-0.25, 0.22, 3.6)
+size = Vector3(0.18, 0.52, 0.85)
+material_override = SubResource("Mat_metal")
+
+[node name="ReceptionSignBacking" type="CSGBox3D" parent="."]
+position = Vector3(0.2, 2.75, -6.98)
+size = Vector3(5.7, 0.95, 0.08)
+material_override = SubResource("Mat_metal")
+
+[node name="ReceptionSign" type="Label3D" parent="."]
+position = Vector3(0.2, 2.75, -6.91)
+text = "RECEPTION"
+font_size = 78
+outline_size = 8
+modulate = Color(0.87, 0.82, 0.57, 1)
+
+[node name="ExitLamp" type="CSGBox3D" parent="."]
+position = Vector3(-4.35, 2.72, -6.90)
+size = Vector3(1.1, 0.42, 0.09)
+material_override = SubResource("Mat_glow")
+
+[node name="ExitLabel" type="Label3D" parent="."]
+position = Vector3(-4.35, 2.72, -6.83)
+text = "EXIT"
+font_size = 46
+outline_size = 5
+modulate = Color(1, 0.72, 0.52, 1)
+
+[node name="DeskCRT" parent="." instance=ExtResource("2_crt")]
+position = Vector3(-1.2, 1.72, -3.1)
+rotation_degrees = Vector3(0, 180, 0)
+scale = Vector3(0.78, 0.78, 0.78)
+
+[node name="RedSpill" type="OmniLight3D" parent="."]
+position = Vector3(-4.35, 2.55, -5.9)
+light_color = Color(1, 0.12, 0.055, 1)
+light_energy = 0.42
+omni_range = 5.0
+shadow_enabled = false
+distance_fade_enabled = true
+distance_fade_begin = 7.0
+distance_fade_length = 5.0
