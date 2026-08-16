@@ -1,10 +1,10 @@
-; Arthur Backrooms mobile Godot overlay.
-; This file is copied over the pinned upstream Godot project during CI.
+; Arthur City mobile Godot overlay.
+; Branch-only normal-world fork of the Arthur Backrooms project.
 config_version=5
 
 [application]
-config/name="Arthur Backrooms"
-run/main_scene="res://arthur_mobile/main.tscn"
+config/name="Arthur City"
+run/main_scene="res://arthur_mobile/city_main.tscn"
 config/features=PackedStringArray("4.7", "Mobile")
 config/icon="res://icon.png"
 
@@ -24,4 +24,4 @@ renderer/rendering_method.mobile="mobile"
 anti_aliasing/quality/msaa_3d=1
 anti_aliasing/quality/use_debanding=true
 textures/vram_compression/import_etc2_astc=true
-environment/defaults/default_clear_color=Color(0.115, 0.105, 0.067, 1)
+environment/defaults/default_clear_color=Color(0.27, 0.43, 0.61, 1)
