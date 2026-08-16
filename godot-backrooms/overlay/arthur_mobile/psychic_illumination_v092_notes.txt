@@ -1,0 +1,5 @@
+v0.9.2 light-motion correction:
+HOME mode must be the exact stable-v0.7 motion controller, not a generalized approximation.
+Original world-space radii: A 1.45m, B 1.22m, C 1.70m with independent phase/speed and vertical bob equations.
+Scout/spread/combine are temporary transforms layered over HOME. When HOME is active, global anchor follows Arthur exactly with no lerp lag.
+Reference stable branch: stable-v0.7-first-stable.
