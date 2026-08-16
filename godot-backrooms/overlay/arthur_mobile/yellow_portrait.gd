@@ -2,16 +2,15 @@ extends Node3D
 
 static var _texture_cache: Dictionary = {}
 
-@onready var picture: MeshInstance3D = $Picture
-
 func configure(seed: int) -> void:
-	var variant: int = posmod(seed, 12)
+	var variant: int = ((seed % 12) + 12) % 12
 	if not _texture_cache.has(variant):
 		_texture_cache[variant] = _build_texture(variant)
 	var material := StandardMaterial3D.new()
 	material.albedo_texture = _texture_cache[variant] as Texture2D
 	material.roughness = 0.82
 	material.metallic = 0.0
+	var picture := get_node("Picture") as MeshInstance3D
 	picture.material_override = material
 
 func _build_texture(variant: int) -> ImageTexture:
