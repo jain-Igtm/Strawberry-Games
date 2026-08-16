@@ -1,4 +1,4 @@
-[gd_scene load_steps=11 format=3]
+[gd_scene load_steps=12 format=3]
 
 [ext_resource type="Script" path="res://arthur_mobile/environment_lab/environment_lab.gd" id="1_world"]
 [ext_resource type="Script" path="res://arthur_mobile/environment_lab/lab_player.gd" id="2_player"]
@@ -7,6 +7,7 @@
 [ext_resource type="AudioStream" path="res://assets/audio/Neon Lighting Hum.mp3" id="5_hum"]
 [ext_resource type="AudioStream" path="res://assets/audio/Deep Space Travel Background Noise.mp3" id="6_atmosphere"]
 [ext_resource type="Script" path="res://arthur_mobile/environment_lab/lived_in_props.gd" id="7_props"]
+[ext_resource type="Script" path="res://arthur_mobile/environment_lab/parking_plaza_experiment.gd" id="8_plaza"]
 
 [sub_resource type="CapsuleShape3D" id="CapsuleShape_player"]
 radius = 0.34
@@ -43,6 +44,9 @@ script = ExtResource("1_world")
 
 [node name="LivedInProps" type="Node3D" parent="."]
 script = ExtResource("7_props")
+
+[node name="ParkingPlazaExperiment" type="Node3D" parent="."]
+script = ExtResource("8_plaza")
 
 [node name="WorldEnvironment" type="WorldEnvironment" parent="."]
 environment = SubResource("Environment_lab")
