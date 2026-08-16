@@ -258,12 +258,12 @@ func request_use() -> void:
 		return
 	var forge_pos: Vector3 = _world.interaction_points["forge"]
 	if _player.global_position.distance_to(forge_pos) < 5.0:
-		var cost := _player.current_upgrade_cost()
+		var cost: int = int(_player.current_upgrade_cost())
 		if score < cost:
 			_controls.show_toast("FORGE REQUIRES %d PTS" % cost,1.2)
 			return
 		score -= cost
-		var level := _player.upgrade_current_weapon()
+		var level: int = int(_player.upgrade_current_weapon())
 		_controls.show_toast("%s • FORGE LV.%d" % [_player.current_weapon_name(),level],1.4)
 		_update_hud()
 	elif _player.global_position.distance_to(fuel_pos) < 5.5:
@@ -293,7 +293,8 @@ func _nearest_weapon_locker(radius: float) -> Dictionary:
 	var best: Dictionary = {}
 	var best_distance := radius
 	for locker in _weapon_lockers:
-		var distance := Vector3(locker["position"]).distance_to(_player.global_position)
+		var locker_position: Vector3 = locker["position"]
+		var distance: float = locker_position.distance_to(_player.global_position)
 		if distance < best_distance:
 			best = locker
 			best_distance = distance
@@ -302,13 +303,14 @@ func _nearest_weapon_locker(radius: float) -> Dictionary:
 func _purchase_locker(locker: Dictionary) -> void:
 	var id := str(locker["id"])
 	var base_cost := int(locker["cost"])
-	var cost := int(round(base_cost*0.38)) if _player.has_weapon(id) else base_cost
+	var already_owned: bool = bool(_player.has_weapon(id))
+	var cost := int(round(base_cost*0.38)) if already_owned else base_cost
 	if score < cost:
 		_controls.show_toast("%s REQUIRES %d PTS" % [str(WEAPON_RULES.definition(id)["name"]),cost],1.2)
 		return
 	score -= cost
 	_player.give_weapon(id)
-	_controls.show_toast(("AMMO • " if _player.has_weapon(id) else "ACQUIRED • ") + _player.current_weapon_name(),1.0)
+	_controls.show_toast(("AMMO • " if already_owned else "ACQUIRED • ") + _player.current_weapon_name(),1.0)
 	_update_hud()
 
 func toggle_pause() -> void:
@@ -489,7 +491,7 @@ func _fill_siren_buffer() -> void:
 
 func _update_hud() -> void:
 	if not is_instance_valid(_controls) or not is_instance_valid(_player): return
-	var label := _player.current_weapon_name()
+	var label: String = str(_player.current_weapon_name())
 	if _player.current_weapon_level() > 0: label += " +%d" % _player.current_weapon_level()
 	if _player.is_in_vehicle(): label = _player.vehicle_status()+" • "+label
 	_controls.update_hud(wave,_player.health,kills,score,_player.ammo,_player.reserve,label)
