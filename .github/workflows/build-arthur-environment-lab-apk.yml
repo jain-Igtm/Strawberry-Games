@@ -1,0 +1,161 @@
+name: Build Arthur Environment Lab APK
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [agent/arthur-environment-lab-parking]
+    paths:
+      - 'godot-backrooms/overlay/arthur_mobile/environment_lab/**'
+      - '.github/workflows/build-arthur-environment-lab-apk.yml'
+
+jobs:
+  android:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    env:
+      GODOT_VERSION: 4.7.1
+      GODOT_STATUS: stable
+      UPSTREAM_SHA: 6865f8b804f84441df8db3d0f3b6175a80195fd2
+      KAYKIT_SHA: 96d5930a8dbdb363409bbc2d3341718b00e17c9c
+      WATER_SFX_SHA: f2b6264f9ab89fabc266914c3654685d68c5a39b
+      KENNEY_RACING_SHA: f5241ebdf00c25bc951bf4fdb7950bb1b78b4bcc
+
+    steps:
+      - name: Checkout isolated environment branch
+        uses: actions/checkout@v4
+
+      - name: Checkout pinned Godot Backrooms environment
+        uses: actions/checkout@v4
+        with:
+          repository: zodiepupper/backrooms
+          ref: 6865f8b804f84441df8db3d0f3b6175a80195fd2
+          path: godot-build
+          fetch-depth: 1
+
+      - name: Checkout pinned CC0 furniture kit
+        uses: actions/checkout@v4
+        with:
+          repository: KayKit-Game-Assets/KayKit-Furniture-Bits-1.0
+          ref: 96d5930a8dbdb363409bbc2d3341718b00e17c9c
+          path: kaykit-furniture
+          fetch-depth: 1
+
+      - name: Checkout pinned Kenney racing vehicle assets
+        uses: actions/checkout@v4
+        with:
+          repository: KenneyNL/Starter-Kit-Racing
+          ref: f5241ebdf00c25bc951bf4fdb7950bb1b78b4bcc
+          path: kenney-racing
+          fetch-depth: 1
+
+      - name: Assemble isolated environment lab
+        run: |
+          cp -a godot-backrooms/overlay/. godot-build/
+
+          mkdir -p godot-build/arthur_mobile/audio
+          WATER_BASE="https://raw.githubusercontent.com/lavenderdotpet/CC0-Public-Domain-Sounds/${WATER_SFX_SHA}/40-cc0-water-splash-slime-sfx"
+          curl -L --fail --retry 3 "$WATER_BASE/loop_water_01.ogg" -o godot-build/arthur_mobile/audio/loop_water_01.ogg
+          curl -L --fail --retry 3 "$WATER_BASE/loop_water_02.ogg" -o godot-build/arthur_mobile/audio/loop_water_02.ogg
+          curl -L --fail --retry 3 "$WATER_BASE/loop_water_03.ogg" -o godot-build/arthur_mobile/audio/loop_water_03.ogg
+
+          mkdir -p godot-build/arthur_assets/kaykit/gltf
+          cp -a kaykit-furniture/addons/kaykit_furniture_bits/Assets/gltf/. godot-build/arthur_assets/kaykit/gltf/
+          cp kaykit-furniture/addons/kaykit_furniture_bits/Assets/LICENSE.txt godot-build/arthur_assets/kaykit/LICENSE.txt
+
+          mkdir -p godot-build/arthur_assets/kenney_racing
+          cp kenney-racing/models/vehicle-truck-yellow.glb godot-build/arthur_assets/kenney_racing/
+          cp kenney-racing/models/vehicle-truck-green.glb godot-build/arthur_assets/kenney_racing/
+          cp kenney-racing/models/vehicle-truck-red.glb godot-build/arthur_assets/kenney_racing/
+          cp kenney-racing/models/vehicle-truck-purple.glb godot-build/arthur_assets/kenney_racing/
+          cp kenney-racing/README.md godot-build/arthur_assets/kenney_racing/SOURCE_LICENSE.md
+
+          sed -i 's#run/main_scene="res://arthur_mobile/main.tscn"#run/main_scene="res://arthur_mobile/environment_lab/environment_lab_main.tscn"#' godot-build/project.godot
+          grep 'run/main_scene' godot-build/project.godot
+
+          mkdir -p godot-build/build
+          echo "Pinned environment: $UPSTREAM_SHA"
+          echo "Pinned KayKit furniture: $KAYKIT_SHA"
+          echo "Pinned Kenney vehicles: $KENNEY_RACING_SHA"
+
+      - name: Set up Java 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: Set up Android SDK
+        uses: android-actions/setup-android@v3
+
+      - name: Install Android export requirements
+        run: |
+          yes | sdkmanager --licenses >/dev/null || true
+          sdkmanager "platform-tools" "build-tools;35.0.1" "platforms;android-35"
+
+      - name: Install Godot 4.7.1 and export templates
+        run: |
+          mkdir -p "$HOME/godot" "$HOME/.local/share/godot/export_templates/4.7.1.stable"
+          curl -L --retry 3 -o /tmp/godot.zip "https://github.com/godotengine/godot-builds/releases/download/4.7.1-stable/Godot_v4.7.1-stable_linux.x86_64.zip"
+          unzip -q /tmp/godot.zip -d "$HOME/godot"
+          chmod +x "$HOME/godot/Godot_v4.7.1-stable_linux.x86_64"
+          curl -L --retry 3 -o /tmp/templates.tpz "https://github.com/godotengine/godot-builds/releases/download/4.7.1-stable/Godot_v4.7.1-stable_export_templates.tpz"
+          rm -rf /tmp/godot-templates
+          mkdir -p /tmp/godot-templates
+          unzip -q /tmp/templates.tpz -d /tmp/godot-templates
+          cp -a /tmp/godot-templates/templates/. "$HOME/.local/share/godot/export_templates/4.7.1.stable/"
+          "$HOME/godot/Godot_v4.7.1-stable_linux.x86_64" --version
+
+      - name: Create Android debug keystore
+        run: |
+          mkdir -p "$HOME/.android"
+          if [ ! -f "$HOME/.android/debug.keystore" ]; then
+            keytool -genkeypair -v -keystore "$HOME/.android/debug.keystore" -storepass android -alias androiddebugkey -keypass android -keyalg RSA -keysize 2048 -validity 10000 -dname "CN=Android Debug,O=Android,C=US"
+          fi
+
+      - name: Initialize Godot editor settings
+        run: |
+          GODOT="$HOME/godot/Godot_v4.7.1-stable_linux.x86_64"
+          "$GODOT" --headless --editor --path godot-build --quit || true
+          python3 - <<'PY'
+          from pathlib import Path
+          import os, re
+          p = Path.home()/'.config/godot/editor_settings-4.tres'
+          p.parent.mkdir(parents=True, exist_ok=True)
+          if not p.exists():
+              p.write_text('[gd_resource type="EditorSettings" format=3]\n\n[resource]\n')
+          text = p.read_text()
+          settings = {
+              'export/android/android_sdk_path': os.environ.get('ANDROID_HOME', os.environ.get('ANDROID_SDK_ROOT', '')),
+              'export/android/java_sdk_path': os.environ['JAVA_HOME'],
+              'export/android/debug_keystore': str(Path.home()/'.android/debug.keystore'),
+          }
+          for key, value in settings.items():
+              line = f'{key} = "{value}"'
+              pattern = rf'(?m)^{re.escape(key)}\s*=.*$'
+              if re.search(pattern, text):
+                  text = re.sub(pattern, line, text)
+              else:
+                  text += '\n' + line
+          p.write_text(text)
+          PY
+
+      - name: Import and validate isolated Godot lab
+        run: |
+          GODOT="$HOME/godot/Godot_v4.7.1-stable_linux.x86_64"
+          "$GODOT" --headless --editor --path godot-build --quit
+
+      - name: Export environment lab Android APK
+        run: |
+          GODOT="$HOME/godot/Godot_v4.7.1-stable_linux.x86_64"
+          export GODOT_ANDROID_KEYSTORE_DEBUG_PATH="$HOME/.android/debug.keystore"
+          export GODOT_ANDROID_KEYSTORE_DEBUG_USER=androiddebugkey
+          export GODOT_ANDROID_KEYSTORE_DEBUG_PASSWORD=android
+          "$GODOT" --headless --path godot-build --export-debug "Android" "$GITHUB_WORKSPACE/godot-build/build/Arthur-Environment-Lab-debug.apk"
+          test -f godot-build/build/Arthur-Environment-Lab-debug.apk
+          ls -lh godot-build/build/Arthur-Environment-Lab-debug.apk
+
+      - name: Upload isolated environment lab APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: Arthur-Environment-Lab-debug-apk
+          path: godot-build/build/Arthur-Environment-Lab-debug.apk
+          if-no-files-found: error
