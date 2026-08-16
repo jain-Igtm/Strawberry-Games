@@ -1,0 +1,28 @@
+; Ashfall / Sundown Village rebuilt from scratch in Godot 4.7.
+config_version=5
+
+[application]
+config/name="Ashfall"
+run/main_scene="res://ashfall/main.tscn"
+config/features=PackedStringArray("4.7", "Mobile")
+
+[display]
+window/size/viewport_width=1280
+window/size/viewport_height=720
+window/size/window_width_override=1280
+window/size/window_height_override=720
+window/handheld/orientation=0
+window/energy_saving/keep_screen_on=true
+window/stretch/mode="canvas_items"
+
+[physics]
+common/physics_ticks_per_second=60
+common/physics_interpolation=true
+
+[rendering]
+renderer/rendering_method="mobile"
+renderer/rendering_method.mobile="mobile"
+anti_aliasing/quality/msaa_3d=1
+anti_aliasing/quality/use_debanding=true
+textures/vram_compression/import_etc2_astc=true
+environment/defaults/default_clear_color=Color(0.008, 0.012, 0.014, 1)
