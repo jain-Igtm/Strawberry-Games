@@ -5,9 +5,10 @@ var move_touch := -1
 var look_touch := -1
 var move_origin := Vector2.ZERO
 var move_current := Vector2.ZERO
-var joystick_radius := 126.0
+var joystick_radius := 168.0
 var response_radius := 96.0
-var knob_radius := 52.0
+var knob_radius := 68.0
+var ability_radius := 58.0
 
 func _ready() -> void:
 	mouse_filter = Control.MOUSE_FILTER_IGNORE
@@ -16,6 +17,15 @@ func _ready() -> void:
 
 func _find_player() -> void:
 	player = get_tree().get_first_node_in_group("player") as CharacterBody3D
+
+func _orb_center() -> Vector2:
+	return Vector2(size.x - 104.0, size.y - 104.0)
+
+func _tk_center() -> Vector2:
+	return Vector2(size.x - 244.0, size.y - 104.0)
+
+func _inside_circle(point: Vector2, center: Vector2, radius: float) -> bool:
+	return point.distance_squared_to(center) <= radius * radius
 
 func _input(event: InputEvent) -> void:
 	if not OS.has_feature("mobile"):
@@ -27,6 +37,16 @@ func _input(event: InputEvent) -> void:
 
 	if event is InputEventScreenTouch:
 		if event.pressed:
+			if _inside_circle(event.position, _orb_center(), ability_radius):
+				if player.has_method("toggle_psychic_light"):
+					player.call("toggle_psychic_light")
+				queue_redraw()
+				return
+			if _inside_circle(event.position, _tk_center(), ability_radius):
+				if player.has_method("psychic_interact"):
+					player.call("psychic_interact")
+				queue_redraw()
+				return
 			if event.position.x < get_viewport_rect().size.x * 0.42 and move_touch == -1:
 				move_touch = event.index
 				move_origin = event.position
@@ -61,16 +81,28 @@ func _update_move() -> void:
 func _draw() -> void:
 	if not OS.has_feature("mobile"):
 		return
-	var ghost_center := Vector2(158.0, size.y - 158.0)
+	var ghost_center := Vector2(210.0, size.y - 210.0)
 	if move_touch == -1:
 		draw_circle(ghost_center, joystick_radius, Color(1, 1, 1, 0.075))
-		draw_arc(ghost_center, joystick_radius, 0.0, TAU, 56, Color(1, 1, 1, 0.24), 2.5)
-		draw_circle(ghost_center, knob_radius, Color(1, 1, 1, 0.12))
+		draw_arc(ghost_center, joystick_radius, 0.0, TAU, 64, Color(1, 1, 1, 0.27), 3.0)
+		draw_circle(ghost_center, knob_radius, Color(1, 1, 1, 0.13))
 	else:
 		var delta := move_current - move_origin
 		if delta.length() > joystick_radius:
 			delta = delta.normalized() * joystick_radius
-		draw_circle(move_origin, joystick_radius, Color(1, 1, 1, 0.08))
-		draw_arc(move_origin, joystick_radius, 0.0, TAU, 56, Color(1, 1, 1, 0.33), 2.5)
-		draw_circle(move_origin + delta, knob_radius, Color(1, 1, 1, 0.22))
-		draw_arc(move_origin + delta, knob_radius, 0.0, TAU, 40, Color(1, 1, 1, 0.48), 2.5)
+		draw_circle(move_origin, joystick_radius, Color(1, 1, 1, 0.085))
+		draw_arc(move_origin, joystick_radius, 0.0, TAU, 64, Color(1, 1, 1, 0.38), 3.0)
+		draw_circle(move_origin + delta, knob_radius, Color(1, 1, 1, 0.25))
+		draw_arc(move_origin + delta, knob_radius, 0.0, TAU, 44, Color(1, 1, 1, 0.55), 3.0)
+
+	_draw_ability_button(_orb_center(), "LIGHT", player.has_method("is_psychic_light_enabled") and bool(player.call("is_psychic_light_enabled")))
+	_draw_ability_button(_tk_center(), "TK", player.has_method("has_psychic_hold") and bool(player.call("has_psychic_hold")))
+
+func _draw_ability_button(center: Vector2, label: String, active: bool) -> void:
+	var fill := Color(0.66, 0.86, 1.0, 0.24) if active else Color(1, 1, 1, 0.09)
+	var ring := Color(0.72, 0.9, 1.0, 0.75) if active else Color(1, 1, 1, 0.34)
+	draw_circle(center, ability_radius, fill)
+	draw_arc(center, ability_radius, 0.0, TAU, 40, ring, 2.5)
+	var font: Font = ThemeDB.fallback_font
+	var text_width: float = font.get_string_size(label, HORIZONTAL_ALIGNMENT_LEFT, -1, 20).x
+	draw_string(font, center + Vector2(-text_width * 0.5, 7.0), label, HORIZONTAL_ALIGNMENT_LEFT, -1, 20, Color(1, 1, 1, 0.82))
