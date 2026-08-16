@@ -10,6 +10,7 @@ const MOUSE_SENSITIVITY: float = 0.00175
 const TOUCH_SENSITIVITY: float = 0.00245
 const GROUND_OFFSET: float = 0.035
 const CHUNK_SIZE: float = 64.0
+const OBSTACLE_LAYER: int = 2
 
 @onready var world: Node3D = get_parent()
 @onready var head: Node3D = $Head
@@ -31,10 +32,12 @@ var terrain_grounded: bool = true
 var vertical_speed: float = 0.0
 
 func _ready() -> void:
-    # Terrain elevation is analytical. Floating motion mode keeps CharacterBody3D
-    # collision for nearby trunks and future obstacles without asking the physics
-    # backend to classify streamed procedural terrain as a floor.
+    # Terrain elevation is analytical. The player only collides with dedicated
+    # obstacle-layer bodies such as nearby trunks. Streamed terrain bodies use
+    # the default layer and are therefore completely invisible to this capsule.
     motion_mode = CharacterBody3D.MOTION_MODE_FLOATING
+    collision_layer = 1
+    collision_mask = OBSTACLE_LAYER
     safe_margin = 0.025
 
     if not OS.has_feature("mobile"):
@@ -85,9 +88,8 @@ func _physics_process(delta: float) -> void:
         terrain_grounded = false
         vertical_speed = JUMP_VELOCITY
 
-    # Only horizontal motion is sent to the physics engine. Its job is now to
-    # stop movement through solid trunks. The world surface itself cannot be
-    # fallen through because vertical placement comes from the rendered mesh.
+    # Only horizontal motion is sent to the physics engine. Its collision mask
+    # contains only the obstacle layer, so terrain can never push or wedge us.
     velocity.y = 0.0
     move_and_slide()
 
