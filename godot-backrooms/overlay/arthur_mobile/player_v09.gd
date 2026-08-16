@@ -42,6 +42,10 @@ func toggle_bubble_expanded() -> bool:
 func is_bubble_expanded() -> bool:
 	return psychic_bubble != null and bool(psychic_bubble.call("is_expanded"))
 
+func lights_end_radius_gesture() -> void:
+	if illumination != null and illumination.has_method("end_radius_gesture"):
+		illumination.call("end_radius_gesture")
+
 func launch_psychic_field_at_enemies() -> void:
 	if not psychic_field_active:
 		return
