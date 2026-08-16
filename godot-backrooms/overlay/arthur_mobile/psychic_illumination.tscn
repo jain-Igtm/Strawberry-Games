@@ -1,0 +1,59 @@
+[gd_scene load_steps=4 format=3]
+
+[ext_resource type="Script" path="res://arthur_mobile/psychic_illumination.gd" id="1_script"]
+
+[sub_resource type="StandardMaterial3D" id="OrbMat"]
+albedo_color = Color(0.72, 0.9, 1, 1)
+emission_enabled = true
+emission = Color(0.58, 0.82, 1, 1)
+emission_energy_multiplier = 5.5
+roughness = 0.18
+
+[sub_resource type="SphereMesh" id="OrbMesh"]
+material = SubResource("OrbMat")
+radius = 0.12
+height = 0.24
+radial_segments = 16
+rings = 8
+
+[node name="PsychicIllumination" type="Node3D"]
+script = ExtResource("1_script")
+
+[node name="OrbA" type="Node3D" parent="."]
+
+[node name="Mesh" type="MeshInstance3D" parent="OrbA"]
+mesh = SubResource("OrbMesh")
+
+[node name="Light" type="OmniLight3D" parent="OrbA"]
+light_color = Color(0.64, 0.84, 1, 1)
+light_energy = 1.45
+light_size = 0.5
+shadow_enabled = false
+omni_range = 9.5
+omni_attenuation = 1.2
+
+[node name="OrbB" type="Node3D" parent="."]
+
+[node name="Mesh" type="MeshInstance3D" parent="OrbB"]
+mesh = SubResource("OrbMesh")
+
+[node name="Light" type="OmniLight3D" parent="OrbB"]
+light_color = Color(0.78, 0.72, 1, 1)
+light_energy = 1.2
+light_size = 0.5
+shadow_enabled = false
+omni_range = 8.5
+omni_attenuation = 1.25
+
+[node name="OrbC" type="Node3D" parent="."]
+
+[node name="Mesh" type="MeshInstance3D" parent="OrbC"]
+mesh = SubResource("OrbMesh")
+
+[node name="Light" type="OmniLight3D" parent="OrbC"]
+light_color = Color(0.7, 1, 0.92, 1)
+light_energy = 1.15
+light_size = 0.5
+shadow_enabled = false
+omni_range = 8.0
+omni_attenuation = 1.3
