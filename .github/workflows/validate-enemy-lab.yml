@@ -1,0 +1,61 @@
+name: Validate Enemy Lab
+
+on:
+  push:
+    branches: ['lab/arthur-enemies-v011']
+    paths:
+      - 'godot-backrooms/**'
+      - '.github/workflows/validate-enemy-lab.yml'
+  workflow_dispatch:
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    env:
+      GODOT_VERSION: 4.7.1
+      UPSTREAM_SHA: 6865f8b804f84441df8db3d0f3b6175a80195fd2
+      KAYKIT_SHA: 96d5930a8dbdb363409bbc2d3341718b00e17c9c
+    steps:
+      - name: Checkout enemy lab branch
+        uses: actions/checkout@v4
+
+      - name: Checkout pinned Backrooms project
+        uses: actions/checkout@v4
+        with:
+          repository: zodiepupper/backrooms
+          ref: 6865f8b804f84441df8db3d0f3b6175a80195fd2
+          path: godot-build
+          fetch-depth: 1
+
+      - name: Checkout pinned CC0 furniture kit
+        uses: actions/checkout@v4
+        with:
+          repository: KayKit-Game-Assets/KayKit-Furniture-Bits-1.0
+          ref: 96d5930a8dbdb363409bbc2d3341718b00e17c9c
+          path: kaykit-furniture
+          fetch-depth: 1
+
+      - name: Apply Arthur overlay
+        run: |
+          cp -a godot-backrooms/overlay/. godot-build/
+          mkdir -p godot-build/arthur_assets/kaykit/gltf
+          cp -a kaykit-furniture/addons/kaykit_furniture_bits/Assets/gltf/. godot-build/arthur_assets/kaykit/gltf/
+
+      - name: Install Godot 4.7.1
+        run: |
+          mkdir -p "$HOME/godot"
+          curl -L --retry 3 -o /tmp/godot.zip "https://github.com/godotengine/godot-builds/releases/download/4.7.1-stable/Godot_v4.7.1-stable_linux.x86_64.zip"
+          unzip -q /tmp/godot.zip -d "$HOME/godot"
+          chmod +x "$HOME/godot/Godot_v4.7.1-stable_linux.x86_64"
+          "$HOME/godot/Godot_v4.7.1-stable_linux.x86_64" --version
+
+      - name: Import and parse project
+        run: |
+          GODOT="$HOME/godot/Godot_v4.7.1-stable_linux.x86_64"
+          "$GODOT" --headless --editor --path godot-build --quit
+
+      - name: Parse enemy lab scene
+        run: |
+          GODOT="$HOME/godot/Godot_v4.7.1-stable_linux.x86_64"
+          "$GODOT" --headless --editor --path godot-build res://arthur_mobile/enemies/enemy_lab.tscn --quit
