@@ -21,6 +21,9 @@ func _find_player() -> void:
 func _orb_center() -> Vector2:
 	return Vector2(size.x - 104.0, size.y - 104.0)
 
+func _scout_center() -> Vector2:
+	return Vector2(size.x - 104.0, size.y - 244.0)
+
 func _tk_center() -> Vector2:
 	return Vector2(size.x - 244.0, size.y - 104.0)
 
@@ -37,6 +40,11 @@ func _input(event: InputEvent) -> void:
 
 	if event is InputEventScreenTouch:
 		if event.pressed:
+			if _inside_circle(event.position, _scout_center(), ability_radius):
+				if player.has_method("toggle_psychic_scout"):
+					player.call("toggle_psychic_scout")
+				queue_redraw()
+				return
 			if _inside_circle(event.position, _orb_center(), ability_radius):
 				if player.has_method("toggle_psychic_light"):
 					player.call("toggle_psychic_light")
@@ -95,6 +103,8 @@ func _draw() -> void:
 		draw_circle(move_origin + delta, knob_radius, Color(1, 1, 1, 0.25))
 		draw_arc(move_origin + delta, knob_radius, 0.0, TAU, 44, Color(1, 1, 1, 0.55), 3.0)
 
+	var scout_far := player.has_method("is_psychic_scout_far") and bool(player.call("is_psychic_scout_far"))
+	_draw_ability_button(_scout_center(), "FAR" if scout_far else "SCOUT", scout_far)
 	_draw_ability_button(_orb_center(), "LIGHT", player.has_method("is_psychic_light_enabled") and bool(player.call("is_psychic_light_enabled")))
 	_draw_ability_button(_tk_center(), "TK", player.has_method("has_psychic_hold") and bool(player.call("has_psychic_hold")))
 
