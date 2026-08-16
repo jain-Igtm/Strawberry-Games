@@ -1,0 +1,6 @@
+[gd_resource type="ShaderMaterial" load_steps=2 format=3]
+
+[ext_resource type="Shader" path="res://arthur_mobile/waterfall_surface_v13.gdshader" id="1_waterfall"]
+
+[resource]
+shader = ExtResource("1_waterfall")
