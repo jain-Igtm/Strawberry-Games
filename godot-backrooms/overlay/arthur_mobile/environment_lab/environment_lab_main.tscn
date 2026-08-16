@@ -1,4 +1,4 @@
-[gd_scene load_steps=12 format=3]
+[gd_scene load_steps=15 format=3]
 
 [ext_resource type="Script" path="res://arthur_mobile/environment_lab/environment_lab.gd" id="1_world"]
 [ext_resource type="Script" path="res://arthur_mobile/environment_lab/lab_player.gd" id="2_player"]
@@ -12,6 +12,16 @@
 [sub_resource type="CapsuleShape3D" id="CapsuleShape_player"]
 radius = 0.34
 height = 1.65
+
+[sub_resource type="StandardMaterial3D" id="SafetyFloorMaterial"]
+albedo_color = Color(0.34, 0.35, 0.34, 1)
+roughness = 0.9
+
+[sub_resource type="BoxMesh" id="SafetyFloorMesh"]
+size = Vector3(74, 0.5, 160)
+
+[sub_resource type="BoxShape3D" id="SafetyFloorShape"]
+size = Vector3(74, 0.5, 160)
 
 [sub_resource type="Environment" id="Environment_lab"]
 background_mode = 1
@@ -42,6 +52,18 @@ corner_radius_bottom_left = 18
 [node name="ArthurEnvironmentLab" type="Node3D"]
 script = ExtResource("1_world")
 
+[node name="SpawnFoundation" type="StaticBody3D" parent="."]
+position = Vector3(0, -0.26, -50)
+collision_layer = 1
+collision_mask = 3
+
+[node name="MeshInstance3D" type="MeshInstance3D" parent="SpawnFoundation"]
+mesh = SubResource("SafetyFloorMesh")
+material_override = SubResource("SafetyFloorMaterial")
+
+[node name="CollisionShape3D" type="CollisionShape3D" parent="SpawnFoundation"]
+shape = SubResource("SafetyFloorShape")
+
 [node name="LivedInProps" type="Node3D" parent="."]
 script = ExtResource("7_props")
 
@@ -52,7 +74,7 @@ script = ExtResource("8_plaza")
 environment = SubResource("Environment_lab")
 
 [node name="Player" type="CharacterBody3D" parent="." groups=["player"]]
-position = Vector3(0, 1.0, 18)
+position = Vector3(0, 1.15, 18)
 collision_layer = 1
 collision_mask = 3
 script = ExtResource("2_player")
