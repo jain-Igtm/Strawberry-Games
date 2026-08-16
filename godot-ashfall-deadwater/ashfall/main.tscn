@@ -1,6 +1,10 @@
-[gd_scene load_steps=2 format=3]
+[gd_scene load_steps=3 format=3]
 
 [ext_resource type="Script" path="res://ashfall/main.gd" id="1_main"]
+[ext_resource type="Script" path="res://ashfall/visual_overhaul.gd" id="2_overhaul"]
 
 [node name="AshfallDeadwater" type="Node3D"]
 script = ExtResource("1_main")
+
+[node name="VisualOverhaul" type="Node3D" parent="."]
+script = ExtResource("2_overhaul")
