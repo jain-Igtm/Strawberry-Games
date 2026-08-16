@@ -87,6 +87,11 @@ jobs:
           timeout 12s "$GODOT" --headless --path godot-ashfall-deadwater --editor-pseudolocalization=false || code=$?
           if [ "${code:-0}" -ne 0 ] && [ "${code:-0}" -ne 124 ]; then exit "${code}"; fi
 
+      - name: Exercise gameplay systems
+        run: |
+          GODOT="$HOME/godot/Godot_v4.7.1-stable_linux.x86_64"
+          "$GODOT" --headless --path godot-ashfall-deadwater --script res://ashfall/gameplay_smoke_test.gd
+
       - name: Export Android debug APK
         run: |
           GODOT="$HOME/godot/Godot_v4.7.1-stable_linux.x86_64"
