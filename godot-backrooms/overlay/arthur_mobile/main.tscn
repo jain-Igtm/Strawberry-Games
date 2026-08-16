@@ -6,7 +6,7 @@
 [ext_resource type="Material" path="res://procedural/assets/floor.tres" id="4_floor"]
 [ext_resource type="AudioStream" path="res://assets/audio/Neon Lighting Hum.mp3" id="5_hum"]
 [ext_resource type="AudioStream" path="res://assets/audio/Deep Space Travel Background Noise.mp3" id="6_atmosphere"]
-[ext_resource type="Script" path="res://arthur_mobile/discovery.gd" id="7_discovery"]
+[ext_resource type="Script" path="res://arthur_mobile/parking_garage/parking_discovery.gd" id="7_discovery"]
 [ext_resource type="Script" path="res://arthur_mobile/parking_garage/vehicle_context_button.gd" id="8_vehicle_button"]
 [ext_resource type="Script" path="res://arthur_mobile/parking_garage/vehicle_headlight_button.gd" id="9_headlight_button"]
 
