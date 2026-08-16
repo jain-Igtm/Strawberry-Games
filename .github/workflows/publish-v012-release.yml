@@ -1,0 +1,39 @@
+name: Publish Arthur Backrooms v0.12 Release
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/publish-v012-release.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  actions: read
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Download exact tested v0.12 APK artifact
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh api repos/${{ github.repository }}/actions/artifacts/9267035523/zip > /tmp/v012.zip
+          mkdir -p /tmp/v012
+          unzip -q /tmp/v012.zip -d /tmp/v012
+          APK=$(find /tmp/v012 -type f -name '*.apk' | head -n 1)
+          test -n "$APK"
+          cp "$APK" /tmp/Arthur-Backrooms-Godot-v0.12-pool-rebuild.apk
+          ls -lh /tmp/Arthur-Backrooms-Godot-v0.12-pool-rebuild.apk
+
+      - name: Publish permanent GitHub Release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release delete v0.12 --repo "${{ github.repository }}" --yes --cleanup-tag || true
+          gh release create v0.12 /tmp/Arthur-Backrooms-Godot-v0.12-pool-rebuild.apk \
+            --repo "${{ github.repository }}" \
+            --target 827f5eeae62adc1fc2148ec0112332094a80a567 \
+            --title "Arthur Backrooms Godot v0.12 - Pool Rebuild" \
+            --notes "Rebuilds pool macro-rooms so water is no longer sliced by inherited yellow-room maze partitions, wires the new pool architecture into the live world generator, keeps pool boundaries intentional, adds collidable ceilings, cleans up stair visuals while preserving traversal collision, and packages recorded spatial pool, rushing-water, cascade, waterslide, and splash audio. CI explicitly instantiates all six pool variants before Android export. Built from tested commit 827f5eeae62adc1fc2148ec0112332094a80a567; source APK artifact 9267035523 (sha256:46abeaa1d372edf977ffb40d65315fe88a794f231d82b940054462c5c66f88c4)."
