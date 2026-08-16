@@ -143,6 +143,11 @@ jobs:
           GODOT="$HOME/godot/Godot_v4.7.1-stable_linux.x86_64"
           "$GODOT" --headless --editor --path godot-build --quit
 
+      - name: Runtime smoke test Arthur spawn and foundation
+        run: |
+          GODOT="$HOME/godot/Godot_v4.7.1-stable_linux.x86_64"
+          "$GODOT" --headless --path godot-build --script res://arthur_mobile/environment_lab/spawn_smoke_test.gd
+
       - name: Export environment lab Android APK
         run: |
           GODOT="$HOME/godot/Godot_v4.7.1-stable_linux.x86_64"
