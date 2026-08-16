@@ -4,7 +4,7 @@ const WEAPON_RULES = preload("res://ashfall/weapons.gd")
 const WALK_SPEED := 7.45
 const JUMP_VELOCITY := 6.25
 const GRAVITY := 20.5
-const LOOK_SENSITIVITIES := [1.15, 1.6, 2.05]
+const LOOK_SENSITIVITIES: Array[float] = [1.15, 1.6, 2.05]
 
 var game: Node
 var controls: CanvasLayer
@@ -77,21 +77,21 @@ func _physics_process(delta: float) -> void:
 	_apply_touch_look()
 
 	if is_in_vehicle():
-		var drive_input := _movement_vector()
+		var drive_input: Vector2 = _movement_vector()
 		current_vehicle.drive(drive_input, delta)
 		global_position = current_vehicle.global_position + Vector3(0.0, 0.54, 0.0)
 		velocity = Vector3.ZERO
 		_trigger_was_held = false
 		return
 
-	var input_vec := _movement_vector()
-	var forward := -global_transform.basis.z
-	var right := global_transform.basis.x
+	var input_vec: Vector2 = _movement_vector()
+	var forward: Vector3 = -global_transform.basis.z
+	var right: Vector3 = global_transform.basis.x
 	forward.y = 0.0
 	right.y = 0.0
 	forward = forward.normalized()
 	right = right.normalized()
-	var wish := right * input_vec.x + forward * input_vec.y
+	var wish: Vector3 = right * input_vec.x + forward * input_vec.y
 	if wish.length_squared() > 1.0:
 		wish = wish.normalized()
 	velocity.x = wish.x * WALK_SPEED
@@ -108,17 +108,17 @@ func _physics_process(delta: float) -> void:
 	_check_fall_damage()
 	_update_view_bob(delta, wish.length_squared() > 0.01 and is_on_floor())
 
-	var trigger_held := _mouse_fire_held
+	var trigger_held: bool = _mouse_fire_held
 	if is_instance_valid(controls):
 		trigger_held = trigger_held or bool(controls.get("fire_held"))
-	var definition := current_weapon_definition()
+	var definition: Dictionary = current_weapon_definition()
 	if trigger_held and (bool(definition["automatic"]) or not _trigger_was_held):
 		fire()
 	_trigger_was_held = trigger_held
 
 func _unhandled_input(event: InputEvent) -> void:
 	if event is InputEventMouseMotion and Input.mouse_mode == Input.MOUSE_MODE_CAPTURED and is_gameplay_active():
-		var scale := LOOK_SENSITIVITIES[sensitivity_index]
+		var scale: float = LOOK_SENSITIVITIES[sensitivity_index]
 		_apply_look(event.relative.x * 0.0021 * scale, event.relative.y * 0.0019 * scale)
 	elif event is InputEventMouseButton and event.button_index == MOUSE_BUTTON_LEFT:
 		if event.pressed and Input.mouse_mode != Input.MOUSE_MODE_CAPTURED and is_gameplay_active():
@@ -182,7 +182,7 @@ func request_jump() -> void:
 func request_reload() -> void:
 	if not is_gameplay_active() or is_in_vehicle() or reloading or reserve <= 0:
 		return
-	var mag_size := current_magazine_size()
+	var mag_size: int = current_magazine_size()
 	if ammo >= mag_size:
 		return
 	reloading = true
@@ -196,7 +196,7 @@ func toggle_ads() -> void:
 	if not is_gameplay_active() or is_in_vehicle():
 		return
 	ads = not ads
-	var optic := WEAPON_RULES.optic_fov(current_weapon_id, current_weapon_level())
+	var optic: float = WEAPON_RULES.optic_fov(current_weapon_id, current_weapon_level())
 	_camera.fov = optic if ads and optic > 0.0 else (54.0 if ads else 69.0)
 	var base_view: Vector3 = current_weapon_definition()["view"]
 	_weapon_root.position.x = 0.04 if ads else base_view.x
@@ -212,7 +212,7 @@ func fire() -> void:
 	if ammo <= 0:
 		request_reload()
 		return
-	var definition := current_weapon_definition()
+	var definition: Dictionary = current_weapon_definition()
 	ammo -= 1
 	_store_current_ammo()
 	_fire_cooldown = float(definition["fire_delay"])
@@ -220,19 +220,19 @@ func fire() -> void:
 	_show_muzzle()
 	game.on_player_state_changed()
 
-	var pellets := int(definition["pellets"])
-	var base_damage := float(definition["damage"]) * WEAPON_RULES.damage_multiplier(current_weapon_level())
-	var spread := float(definition["spread"]) * (0.35 if ads else 1.0)
-	var origin := _camera.global_position
-	var forward := -_camera.global_transform.basis.z
-	var right := _camera.global_transform.basis.x
-	var up := _camera.global_transform.basis.y
+	var pellets: int = int(definition["pellets"])
+	var base_damage: float = float(definition["damage"]) * WEAPON_RULES.damage_multiplier(current_weapon_level())
+	var spread: float = float(definition["spread"]) * (0.35 if ads else 1.0)
+	var origin: Vector3 = _camera.global_position
+	var forward: Vector3 = -_camera.global_transform.basis.z
+	var right: Vector3 = _camera.global_transform.basis.x
+	var up: Vector3 = _camera.global_transform.basis.y
 	for pellet in range(pellets):
-		var direction := (forward + right * _rng.randf_range(-spread, spread) + up * _rng.randf_range(-spread, spread)).normalized()
-		var query := PhysicsRayQueryParameters3D.create(origin, origin + direction * 220.0)
+		var direction: Vector3 = (forward + right * _rng.randf_range(-spread, spread) + up * _rng.randf_range(-spread, spread)).normalized()
+		var query: PhysicsRayQueryParameters3D = PhysicsRayQueryParameters3D.create(origin, origin + direction * 220.0)
 		query.exclude = [get_rid()]
 		query.collide_with_areas = false
-		var hit := get_world_3d().direct_space_state.intersect_ray(query)
+		var hit: Dictionary = get_world_3d().direct_space_state.intersect_ray(query)
 		if hit.is_empty():
 			continue
 		var collider = hit.get("collider")
@@ -256,15 +256,15 @@ func take_damage(amount: float) -> void:
 func heal(amount: float) -> void:
 	if health <= 0.0:
 		return
-	var before := health
+	var before: float = health
 	health = minf(100.0, health + amount)
 	if health > before and is_instance_valid(controls):
 		controls.show_toast("MEDICAL +%d" % roundi(health - before), 0.7)
 	game.on_player_state_changed()
 
 func add_reserve(amount: int) -> void:
-	var definition := current_weapon_definition()
-	var cap := int(definition["reserve"]) * 2
+	var definition: Dictionary = current_weapon_definition()
+	var cap: int = int(definition["reserve"]) * 2
 	reserve = mini(cap, reserve + amount)
 	_store_current_ammo()
 	if is_instance_valid(controls): controls.show_toast("AMMO +%d" % amount, 0.55)
@@ -276,14 +276,14 @@ func give_weapon(id: String) -> bool:
 	_store_current_ammo()
 	if weapon_slots.has(id):
 		var state: Dictionary = weapon_ammo[id]
-		var definition := WEAPON_RULES.definition(id)
+		var definition: Dictionary = WEAPON_RULES.definition(id)
 		state["reserve"] = mini(int(definition["reserve"]) * 2, int(state["reserve"]) + int(definition["reserve"]) / 2)
 		weapon_ammo[id] = state
 		weapon_index = weapon_slots.find(id)
 	else:
 		weapon_slots.append(id)
 		weapon_index = weapon_slots.size() - 1
-		var definition2 := WEAPON_RULES.definition(id)
+		var definition2: Dictionary = WEAPON_RULES.definition(id)
 		weapon_ammo[id] = {"ammo": int(definition2["magazine"]), "reserve": int(definition2["reserve"])}
 		weapon_levels[id] = 0
 	_load_weapon(id)
@@ -298,11 +298,11 @@ func swap_weapon() -> bool:
 	return true
 
 func upgrade_current_weapon() -> int:
-	var old_level := current_weapon_level()
-	var old_mag := current_magazine_size()
-	var new_level := old_level + 1
+	var old_level: int = current_weapon_level()
+	var old_mag: int = current_magazine_size()
+	var new_level: int = old_level + 1
 	weapon_levels[current_weapon_id] = new_level
-	var new_mag := current_magazine_size()
+	var new_mag: int = current_magazine_size()
 	ammo = mini(new_mag, ammo + maxi(0, new_mag - old_mag))
 	_store_current_ammo()
 	_build_weapon_visual()
@@ -341,10 +341,10 @@ func enter_vehicle(vehicle: CharacterBody3D) -> bool:
 func exit_vehicle(force_exit := false) -> bool:
 	if not is_in_vehicle():
 		return false
-	var vehicle := current_vehicle
+	var vehicle: CharacterBody3D = current_vehicle
 	vehicle.driver = null
 	current_vehicle = null
-	var side := vehicle.global_transform.basis.x.normalized()
+	var side: Vector3 = vehicle.global_transform.basis.x.normalized()
 	global_position = vehicle.global_position + side * (2.25 if not force_exit else 2.8) + Vector3(0,0.15,0)
 	_collision.set_deferred("disabled", false)
 	_weapon_root.visible = true
@@ -361,8 +361,8 @@ func vehicle_status() -> String:
 
 func _finish_reload() -> void:
 	reloading = false
-	var needed := current_magazine_size() - ammo
-	var moved := mini(needed, reserve)
+	var needed: int = current_magazine_size() - ammo
+	var moved: int = mini(needed, reserve)
 	ammo += moved
 	reserve -= moved
 	_store_current_ammo()
@@ -380,14 +380,14 @@ func _movement_vector() -> Vector2:
 		var touch_move: Vector2 = controls.get("move_vector")
 		x += touch_move.x
 		y += -touch_move.y
-	var result := Vector2(x, y)
+	var result: Vector2 = Vector2(x, y)
 	return result.normalized() if result.length() > 1.0 else result
 
 func _apply_touch_look() -> void:
 	if not is_instance_valid(controls): return
 	var delta: Vector2 = controls.consume_look_delta()
 	if delta == Vector2.ZERO: return
-	var scale := LOOK_SENSITIVITIES[sensitivity_index]
+	var scale: float = LOOK_SENSITIVITIES[sensitivity_index]
 	_apply_look(delta.x * 0.0048 * scale, delta.y * 0.0042 * scale)
 
 func _apply_look(dx: float, dy: float) -> void:
@@ -408,16 +408,16 @@ func _apply_gravity(delta: float) -> void:
 func _check_fall_damage() -> void:
 	if _was_airborne and is_on_floor():
 		_was_airborne = false
-		var drop := _fall_start_y - global_position.y
+		var drop: float = _fall_start_y - global_position.y
 		if drop > 2.4:
-			var damage := minf(18.0, maxf(4.0, ceil((drop - 2.4) * 3.0)))
+			var damage: float = minf(18.0, maxf(4.0, ceil((drop - 2.4) * 3.0)))
 			take_damage(damage)
 
 func _update_view_bob(delta: float, moving: bool) -> void:
 	if moving:
 		_bob += delta * 10.0
-	var bob_y := sin(_bob) * 0.026 if moving else 0.0
-	var bob_x := cos(_bob * 0.5) * 0.012 if moving else 0.0
+	var bob_y: float = sin(_bob) * 0.026 if moving else 0.0
+	var bob_x: float = cos(_bob * 0.5) * 0.012 if moving else 0.0
 	_camera.position = Vector3(bob_x, 1.82 + bob_y, 0.0)
 	var base_view: Vector3 = current_weapon_definition()["view"]
 	_weapon_root.position.z = base_view.z + _recoil * (0.13 if current_weapon_id == "shotgun" else 0.065)
@@ -443,7 +443,7 @@ func _build_camera() -> void:
 	add_child(_camera)
 
 func _initialize_weapon_state() -> void:
-	var carbine := WEAPON_RULES.definition("carbine")
+	var carbine: Dictionary = WEAPON_RULES.definition("carbine")
 	weapon_ammo["carbine"] = {"ammo": int(carbine["magazine"]), "reserve": int(carbine["reserve"])}
 	weapon_levels["carbine"] = 0
 	current_weapon_id = "carbine"
@@ -456,7 +456,7 @@ func _store_current_ammo() -> void:
 func _load_weapon(id: String) -> void:
 	current_weapon_id = id
 	var state: Dictionary = weapon_ammo.get(id, {})
-	var definition := WEAPON_RULES.definition(id)
+	var definition: Dictionary = WEAPON_RULES.definition(id)
 	if state.is_empty():
 		state = {"ammo": int(definition["magazine"]), "reserve": int(definition["reserve"])}
 		weapon_ammo[id] = state
@@ -476,7 +476,7 @@ func _build_weapon_visual() -> void:
 		_weapon_root.queue_free()
 	_weapon_root = Node3D.new()
 	_weapon_root.name = current_weapon_name().validate_node_name()
-	var definition := current_weapon_definition()
+	var definition: Dictionary = current_weapon_definition()
 	_weapon_root.position = definition["view"]
 	_weapon_root.scale = definition["scale"]
 	_camera.add_child(_weapon_root)
