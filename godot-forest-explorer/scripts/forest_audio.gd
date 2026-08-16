@@ -38,7 +38,7 @@ func _process(_delta: float) -> void:
         return
 
     var planar_speed: float = Vector2(player.velocity.x, player.velocity.z).length()
-    var grounded: bool = player.is_on_floor()
+    var grounded: bool = bool(player.get("terrain_grounded"))
     var available: int = playback.get_frames_available()
     var dt: float = 1.0 / MIX_RATE
 
