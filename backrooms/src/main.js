@@ -8,8 +8,8 @@ const EYE_H = 1.67;
 const LOAD_RADIUS = 2;
 const KEEP_DATA = 180;
 const PLAYER_RADIUS = 0.34;
-const WALK_SPEED = 3.6;
-const RUN_SPEED = 5.2;
+const WALK_SPEED = 6.4;
+const RUN_SPEED = 9.0;
 const WORLD_SEED = 0x41a7f29d;
 
 const game = document.getElementById('game');
