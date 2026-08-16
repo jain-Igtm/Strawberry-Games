@@ -4,7 +4,7 @@ var player: CharacterBody3D
 var move_touch := -1
 var look_touch := -1
 var tk_touch := -1
-var lights_touch := -1
+var light_touch := -1
 var move_origin := Vector2.ZERO
 var move_current := Vector2.ZERO
 var tk_origin := Vector2.ZERO
@@ -19,20 +19,19 @@ var tk_press_started_ms := 0
 var tk_field_started := false
 var tk_flick_up := false
 
-var lights_tap_count := 0
-var lights_last_release_ms := -10000
-var lights_press_started_ms := 0
-var lights_hold_engaged := false
-var lights_activated_this_gesture := false
+var light_press_started_ms := 0
+var light_hold_active := false
+var light_tap_count := 0
+var light_last_release_ms := -10000
 
 const TK_HOLD_MS := 390
 const TK_FLICK_UP_PX := 72.0
 const LEVITATION_STICK_RANGE := 104.0
 const LEVITATION_STICK_DEADZONE := 12.0
-const LIGHTS_TAP_WINDOW_MS := 330
-const LIGHTS_HOLD_MS := 145
-const LIGHTS_RADIUS_RATE := 2.45
-const LIGHTS_STEP := 0.72
+
+const LIGHT_TAP_WINDOW_MS := 280
+const LIGHT_HOLD_MS := 240
+const LIGHT_SPREAD_RATE := 2.45
 
 func _ready() -> void:
 	mouse_filter = Control.MOUSE_FILTER_IGNORE
@@ -42,14 +41,11 @@ func _ready() -> void:
 func _find_player() -> void:
 	player = get_tree().get_first_node_in_group("player") as CharacterBody3D
 
-func _orb_center() -> Vector2:
+func _light_center() -> Vector2:
 	return Vector2(size.x - 104.0, size.y - 104.0)
 
 func _tk_center() -> Vector2:
 	return Vector2(size.x - 244.0, size.y - 104.0)
-
-func _lights_center() -> Vector2:
-	return Vector2(size.x - 104.0, size.y - 244.0)
 
 func _bubble_center() -> Vector2:
 	return Vector2(94.0, 154.0)
@@ -66,6 +62,13 @@ func _player_underwater() -> bool:
 func _psychic_lights_on() -> bool:
 	return player != null and player.has_method("is_psychic_light_enabled") and bool(player.call("is_psychic_light_enabled"))
 
+func _psychic_scouting() -> bool:
+	return player != null and player.has_method("is_psychic_scouting") and bool(player.call("is_psychic_scouting"))
+
+func _ensure_lights_on() -> void:
+	if not _psychic_lights_on() and player.has_method("toggle_psychic_light"):
+		player.call("toggle_psychic_light")
+
 func _process(delta: float) -> void:
 	if not OS.has_feature("mobile") or player == null:
 		return
@@ -77,17 +80,22 @@ func _process(delta: float) -> void:
 			tk_field_started = true
 			queue_redraw()
 
-	if lights_touch != -1 and not lights_activated_this_gesture:
-		var held_ms: int = now - lights_press_started_ms
-		if held_ms >= LIGHTS_HOLD_MS:
-			lights_hold_engaged = true
+	if light_touch != -1:
+		var held_ms: int = now - light_press_started_ms
+		if held_ms >= LIGHT_HOLD_MS:
+			if not light_hold_active:
+				light_hold_active = true
+				light_tap_count = 0
+				light_last_release_ms = -10000
+				_ensure_lights_on()
+				if _psychic_scouting() and player.has_method("lights_scout_toggle"):
+					player.call("lights_scout_toggle")
 			if player.has_method("lights_adjust_radius"):
-				var direction := -1.0 if lights_tap_count >= 3 else 1.0
-				player.call("lights_adjust_radius", direction * LIGHTS_RADIUS_RATE * delta)
+				player.call("lights_adjust_radius", LIGHT_SPREAD_RATE * delta)
 			queue_redraw()
 
-	if lights_touch == -1 and lights_tap_count > 0 and now - lights_last_release_ms > LIGHTS_TAP_WINDOW_MS:
-		_finish_lights_gesture()
+	if light_touch == -1 and light_tap_count > 0 and now - light_last_release_ms > LIGHT_TAP_WINDOW_MS:
+		_finish_light_taps()
 
 func _input(event: InputEvent) -> void:
 	if not OS.has_feature("mobile"):
@@ -105,9 +113,10 @@ func _input(event: InputEvent) -> void:
 				queue_redraw()
 				return
 
-			if _inside_circle(event.position, _orb_center(), ability_radius):
-				if player.has_method("toggle_psychic_light"):
-					player.call("toggle_psychic_light")
+			if _inside_circle(event.position, _light_center(), ability_radius) and light_touch == -1:
+				light_touch = event.index
+				light_press_started_ms = Time.get_ticks_msec()
+				light_hold_active = false
 				queue_redraw()
 				return
 
@@ -123,31 +132,6 @@ func _input(event: InputEvent) -> void:
 				queue_redraw()
 				return
 
-			if _inside_circle(event.position, _lights_center(), ability_radius) and lights_touch == -1:
-				# Critical rule: an OFF light formation may only enter the stable close idle state.
-				# The same touch is never allowed to activate scout or alter radius.
-				if not _psychic_lights_on():
-					if player.has_method("toggle_psychic_light"):
-						player.call("toggle_psychic_light")
-					lights_activated_this_gesture = true
-					lights_touch = event.index
-					lights_tap_count = 0
-					lights_press_started_ms = Time.get_ticks_msec()
-					queue_redraw()
-					return
-
-				var now := Time.get_ticks_msec()
-				lights_activated_this_gesture = false
-				if now - lights_last_release_ms <= LIGHTS_TAP_WINDOW_MS:
-					lights_tap_count = mini(3, lights_tap_count + 1)
-				else:
-					lights_tap_count = 1
-					lights_hold_engaged = false
-				lights_touch = event.index
-				lights_press_started_ms = now
-				queue_redraw()
-				return
-
 			if event.position.x < get_viewport_rect().size.x * 0.42 and move_touch == -1:
 				move_touch = event.index
 				move_origin = event.position
@@ -156,7 +140,28 @@ func _input(event: InputEvent) -> void:
 				queue_redraw()
 			elif look_touch == -1:
 				look_touch = event.index
+
 		else:
+			if event.index == light_touch:
+				light_touch = -1
+				if light_hold_active:
+					if player.has_method("lights_return_home"):
+						player.call("lights_return_home")
+					if player.has_method("lights_end_radius_gesture"):
+						player.call("lights_end_radius_gesture")
+					light_hold_active = false
+					light_tap_count = 0
+					light_last_release_ms = -10000
+				else:
+					var now := Time.get_ticks_msec()
+					if now - light_last_release_ms <= LIGHT_TAP_WINDOW_MS:
+						light_tap_count = mini(2, light_tap_count + 1)
+					else:
+						light_tap_count = 1
+					light_last_release_ms = now
+				queue_redraw()
+				return
+
 			if event.index == tk_touch:
 				if _player_levitating():
 					if player.has_method("set_levitation_vertical_input"):
@@ -178,21 +183,6 @@ func _input(event: InputEvent) -> void:
 				tk_touch = -1
 				tk_field_started = false
 				tk_flick_up = false
-				queue_redraw()
-				return
-
-			if event.index == lights_touch:
-				lights_touch = -1
-				if lights_activated_this_gesture:
-					lights_activated_this_gesture = false
-					lights_tap_count = 0
-					lights_hold_engaged = false
-					lights_last_release_ms = -10000
-					queue_redraw()
-					return
-				lights_last_release_ms = Time.get_ticks_msec()
-				if lights_hold_engaged and player.has_method("lights_end_radius_gesture"):
-					player.call("lights_end_radius_gesture")
 				queue_redraw()
 				return
 
@@ -228,30 +218,27 @@ func _input(event: InputEvent) -> void:
 		elif event.index == look_touch:
 			player.add_mobile_look(event.relative)
 
-func _finish_lights_gesture() -> void:
+func _finish_light_taps() -> void:
 	if player == null:
-		_reset_lights_gesture()
+		_reset_light_taps()
 		return
-	if not lights_hold_engaged:
-		if lights_tap_count == 1:
-			if player.has_method("lights_scout_toggle"):
-				player.call("lights_scout_toggle")
-		elif lights_tap_count == 2:
-			if player.has_method("lights_adjust_radius"):
-				player.call("lights_adjust_radius", LIGHTS_STEP)
-		else:
-			if player.has_method("lights_adjust_radius"):
-				player.call("lights_adjust_radius", -LIGHTS_STEP)
-	if player.has_method("lights_end_radius_gesture"):
-		player.call("lights_end_radius_gesture")
-	_reset_lights_gesture()
+
+	if light_tap_count == 1:
+		# One tap is only power: off -> exact v0.7 HOME, on -> off.
+		if player.has_method("toggle_psychic_light"):
+			player.call("toggle_psychic_light")
+	elif light_tap_count >= 2:
+		# Double tap is scout. If necessary, power on first, then scout.
+		_ensure_lights_on()
+		if player.has_method("lights_scout_toggle"):
+			player.call("lights_scout_toggle")
+
+	_reset_light_taps()
 	queue_redraw()
 
-func _reset_lights_gesture() -> void:
-	lights_tap_count = 0
-	lights_hold_engaged = false
-	lights_activated_this_gesture = false
-	lights_last_release_ms = -10000
+func _reset_light_taps() -> void:
+	light_tap_count = 0
+	light_last_release_ms = -10000
 
 func _update_move() -> void:
 	var delta := move_current - move_origin
@@ -263,6 +250,7 @@ func _update_move() -> void:
 func _draw() -> void:
 	if not OS.has_feature("mobile"):
 		return
+
 	var ghost_center := Vector2(210.0, size.y - 210.0)
 	if move_touch == -1:
 		draw_circle(ghost_center, joystick_radius, Color(1, 1, 1, 0.075))
@@ -283,17 +271,13 @@ func _draw() -> void:
 		(player.has_method("has_psychic_hold") and bool(player.call("has_psychic_hold")))
 		or (player.has_method("is_psychic_field_active") and bool(player.call("is_psychic_field_active")))
 	)
-	var formation_active := player != null and (
-		(player.has_method("is_psychic_scouting") and bool(player.call("is_psychic_scouting")))
-		or (player.has_method("is_psychic_light_combined") and bool(player.call("is_psychic_light_combined")))
-		or lights_touch != -1
-	)
-	_draw_ability_button(_orb_center(), "LIGHT", light_on, ability_radius)
+
+	_draw_ability_button(_light_center(), "LIGHTS", light_on, ability_radius)
 	if levitating:
 		_draw_levitation_stick()
 	else:
 		_draw_ability_button(_tk_center(), "TK", tk_active, ability_radius)
-	_draw_ability_button(_lights_center(), "LIGHTS", formation_active, ability_radius)
+
 	if _player_underwater():
 		var bubble_active := player.has_method("is_bubble_expanded") and bool(player.call("is_bubble_expanded"))
 		_draw_ability_button(_bubble_center(), "BUBBLE", bubble_active, bubble_radius)
