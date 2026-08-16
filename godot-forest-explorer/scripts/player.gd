@@ -5,10 +5,12 @@ const SPRINT_SPEED: float = 10.3
 const GROUND_ACCEL: float = 22.0
 const AIR_ACCEL: float = 5.0
 const JUMP_VELOCITY: float = 6.4
+const GRAVITY: float = 18.0
 const MOUSE_SENSITIVITY: float = 0.00175
 const TOUCH_SENSITIVITY: float = 0.00245
-const GROUND_STICK_VELOCITY: float = -0.65
+const GROUND_OFFSET: float = 0.035
 
+@onready var world: Node3D = get_parent()
 @onready var head: Node3D = $Head
 @onready var camera: Camera3D = $Head/Camera3D
 @onready var mobile_controls: CanvasLayer = get_node("../MobileControls")
@@ -18,20 +20,20 @@ var pitch: float = -0.06
 var bob_phase: float = 0.0
 var sway: Vector2 = Vector2.ZERO
 var landing_kick: float = 0.0
-var was_grounded: bool = false
 var mouse_captured: bool = false
 
+# Grounding is driven by the same deterministic height function that draws the
+# terrain. This makes falling through or becoming embedded in streamed ground
+# impossible even if a device's 3D physics backend behaves differently.
+var terrain_grounded: bool = true
+var vertical_speed: float = 0.0
+
 func _ready() -> void:
-    # Keep the capsule planted on rolling terrain instead of repeatedly becoming
-    # airborne over small changes in slope. Constant-speed floor motion also
-    # prevents uphill/downhill terrain from changing the apparent walk speed.
-    up_direction = Vector3.UP
-    floor_snap_length = 0.72
-    floor_max_angle = deg_to_rad(54.0)
-    floor_stop_on_slope = true
-    floor_constant_speed = true
-    floor_block_on_wall = true
-    safe_margin = 0.035
+    # Terrain is handled analytically. Floating motion mode leaves CharacterBody3D
+    # collision available for nearby trunks and future obstacles without asking
+    # the physics engine to classify the procedural terrain as a floor.
+    motion_mode = CharacterBody3D.MOTION_MODE_FLOATING
+    safe_margin = 0.025
 
     if not OS.has_feature("mobile"):
         Input.mouse_mode = Input.MOUSE_MODE_CAPTURED
@@ -52,6 +54,12 @@ func _physics_process(delta: float) -> void:
     if touch_look.length_squared() > 0.0:
         _apply_look(touch_look, TOUCH_SENSITIVITY)
 
+    # If we are walking, establish the correct ground position before doing any
+    # obstacle collision. This also immediately repairs an old save/frame state
+    # that happened to begin underneath the visible terrain.
+    if terrain_grounded:
+        global_position.y = _ground_height_here() + GROUND_OFFSET
+
     var keyboard: Vector2 = Input.get_vector("move_left", "move_right", "move_forward", "move_back")
     var touch_move: Vector2 = mobile_controls.get("move_vector")
     var input_vec: Vector2 = touch_move if touch_move.length_squared() > keyboard.length_squared() else keyboard
@@ -67,27 +75,50 @@ func _physics_process(delta: float) -> void:
     var sprinting: bool = Input.is_action_pressed("sprint") or bool(mobile_controls.get("sprint_held"))
     var target_speed: float = SPRINT_SPEED if sprinting else WALK_SPEED
     var target_velocity: Vector3 = wish_dir * target_speed
-    var accel: float = GROUND_ACCEL if is_on_floor() else AIR_ACCEL
+    var accel: float = GROUND_ACCEL if terrain_grounded else AIR_ACCEL
     velocity.x = move_toward(velocity.x, target_velocity.x, accel * delta)
     velocity.z = move_toward(velocity.z, target_velocity.z, accel * delta)
 
     var wants_jump: bool = Input.is_action_just_pressed("jump") or bool(mobile_controls.call("consume_jump"))
-    if is_on_floor():
-        if wants_jump:
-            velocity.y = JUMP_VELOCITY
-        else:
-            # A small downward bias gives floor snapping a stable direction and
-            # keeps the controller attached while cresting or descending hills.
-            velocity.y = GROUND_STICK_VELOCITY
-    else:
-        velocity.y -= 18.0 * delta
+    if terrain_grounded and wants_jump:
+        terrain_grounded = false
+        vertical_speed = JUMP_VELOCITY
 
+    # Only horizontal velocity is given to CharacterBody3D. Its job here is to
+    # stop us walking through solid trunks. Terrain elevation is applied below
+    # from the exact world function rather than a second collision mesh.
+    velocity.y = 0.0
     move_and_slide()
+
+    var ground_y: float = _ground_height_here() + GROUND_OFFSET
+    var landed_this_frame: bool = false
+    var landing_speed: float = 0.0
+
+    if terrain_grounded:
+        global_position.y = ground_y
+        vertical_speed = 0.0
+    else:
+        vertical_speed -= GRAVITY * delta
+        global_position.y += vertical_speed * delta
+        if global_position.y <= ground_y and vertical_speed <= 0.0:
+            landing_speed = absf(vertical_speed)
+            global_position.y = ground_y
+            vertical_speed = 0.0
+            terrain_grounded = true
+            landed_this_frame = true
+
+    velocity.y = vertical_speed
+
+    if landed_this_frame:
+        landing_kick = minf(0.045, landing_speed * 0.006 + 0.014)
+
     _update_camera_motion(delta, input_vec, sprinting)
 
-    if is_on_floor() and not was_grounded and velocity.y <= 0.1:
-        landing_kick = minf(0.045, absf(velocity.y) * 0.006 + 0.014)
-    was_grounded = is_on_floor()
+func _ground_height_here() -> float:
+    var origin_offset: Vector2 = world.get("origin_offset")
+    var abs_x: float = global_position.x + origin_offset.x
+    var abs_z: float = global_position.z + origin_offset.y
+    return float(world.call("height_at", abs_x, abs_z))
 
 func _apply_look(delta_pixels: Vector2, sensitivity: float) -> void:
     yaw -= delta_pixels.x * sensitivity
@@ -100,7 +131,7 @@ func _apply_look(delta_pixels: Vector2, sensitivity: float) -> void:
 
 func _update_camera_motion(delta: float, input_vec: Vector2, sprinting: bool) -> void:
     var planar_speed: float = Vector2(velocity.x, velocity.z).length()
-    var moving: bool = is_on_floor() and input_vec.length() > 0.08 and planar_speed > 0.5
+    var moving: bool = terrain_grounded and input_vec.length() > 0.08 and planar_speed > 0.5
     if moving:
         var rate: float = 10.7 if sprinting else 8.15
         bob_phase += delta * rate * clampf(planar_speed / WALK_SPEED, 0.6, 1.5)
