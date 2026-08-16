@@ -2,6 +2,7 @@ extends Node3D
 
 const CELL := 4.0
 const ROOM_SIZE := 6
+const ROOM_HALF := 3
 const BIOME_CELLS := 18
 const LOAD_RADIUS := 11
 const UNLOAD_RADIUS := 14
@@ -135,10 +136,10 @@ func _scene_for_cell(cell: Vector2i) -> PackedScene:
 
 	var layout: int = _cell_hash(room.x, room.y, 211) % 6
 	var partition_gate: int = 1 + (_cell_hash(room.x, room.y, 223) % (ROOM_SIZE - 2))
-	if (layout == 1 or layout == 3) and local_x == ROOM_SIZE / 2:
+	if (layout == 1 or layout == 3) and local_x == ROOM_HALF:
 		if local_z != partition_gate and local_z != mini(ROOM_SIZE - 1, partition_gate + 1):
 			wall_west = true
-	if (layout == 2 or layout == 3) and local_z == ROOM_SIZE / 2:
+	if (layout == 2 or layout == 3) and local_z == ROOM_HALF:
 		if local_x != partition_gate and local_x != mini(ROOM_SIZE - 1, partition_gate + 1):
 			wall_north = true
 	if layout == 4 and local_x == 2 and local_z > 0 and local_z < ROOM_SIZE - 1:
@@ -286,7 +287,7 @@ func _cleanup_far_tiles() -> void:
 	var checks: int = mini(70, keys.size())
 	for i in range(checks):
 		var idx: int = (cleanup_cursor + i) % keys.size()
-		var cell: Vector2i = keys[idx] as Vector2i
+		var cell: Vector2i = keys[idx]
 		if maxi(abs(cell.x - center_cell.x), abs(cell.y - center_cell.y)) > UNLOAD_RADIUS:
 			var node: Node = active_tiles[cell] as Node
 			active_tiles.erase(cell)
