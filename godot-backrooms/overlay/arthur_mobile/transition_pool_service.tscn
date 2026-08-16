@@ -1,0 +1,56 @@
+[gd_scene load_steps=4 format=3]
+
+[ext_resource type="Material" path="res://arthur_mobile/materials/pool_tiles.tres" id="1_tile"]
+[ext_resource type="Material" path="res://arthur_mobile/materials/service_concrete.tres" id="2_concrete"]
+[ext_resource type="Material" path="res://arthur_mobile/materials/service_metal.tres" id="3_metal"]
+
+[node name="PoolServiceTransition" type="Node3D"]
+
+[node name="ConcreteIntrusion" type="CSGBox3D" parent="."]
+position = Vector3(4.0, 0.026, 0)
+material_override = ExtResource("2_concrete")
+size = Vector3(10.8, 0.045, 18.0)
+
+[node name="TileRemnant" type="CSGBox3D" parent="."]
+position = Vector3(-4.0, 0.028, 0)
+material_override = ExtResource("1_tile")
+size = Vector3(5.5, 0.048, 18.0)
+
+[node name="DrainChannel" type="CSGBox3D" parent="."]
+position = Vector3(0.8, 0.045, 0)
+material_override = ExtResource("3_metal")
+size = Vector3(0.42, 0.07, 14.0)
+
+[node name="PipeA" type="CSGCylinder3D" parent="."]
+position = Vector3(0, 3.42, -6.1)
+rotation_degrees = Vector3(0, 0, 90)
+radius = 0.11
+height = 18.0
+sides = 12
+material_override = ExtResource("3_metal")
+
+[node name="PipeB" type="CSGCylinder3D" parent="."]
+position = Vector3(0, 3.18, -5.62)
+rotation_degrees = Vector3(0, 0, 90)
+radius = 0.07
+height = 18.0
+sides = 12
+material_override = ExtResource("3_metal")
+
+[node name="TileColumn" type="CSGCylinder3D" parent="."]
+position = Vector3(-6.4, 2.0, 5.5)
+radius = 0.46
+height = 4.0
+sides = 18
+material_override = ExtResource("1_tile")
+use_collision = true
+collision_layer = 3
+collision_mask = 3
+
+[node name="ConcreteSupport" type="CSGBox3D" parent="."]
+position = Vector3(6.4, 2.0, 5.5)
+material_override = ExtResource("2_concrete")
+size = Vector3(0.75, 4.0, 0.75)
+use_collision = true
+collision_layer = 3
+collision_mask = 3
