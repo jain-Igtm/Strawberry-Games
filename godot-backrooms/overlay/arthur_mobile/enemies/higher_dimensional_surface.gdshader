@@ -1,51 +1,26 @@
 shader_type spatial;
 render_mode cull_disabled, unshaded;
 
-uniform vec4 edge_color : source_color = vec4(0.018, 0.025, 0.032, 1.0);
-uniform vec4 inner_color : source_color = vec4(0.16, 0.19, 0.20, 1.0);
+uniform vec4 edge_color : source_color = vec4(0.015, 0.018, 0.022, 1.0);
+uniform vec4 inner_color : source_color = vec4(0.105, 0.125, 0.13, 1.0);
+uniform vec4 seam_color : source_color = vec4(0.32, 0.36, 0.35, 1.0);
 uniform float seed = 0.0;
-uniform float agitation : hint_range(0.0, 2.0) = 0.75;
-
-float hash31(vec3 p) {
-	p = fract(p * 0.1031);
-	p += dot(p, p.yzx + 33.33);
-	return fract((p.x + p.y) * p.z);
-}
-
-float value_noise(vec3 p) {
-	vec3 i = floor(p);
-	vec3 f = fract(p);
-	f = f * f * (3.0 - 2.0 * f);
-	float n000 = hash31(i + vec3(0.0, 0.0, 0.0));
-	float n100 = hash31(i + vec3(1.0, 0.0, 0.0));
-	float n010 = hash31(i + vec3(0.0, 1.0, 0.0));
-	float n110 = hash31(i + vec3(1.0, 1.0, 0.0));
-	float n001 = hash31(i + vec3(0.0, 0.0, 1.0));
-	float n101 = hash31(i + vec3(1.0, 0.0, 1.0));
-	float n011 = hash31(i + vec3(0.0, 1.0, 1.0));
-	float n111 = hash31(i + vec3(1.0, 1.0, 1.0));
-	float nx00 = mix(n000, n100, f.x);
-	float nx10 = mix(n010, n110, f.x);
-	float nx01 = mix(n001, n101, f.x);
-	float nx11 = mix(n011, n111, f.x);
-	float nxy0 = mix(nx00, nx10, f.y);
-	float nxy1 = mix(nx01, nx11, f.y);
-	return mix(nxy0, nxy1, f.z);
-}
+uniform float agitation : hint_range(0.0, 1.2) = 0.55;
 
 void vertex() {
-	vec3 p = VERTEX * 3.2 + vec3(seed * 7.1, TIME * 0.58, seed * 13.7);
-	float n = value_noise(p) - 0.5;
-	float ridge = sin(VERTEX.y * 8.0 + TIME * 1.7 + seed * 19.0) * 0.5;
-	VERTEX += NORMAL * (n * 0.09 + ridge * 0.022) * agitation;
+	float long_wave = sin(VERTEX.y * 5.2 + TIME * 1.15 + seed * 8.7);
+	float cross_wave = sin((VERTEX.x + VERTEX.z) * 8.0 - TIME * 0.72 + seed * 4.1);
+	VERTEX += NORMAL * (long_wave * 0.026 + cross_wave * 0.011) * agitation;
 }
 
 void fragment() {
-	float grain = value_noise(vec3(UV * 10.0, TIME * 0.35 + seed * 9.0));
-	float striation = 0.5 + 0.5 * sin(UV.y * 92.0 + grain * 11.0 + TIME * 2.3 + seed * 37.0);
-	float pulse = 0.72 + 0.28 * sin(TIME * 4.1 + seed * 11.0 + grain * 2.0);
-	vec3 base = mix(edge_color.rgb, inner_color.rgb, smoothstep(0.3, 0.9, grain));
-	ALBEDO = base * (0.60 + striation * 0.40);
-	EMISSION = base * (0.08 + pulse * 0.14) + vec3(0.025, 0.032, 0.04) * striation;
-	ROUGHNESS = 0.38 + grain * 0.45;
+	float length_band = 0.5 + 0.5 * sin(UV.y * 48.0 + seed * 17.0 + TIME * 0.62);
+	float fine_band = 0.5 + 0.5 * sin(UV.y * 117.0 - UV.x * 14.0 + seed * 31.0);
+	float mottled = clamp(length_band * 0.62 + fine_band * 0.38, 0.0, 1.0);
+	float rim = pow(1.0 - clamp(abs(dot(normalize(NORMAL), normalize(VIEW))), 0.0, 1.0), 2.6);
+	float seam = smoothstep(0.89, 0.985, fine_band) * (0.32 + rim * 0.68);
+	vec3 base = mix(edge_color.rgb, inner_color.rgb, mottled * 0.72);
+	ALBEDO = base;
+	EMISSION = base * 0.045 + seam_color.rgb * seam * 0.18 + seam_color.rgb * rim * 0.055;
+	ROUGHNESS = 0.56;
 }
