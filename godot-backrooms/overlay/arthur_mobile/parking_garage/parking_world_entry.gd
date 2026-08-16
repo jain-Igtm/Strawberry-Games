@@ -1,4 +1,4 @@
-extends "res://arthur_mobile/parking_garage/parking_world_finished.gd"
+extends "res://arthur_mobile/parking_garage/parking_world_polish.gd"
 
 # Stable scene entrypoint. Keeping main.tscn pointed here means the parking
 # branch can continue to evolve internally without touching Arthur's shared
