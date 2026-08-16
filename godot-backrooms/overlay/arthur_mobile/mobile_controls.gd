@@ -7,13 +7,17 @@ var tk_touch := -1
 var lights_touch := -1
 var move_origin := Vector2.ZERO
 var move_current := Vector2.ZERO
+var tk_origin := Vector2.ZERO
+var tk_current := Vector2.ZERO
 var joystick_radius := 168.0
 var response_radius := 96.0
 var knob_radius := 68.0
 var ability_radius := 58.0
+var bubble_radius := 48.0
 
 var tk_press_started_ms := 0
 var tk_field_started := false
+var tk_flick_up := false
 
 var lights_tap_count := 0
 var lights_last_release_ms := -10000
@@ -21,6 +25,7 @@ var lights_press_started_ms := 0
 var lights_hold_engaged := false
 
 const TK_HOLD_MS := 390
+const TK_FLICK_UP_PX := 72.0
 const LIGHTS_TAP_WINDOW_MS := 330
 const LIGHTS_HOLD_MS := 145
 const LIGHTS_RADIUS_RATE := 2.45
@@ -43,6 +48,9 @@ func _tk_center() -> Vector2:
 func _lights_center() -> Vector2:
 	return Vector2(size.x - 104.0, size.y - 244.0)
 
+func _bubble_center() -> Vector2:
+	return Vector2(94.0, 154.0)
+
 func _inside_circle(point: Vector2, center: Vector2, radius: float) -> bool:
 	return point.distance_squared_to(center) <= radius * radius
 
@@ -51,18 +59,18 @@ func _process(delta: float) -> void:
 		return
 	var now := Time.get_ticks_msec()
 
-	if tk_touch != -1 and not tk_field_started and now - tk_press_started_ms >= TK_HOLD_MS:
+	if tk_touch != -1 and not tk_field_started and not tk_flick_up and now - tk_press_started_ms >= TK_HOLD_MS:
 		if player.has_method("begin_psychic_field"):
 			player.call("begin_psychic_field")
 			tk_field_started = true
 			queue_redraw()
 
-	if lights_touch != -1 and lights_tap_count >= 2:
+	if lights_touch != -1:
 		var held_ms: int = now - lights_press_started_ms
 		if held_ms >= LIGHTS_HOLD_MS:
 			lights_hold_engaged = true
 			if player.has_method("lights_adjust_radius"):
-				var direction := 1.0 if lights_tap_count == 2 else -1.0
+				var direction := -1.0 if lights_tap_count >= 3 else 1.0
 				player.call("lights_adjust_radius", direction * LIGHTS_RADIUS_RATE * delta)
 			queue_redraw()
 
@@ -79,6 +87,12 @@ func _input(event: InputEvent) -> void:
 
 	if event is InputEventScreenTouch:
 		if event.pressed:
+			if _player_underwater() and _inside_circle(event.position, _bubble_center(), bubble_radius):
+				if player.has_method("toggle_bubble_expanded"):
+					player.call("toggle_bubble_expanded")
+				queue_redraw()
+				return
+
 			if _inside_circle(event.position, _orb_center(), ability_radius):
 				if player.has_method("toggle_psychic_light"):
 					player.call("toggle_psychic_light")
@@ -89,6 +103,9 @@ func _input(event: InputEvent) -> void:
 				tk_touch = event.index
 				tk_press_started_ms = Time.get_ticks_msec()
 				tk_field_started = false
+				tk_flick_up = false
+				tk_origin = event.position
+				tk_current = event.position
 				queue_redraw()
 				return
 
@@ -115,18 +132,25 @@ func _input(event: InputEvent) -> void:
 		else:
 			if event.index == tk_touch:
 				if tk_field_started:
-					if player.has_method("end_psychic_field"):
+					if tk_flick_up and player.has_method("launch_psychic_field_at_enemies"):
+						player.call("launch_psychic_field_at_enemies")
+					elif player.has_method("end_psychic_field"):
 						player.call("end_psychic_field")
 				else:
-					if player.has_method("psychic_interact"):
+					if tk_flick_up and player.has_method("toggle_psychic_levitation"):
+						player.call("toggle_psychic_levitation")
+					elif player.has_method("psychic_interact"):
 						player.call("psychic_interact")
 				tk_touch = -1
 				tk_field_started = false
+				tk_flick_up = false
 				queue_redraw()
 				return
 			if event.index == lights_touch:
 				lights_touch = -1
 				lights_last_release_ms = Time.get_ticks_msec()
+				if lights_hold_engaged and player.has_method("lights_end_radius_gesture"):
+					player.call("lights_end_radius_gesture")
 				queue_redraw()
 				return
 			if event.index == move_touch:
@@ -137,6 +161,12 @@ func _input(event: InputEvent) -> void:
 				look_touch = -1
 
 	elif event is InputEventScreenDrag:
+		if event.index == tk_touch:
+			tk_current = event.position
+			if tk_current.y - tk_origin.y <= -TK_FLICK_UP_PX:
+				tk_flick_up = true
+			queue_redraw()
+			return
 		if event.index == move_touch:
 			move_current = event.position
 			_update_move()
@@ -158,6 +188,8 @@ func _finish_lights_gesture() -> void:
 		else:
 			if player.has_method("lights_adjust_radius"):
 				player.call("lights_adjust_radius", -LIGHTS_STEP)
+	if player.has_method("lights_end_radius_gesture"):
+		player.call("lights_end_radius_gesture")
 	_reset_lights_gesture()
 	queue_redraw()
 
@@ -165,6 +197,9 @@ func _reset_lights_gesture() -> void:
 	lights_tap_count = 0
 	lights_hold_engaged = false
 	lights_last_release_ms = -10000
+
+func _player_underwater() -> bool:
+	return player != null and player.has_method("is_underwater") and bool(player.call("is_underwater"))
 
 func _update_move() -> void:
 	var delta := move_current - move_origin
@@ -191,24 +226,30 @@ func _draw() -> void:
 		draw_arc(move_origin + delta, knob_radius, 0.0, TAU, 44, Color(1, 1, 1, 0.55), 3.0)
 
 	var light_on := player != null and player.has_method("is_psychic_light_enabled") and bool(player.call("is_psychic_light_enabled"))
+	var levitating := player != null and player.has_method("is_self_levitating") and bool(player.call("is_self_levitating"))
 	var tk_active := player != null and (
 		(player.has_method("has_psychic_hold") and bool(player.call("has_psychic_hold")))
 		or (player.has_method("is_psychic_field_active") and bool(player.call("is_psychic_field_active")))
+		or levitating
 	)
 	var formation_active := player != null and (
 		(player.has_method("is_psychic_scouting") and bool(player.call("is_psychic_scouting")))
 		or (player.has_method("is_psychic_light_combined") and bool(player.call("is_psychic_light_combined")))
 		or lights_touch != -1
 	)
-	_draw_ability_button(_orb_center(), "LIGHT", light_on)
-	_draw_ability_button(_tk_center(), "TK", tk_active)
-	_draw_ability_button(_lights_center(), "LIGHTS", formation_active)
+	_draw_ability_button(_orb_center(), "LIGHT", light_on, ability_radius)
+	_draw_ability_button(_tk_center(), "TK", tk_active, ability_radius)
+	_draw_ability_button(_lights_center(), "LIGHTS", formation_active, ability_radius)
+	if _player_underwater():
+		var bubble_active := player.has_method("is_bubble_expanded") and bool(player.call("is_bubble_expanded"))
+		_draw_ability_button(_bubble_center(), "BUBBLE", bubble_active, bubble_radius)
 
-func _draw_ability_button(center: Vector2, label: String, active: bool) -> void:
+func _draw_ability_button(center: Vector2, label: String, active: bool, radius: float) -> void:
 	var fill := Color(0.66, 0.86, 1.0, 0.24) if active else Color(1, 1, 1, 0.09)
 	var ring := Color(0.72, 0.9, 1.0, 0.75) if active else Color(1, 1, 1, 0.34)
-	draw_circle(center, ability_radius, fill)
-	draw_arc(center, ability_radius, 0.0, TAU, 40, ring, 2.5)
+	draw_circle(center, radius, fill)
+	draw_arc(center, radius, 0.0, TAU, 40, ring, 2.5)
 	var font: Font = ThemeDB.fallback_font
-	var text_width: float = font.get_string_size(label, HORIZONTAL_ALIGNMENT_LEFT, -1, 20).x
-	draw_string(font, center + Vector2(-text_width * 0.5, 7.0), label, HORIZONTAL_ALIGNMENT_LEFT, -1, 20, Color(1, 1, 1, 0.82))
+	var font_size := 18 if label == "BUBBLE" else 20
+	var text_width: float = font.get_string_size(label, HORIZONTAL_ALIGNMENT_LEFT, -1, font_size).x
+	draw_string(font, center + Vector2(-text_width * 0.5, 7.0), label, HORIZONTAL_ALIGNMENT_LEFT, -1, font_size, Color(1, 1, 1, 0.82))
