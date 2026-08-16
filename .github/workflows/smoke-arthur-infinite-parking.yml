@@ -1,0 +1,79 @@
+name: Smoke Arthur Infinite Parking
+
+on:
+  push:
+    branches:
+      - agent/arthur-infinite-parking-garage
+    paths:
+      - 'godot-backrooms/**'
+      - '.github/workflows/smoke-arthur-infinite-parking.yml'
+  workflow_dispatch:
+
+jobs:
+  godot-smoke:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      GODOT_VERSION: 4.7.1
+      UPSTREAM_SHA: 6865f8b804f84441df8db3d0f3b6175a80195fd2
+      KAYKIT_SHA: 96d5930a8dbdb363409bbc2d3341718b00e17c9c
+      WATER_SFX_SHA: f2b6264f9ab89fabc266914c3654685d68c5a39b
+    steps:
+      - name: Checkout parking branch
+        uses: actions/checkout@v4
+
+      - name: Checkout pinned Backrooms environment
+        uses: actions/checkout@v4
+        with:
+          repository: zodiepupper/backrooms
+          ref: 6865f8b804f84441df8db3d0f3b6175a80195fd2
+          path: godot-build
+          fetch-depth: 1
+
+      - name: Checkout pinned furniture kit
+        uses: actions/checkout@v4
+        with:
+          repository: KayKit-Game-Assets/KayKit-Furniture-Bits-1.0
+          ref: 96d5930a8dbdb363409bbc2d3341718b00e17c9c
+          path: kaykit-furniture
+          fetch-depth: 1
+
+      - name: Apply Arthur overlay and pinned runtime assets
+        run: |
+          cp -a godot-backrooms/overlay/. godot-build/
+          mkdir -p godot-build/arthur_mobile/audio
+          WATER_BASE="https://raw.githubusercontent.com/lavenderdotpet/CC0-Public-Domain-Sounds/${WATER_SFX_SHA}/40-cc0-water-splash-slime-sfx"
+          curl -L --fail --retry 3 "$WATER_BASE/loop_water_01.ogg" -o godot-build/arthur_mobile/audio/loop_water_01.ogg
+          curl -L --fail --retry 3 "$WATER_BASE/loop_water_02.ogg" -o godot-build/arthur_mobile/audio/loop_water_02.ogg
+          curl -L --fail --retry 3 "$WATER_BASE/loop_water_03.ogg" -o godot-build/arthur_mobile/audio/loop_water_03.ogg
+          curl -L --fail --retry 3 "$WATER_BASE/splash_01.ogg" -o godot-build/arthur_mobile/audio/splash_01.ogg
+          mkdir -p godot-build/arthur_assets/kaykit/gltf
+          cp -a kaykit-furniture/addons/kaykit_furniture_bits/Assets/gltf/. godot-build/arthur_assets/kaykit/gltf/
+
+      - name: Install Godot
+        run: |
+          mkdir -p "$HOME/godot"
+          curl -L --fail --retry 3 -o /tmp/godot.zip "https://github.com/godotengine/godot-builds/releases/download/${GODOT_VERSION}-stable/Godot_v${GODOT_VERSION}-stable_linux.x86_64.zip"
+          unzip -q /tmp/godot.zip -d "$HOME/godot"
+          chmod +x "$HOME/godot/Godot_v${GODOT_VERSION}-stable_linux.x86_64"
+          "$HOME/godot/Godot_v${GODOT_VERSION}-stable_linux.x86_64" --version
+
+      - name: Import and parse project
+        run: |
+          GODOT="$HOME/godot/Godot_v${GODOT_VERSION}-stable_linux.x86_64"
+          "$GODOT" --headless --editor --path godot-build --quit
+
+      - name: Runtime smoke test parking scene
+        run: |
+          GODOT="$HOME/godot/Godot_v${GODOT_VERSION}-stable_linux.x86_64"
+          set +e
+          timeout 14s "$GODOT" --headless --path godot-build --quit-after 240 2>&1 | tee /tmp/godot-runtime.log
+          STATUS=${PIPESTATUS[0]}
+          set -e
+          if grep -E "SCRIPT ERROR|Invalid call|Invalid access|SHADER ERROR|Parse Error|Failed to load script|Cannot load resource|Failed loading resource" /tmp/godot-runtime.log; then
+            echo "Runtime smoke test found actionable Godot errors"
+            exit 1
+          fi
+          if [ "$STATUS" -ne 0 ] && [ "$STATUS" -ne 124 ]; then
+            exit "$STATUS"
+          fi
