@@ -41,6 +41,11 @@ jobs:
       - name: Sync Android project
         run: npx cap sync android
 
+      - name: Force landscape orientation
+        run: |
+          sed -i '/android:name="\.MainActivity"/a\            android:screenOrientation="landscape"' android/app/src/main/AndroidManifest.xml
+          grep -A8 'android:name=".MainActivity"' android/app/src/main/AndroidManifest.xml
+
       - name: Build debug APK
         run: cd android && chmod +x gradlew && ./gradlew assembleDebug
 
