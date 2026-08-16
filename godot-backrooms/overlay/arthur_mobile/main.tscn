@@ -1,7 +1,7 @@
 [gd_scene load_steps=13 format=3]
 
-[ext_resource type="Script" path="res://arthur_mobile/world_v07.gd" id="1_world"]
-[ext_resource type="Script" path="res://arthur_mobile/player_v07.gd" id="2_player"]
+[ext_resource type="Script" path="res://arthur_mobile/world_v08.gd" id="1_world"]
+[ext_resource type="Script" path="res://arthur_mobile/player_v08.gd" id="2_player"]
 [ext_resource type="Script" path="res://arthur_mobile/mobile_controls.gd" id="3_controls"]
 [ext_resource type="Material" path="res://procedural/assets/floor.tres" id="4_floor"]
 [ext_resource type="AudioStream" path="res://assets/audio/Neon Lighting Hum.mp3" id="5_hum"]
