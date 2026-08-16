@@ -6,6 +6,7 @@ var look_touch := -1
 var move_origin := Vector2.ZERO
 var move_current := Vector2.ZERO
 var joystick_radius := 126.0
+var response_radius := 96.0
 var knob_radius := 52.0
 
 func _ready() -> void:
@@ -54,7 +55,7 @@ func _update_move() -> void:
 	var delta := move_current - move_origin
 	if delta.length() > joystick_radius:
 		delta = delta.normalized() * joystick_radius
-	var analog := Vector2(delta.x / joystick_radius, -delta.y / joystick_radius)
+	var analog := Vector2(delta.x / response_radius, -delta.y / response_radius)
 	player.set_mobile_move(analog.limit_length(1.0))
 
 func _draw() -> void:
