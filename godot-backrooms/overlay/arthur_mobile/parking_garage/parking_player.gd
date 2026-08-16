@@ -2,10 +2,15 @@ extends "res://arthur_mobile/player_v09.gd"
 
 @export var vehicle_search_radius: float = 3.4
 
+@onready var vehicle_camera_pivot: Node3D = $CameraPivot
+@onready var vehicle_camera: Camera3D = $CameraPivot/Camera3D
+
 var active_vehicle: RigidBody3D
 var vehicle_touch_input: Vector2 = Vector2.ZERO
 var saved_collision_layer: int = 1
 var saved_collision_mask: int = 3
+var saved_camera_pivot_position: Vector3 = Vector3(0, 0.62, 0)
+var saved_camera_fov: float = 75.0
 
 func set_mobile_move(value: Vector2) -> void:
 	if is_in_vehicle():
@@ -73,10 +78,14 @@ func _enter_vehicle(car: RigidBody3D) -> void:
 	vehicle_touch_input = Vector2.ZERO
 	saved_collision_layer = collision_layer
 	saved_collision_mask = collision_mask
+	saved_camera_pivot_position = vehicle_camera_pivot.position
+	saved_camera_fov = vehicle_camera.fov
 	collision_layer = 0
 	collision_mask = 0
 	velocity = Vector3.ZERO
 	mobile_move = Vector2.ZERO
+	vehicle_camera_pivot.position = Vector3(0.0, 0.49, -0.10)
+	vehicle_camera.fov = 81.0
 	active_vehicle.call("set_driver", self)
 	_sync_to_vehicle()
 
@@ -92,6 +101,8 @@ func _exit_vehicle() -> void:
 	vehicle_touch_input = Vector2.ZERO
 	collision_layer = saved_collision_layer
 	collision_mask = saved_collision_mask
+	vehicle_camera_pivot.position = saved_camera_pivot_position
+	vehicle_camera.fov = saved_camera_fov
 	global_position = exit_position
 	velocity = Vector3.ZERO
 
