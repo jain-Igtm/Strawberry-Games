@@ -112,6 +112,77 @@ func _add_light_for_cell(root: Node3D, cell: Vector2i, sample: Dictionary) -> vo
 func _add_yellow_content(root: Node3D, cell: Vector2i, sample: Dictionary) -> void:
 	super._add_yellow_content(root, cell, sample)
 	_add_yellow_wall_light(root, cell)
+	if bool(yellow_plan.call("is_room_anchor", cell)) and _hash(cell.x, cell.y, 6029) % 4 == 0:
+		_add_psychic_prop(root, Vector3(0.65, 1.15, -0.65), cell, 0, BIOME_YELLOW)
+
+func _add_pool_content(root: Node3D, cell: Vector2i, sample: Dictionary) -> void:
+	super._add_pool_content(root, cell, sample)
+	var local_x: int = _positive_mod(cell.x, ROOM_SIZE)
+	var local_z: int = _positive_mod(cell.y, ROOM_SIZE)
+	if local_x != 0 or local_z != 0:
+		return
+	var center: Vector3 = _macro_room_center()
+	_add_psychic_prop(root, center + Vector3(-5.4, 1.65, -4.8), cell, 0, BIOME_POOL)
+	_add_psychic_prop(root, center + Vector3(5.0, 1.80, 4.2), cell, 1, BIOME_POOL)
+	if _hash(cell.x, cell.y, 6047) % 3 == 0:
+		_add_psychic_prop(root, center + Vector3(5.6, 1.55, -4.9), cell, 2, BIOME_POOL)
+
+func _add_service_content(root: Node3D, cell: Vector2i, sample: Dictionary) -> void:
+	super._add_service_content(root, cell, sample)
+	var local_x: int = _positive_mod(cell.x, ROOM_SIZE)
+	var local_z: int = _positive_mod(cell.y, ROOM_SIZE)
+	if local_x != 0 or local_z != 0:
+		return
+	var center: Vector3 = _macro_room_center()
+	_add_psychic_prop(root, center + Vector3(-4.8, 1.45, 4.6), cell, 0, BIOME_SERVICE)
+	if _hash(cell.x, cell.y, 6067) % 2 == 0:
+		_add_psychic_prop(root, center + Vector3(5.1, 1.65, -4.2), cell, 1, BIOME_SERVICE)
+
+func _add_psychic_prop(root: Node3D, local_position: Vector3, cell: Vector2i, index: int, biome: int) -> void:
+	var body := RigidBody3D.new()
+	body.name = "PsychicProp_%d_%d_%d" % [cell.x, cell.y, index]
+	body.position = local_position
+	body.mass = 0.85 + float(_hash(cell.x, cell.y, 6101 + index) % 80) / 100.0
+	body.linear_damp = 1.15
+	body.angular_damp = 1.35
+	body.collision_layer = 2
+	body.collision_mask = 3
+	body.add_to_group("psychic_prop")
+
+	var size_roll: int = _hash(cell.x, cell.y, 6121 + index) % 3
+	var size := Vector3(0.72, 0.72, 0.72)
+	if size_roll == 1:
+		size = Vector3(1.0, 0.42, 0.62)
+	elif size_roll == 2:
+		size = Vector3(0.46, 1.12, 0.46)
+
+	var shape_node := CollisionShape3D.new()
+	var shape := BoxShape3D.new()
+	shape.size = size
+	shape_node.shape = shape
+	body.add_child(shape_node)
+
+	var mesh_instance := MeshInstance3D.new()
+	var mesh := BoxMesh.new()
+	mesh.size = size
+	mesh_instance.mesh = mesh
+	var material := StandardMaterial3D.new()
+	if biome == BIOME_POOL:
+		material.albedo_color = Color(0.30, 0.48, 0.52, 1.0) if index % 2 == 0 else Color(0.58, 0.61, 0.57, 1.0)
+		material.metallic = 0.34
+		material.roughness = 0.46
+	elif biome == BIOME_SERVICE:
+		material.albedo_color = Color(0.28, 0.30, 0.29, 1.0) if index % 2 == 0 else Color(0.44, 0.28, 0.21, 1.0)
+		material.metallic = 0.5
+		material.roughness = 0.64
+	else:
+		material.albedo_color = Color(0.50, 0.43, 0.28, 1.0)
+		material.metallic = 0.1
+		material.roughness = 0.82
+	mesh_instance.material_override = material
+	body.add_child(mesh_instance)
+
+	root.add_child(body)
 
 func _add_yellow_wall_light(root: Node3D, cell: Vector2i) -> void:
 	var roll: int = _hash(cell.x, cell.y, 5901)
