@@ -1,0 +1,39 @@
+name: Publish Arthur Backrooms v0.11 Release
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/publish-v011-release.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  actions: read
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Download exact v0.11 APK artifact
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh api repos/${{ github.repository }}/actions/artifacts/9265888500/zip > /tmp/v011.zip
+          mkdir -p /tmp/v011
+          unzip -q /tmp/v011.zip -d /tmp/v011
+          APK=$(find /tmp/v011 -type f -name '*.apk' | head -n 1)
+          test -n "$APK"
+          cp "$APK" /tmp/Arthur-Backrooms-Godot-v0.11-living-pools.apk
+          ls -lh /tmp/Arthur-Backrooms-Godot-v0.11-living-pools.apk
+
+      - name: Publish permanent GitHub Release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release delete v0.11 --repo "${{ github.repository }}" --yes --cleanup-tag || true
+          gh release create v0.11 /tmp/Arthur-Backrooms-Godot-v0.11-living-pools.apk \
+            --repo "${{ github.repository }}" \
+            --target 5db421c6c08836a2fbd9faac5c3b101bc1f21ba9 \
+            --title "Arthur Backrooms Godot v0.11 - Living Pools" \
+            --notes "Adds solid ceilings for levitation, cleaner stair connectors, swipe brightness on the psychic light button, scout-preserving hold-to-spread light gestures, smoother mobile streaming, mirrored/repeating pool architecture, river halls, bright pool rooms, rideable first-person waterslides including occasional inter-floor rides, and recorded spatial water loops fetched from a pinned public CC0 sound repository. Built from commit 5db421c6c08836a2fbd9faac5c3b101bc1f21ba9."
