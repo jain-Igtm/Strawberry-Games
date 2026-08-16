@@ -20,7 +20,6 @@ var yaw := PI
 var pitch := -0.03
 var sensitivity_index := 1
 var ads := false
-var paused := false
 var reloading := false
 var _reload_left := 0.0
 var _fire_cooldown := 0.0
@@ -201,7 +200,10 @@ func fire() -> void:
 		return
 	var collider = hit.get("collider")
 	if is_instance_valid(collider) and collider.has_method("take_bullet"):
-		var result: Dictionary = collider.take_bullet(BASE_DAMAGE, hit.get("position", Vector3.ZERO), HEADSHOT_MULTIPLIER)
+		var damage_multiplier := 1.0
+		if is_instance_valid(game):
+			damage_multiplier = float(game.get("weapon_damage_multiplier"))
+		var result: Dictionary = collider.take_bullet(BASE_DAMAGE * damage_multiplier, hit.get("position", Vector3.ZERO), HEADSHOT_MULTIPLIER)
 		if not result.is_empty():
 			game.register_hit(bool(result.get("headshot", false)), bool(result.get("killed", false)))
 
