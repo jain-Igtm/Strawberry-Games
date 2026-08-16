@@ -124,6 +124,21 @@ jobs:
           GODOT="$HOME/godot/Godot_v4.7.1-stable_linux.x86_64"
           "$GODOT" --headless --editor --path godot-build --quit
 
+      - name: Runtime smoke test main scene
+        run: |
+          GODOT="$HOME/godot/Godot_v4.7.1-stable_linux.x86_64"
+          set +e
+          timeout 12s "$GODOT" --headless --path godot-build --quit-after 180 2>&1 | tee /tmp/godot-runtime.log
+          STATUS=${PIPESTATUS[0]}
+          set -e
+          if grep -E "SCRIPT ERROR|Invalid call|Invalid access|ERROR:" /tmp/godot-runtime.log; then
+            echo "Runtime smoke test found Godot errors"
+            exit 1
+          fi
+          if [ "$STATUS" -ne 0 ] && [ "$STATUS" -ne 124 ]; then
+            exit "$STATUS"
+          fi
+
       - name: Export Android debug APK
         env:
           GODOT_ANDROID_KEYSTORE_DEBUG_PATH: ${{ github.workspace }}/../.android/debug.keystore
