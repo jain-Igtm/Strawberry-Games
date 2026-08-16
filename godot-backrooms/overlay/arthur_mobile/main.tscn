@@ -1,4 +1,4 @@
-[gd_scene load_steps=14 format=3]
+[gd_scene load_steps=15 format=3]
 
 [ext_resource type="Script" path="res://arthur_mobile/parking_garage/parking_world_entry.gd" id="1_world"]
 [ext_resource type="Script" path="res://arthur_mobile/parking_garage/parking_player.gd" id="2_player"]
@@ -8,6 +8,7 @@
 [ext_resource type="AudioStream" path="res://assets/audio/Deep Space Travel Background Noise.mp3" id="6_atmosphere"]
 [ext_resource type="Script" path="res://arthur_mobile/discovery.gd" id="7_discovery"]
 [ext_resource type="Script" path="res://arthur_mobile/parking_garage/vehicle_context_button.gd" id="8_vehicle_button"]
+[ext_resource type="Script" path="res://arthur_mobile/parking_garage/vehicle_headlight_button.gd" id="9_headlight_button"]
 
 [sub_resource type="CapsuleShape3D" id="CapsuleShape_player"]
 radius = 0.34
@@ -32,7 +33,12 @@ fog_height = 0.0
 fog_height_density = 0.0
 
 [sub_resource type="StyleBoxFlat" id="StyleBoxFlat_hud"]
-bg_color = Color(0.04, 0.04, 0.025, 0.62)
+bg_color = Color(0.025, 0.032, 0.034, 0.76)
+border_width_left = 1
+border_width_top = 1
+border_width_right = 1
+border_width_bottom = 1
+border_color = Color(0.19, 0.34, 0.35, 0.72)
 corner_radius_top_left = 5
 corner_radius_top_right = 5
 corner_radius_bottom_right = 5
@@ -40,9 +46,9 @@ corner_radius_bottom_left = 5
 
 [sub_resource type="LabelSettings" id="LabelSettings_hud"]
 font_size = 17
-font_color = Color(0.92, 0.90, 0.73, 1)
+font_color = Color(0.84, 0.91, 0.86, 1)
 outline_size = 4
-outline_color = Color(0, 0, 0, 0.8)
+outline_color = Color(0, 0, 0, 0.84)
 
 [node name="ArthurBackrooms" type="Node3D"]
 script = ExtResource("1_world")
@@ -111,7 +117,7 @@ script = ExtResource("3_controls")
 [node name="InfoPanel" type="PanelContainer" parent="UI/Overlay"]
 offset_left = 24.0
 offset_top = 20.0
-offset_right = 420.0
+offset_right = 470.0
 offset_bottom = 92.0
 theme_override_styles/panel = SubResource("StyleBoxFlat_hud")
 
@@ -127,9 +133,9 @@ label_settings = SubResource("LabelSettings_hud")
 [node name="Coords" type="Label" parent="UI/Overlay"]
 offset_left = 36.0
 offset_top = 57.0
-offset_right = 920.0
+offset_right = 1040.0
 offset_bottom = 86.0
-text = "INFINITE PARKING // LEVEL +0"
+text = "PARKING // LEVEL +0 // CENTRAL ARRIVAL"
 label_settings = SubResource("LabelSettings_hud")
 
 [node name="LookHint" type="Label" parent="UI/Overlay"]
@@ -160,7 +166,7 @@ offset_right = 240.0
 offset_bottom = -60.0
 grow_horizontal = 2
 grow_vertical = 0
-text = "DISCOVERED // ATRIUM"
+text = "DISCOVERED // PARKING"
 horizontal_alignment = 1
 vertical_alignment = 1
 label_settings = SubResource("LabelSettings_hud")
@@ -192,11 +198,28 @@ anchor_left = 0.5
 anchor_top = 1.0
 anchor_right = 0.5
 anchor_bottom = 1.0
-offset_left = -92.0
+offset_left = -200.0
 offset_top = -154.0
-offset_right = 92.0
+offset_right = -16.0
 offset_bottom = -106.0
 grow_horizontal = 2
 grow_vertical = 0
 text = "ENTER / HIDE"
 script = ExtResource("8_vehicle_button")
+
+[node name="VehicleHeadlights" type="Button" parent="UI/Overlay"]
+visible = false
+layout_mode = 1
+anchors_preset = 7
+anchor_left = 0.5
+anchor_top = 1.0
+anchor_right = 0.5
+anchor_bottom = 1.0
+offset_left = 16.0
+offset_top = -154.0
+offset_right = 200.0
+offset_bottom = -106.0
+grow_horizontal = 2
+grow_vertical = 0
+text = "HEADLIGHTS"
+script = ExtResource("9_headlight_button")
