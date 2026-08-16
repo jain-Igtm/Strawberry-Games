@@ -1,0 +1,9 @@
+[gd_resource type="ShaderMaterial" load_steps=2 format=3]
+
+[ext_resource type="Shader" path="res://arthur_mobile/materials/pool_water.gdshader" id="1_shader"]
+
+[resource]
+shader = ExtResource("1_shader")
+shader_parameter/shallow_color = Vector3(0.18, 0.62, 0.68)
+shader_parameter/deep_color = Vector3(0.04, 0.29, 0.39)
+shader_parameter/opacity = 0.66
