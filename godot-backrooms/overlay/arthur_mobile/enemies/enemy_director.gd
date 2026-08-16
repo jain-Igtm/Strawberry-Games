@@ -9,7 +9,7 @@ signal dissociation_ended
 signal ambient_enemy_spawned(kind: String)
 
 const CROSS_SECTION_SCRIPT: Script = preload("res://arthur_mobile/enemies/cross_section_intrusion.gd")
-const VEIL_RAY_SCRIPT: Script = preload("res://arthur_mobile/enemies/veil_ray.gd")
+const GROUND_STALKER_SCRIPT: Script = preload("res://arthur_mobile/enemies/ground_stalker.gd")
 const POOL_EEL_SCRIPT: Script = preload("res://arthur_mobile/enemies/pool_eel.gd")
 const DISSOCIATION_SHADER: Shader = preload("res://arthur_mobile/enemies/dissociation_overlay.gdshader")
 
@@ -51,6 +51,7 @@ var overlay: ColorRect
 var overlay_material: ShaderMaterial
 var visual_phase := 0.0
 var ambient_timer := 12.0
+var underwater_time := 0.0
 
 func _ready() -> void:
 	rng.randomize()
@@ -72,6 +73,7 @@ func _process(delta: float) -> void:
 	if overlay_material != null and overlay != null and overlay.visible:
 		overlay_material.set_shader_parameter("phase", visual_phase)
 
+	_update_underwater_time(delta)
 	_update_ambient_enemies(delta)
 	state_time -= delta
 	match state:
@@ -186,6 +188,15 @@ func _spawn_cross_section_intrusion() -> void:
 	var lateral := rng.randf_range(-4.5, 4.5)
 	intruder.global_position = player.global_position + forward * spawn_distance + right * lateral + Vector3(0.0, rng.randf_range(0.8, 2.3), 0.0)
 
+func _update_underwater_time(delta: float) -> void:
+	if not is_instance_valid(player):
+		underwater_time = 0.0
+		return
+	var underwater := false
+	if player.has_method("is_underwater"):
+		underwater = bool(player.call("is_underwater"))
+	underwater_time = underwater_time + delta if underwater else 0.0
+
 func _update_ambient_enemies(delta: float) -> void:
 	ambient_timer -= delta
 	if ambient_timer > 0.0:
@@ -196,44 +207,112 @@ func _update_ambient_enemies(delta: float) -> void:
 		_reset_ambient_timer(false)
 		return
 
-	var underwater := false
-	if player.has_method("is_underwater"):
-		underwater = bool(player.call("is_underwater"))
-	if underwater:
-		_spawn_pool_eel()
+	# Aquatic predators only appear after Arthur has actually spent time in the
+	# water, which avoids a visible pop the instant he breaks the surface.
+	if underwater_time >= 5.0:
+		if not _spawn_pool_eel():
+			_reset_ambient_timer(false)
+			return
 	else:
-		_spawn_veil_ray()
+		if not _spawn_ground_stalker():
+			# No safe ground point behind Arthur: skip the encounter rather than
+			# materializing a creature in his field of view.
+			ambient_timer = 4.0 if lab_mode else rng.randf_range(14.0, 28.0)
+			return
 	_reset_ambient_timer(false)
 
 func _reset_ambient_timer(initial: bool) -> void:
 	if lab_mode:
-		ambient_timer = 9.0 if initial else rng.randf_range(14.0, 22.0)
+		ambient_timer = 8.0 if initial else rng.randf_range(15.0, 23.0)
 	else:
 		ambient_timer = rng.randf_range(ambient_enemy_min, ambient_enemy_max)
 
-func _spawn_veil_ray() -> void:
-	var creature := Node3D.new()
-	creature.name = "VeilRay"
-	creature.set_script(VEIL_RAY_SCRIPT)
+func _spawn_ground_stalker() -> bool:
+	if not is_instance_valid(player):
+		return false
+	var spawn_point := _find_ground_spawn_behind_player()
+	if spawn_point == Vector3.INF:
+		return false
+
+	var creature := CharacterBody3D.new()
+	creature.name = "GroundStalker"
+	creature.set_script(GROUND_STALKER_SCRIPT)
 	creature.call("configure", player)
 	add_child(creature)
-	creature.add_to_group("enemy_ambient")
-	var angle := rng.randf_range(-PI, PI)
-	var distance := rng.randf_range(4.5, 7.0)
-	creature.global_position = player.global_position + Vector3(cos(angle) * distance, 3.0, sin(angle) * distance)
-	ambient_enemy_spawned.emit("veil_ray")
+	creature.global_position = spawn_point + Vector3.UP * 0.05
+	ambient_enemy_spawned.emit("ground_stalker")
+	return true
 
-func _spawn_pool_eel() -> void:
+func _find_ground_spawn_behind_player() -> Vector3:
+	if not is_instance_valid(player) or not is_instance_valid(camera):
+		return Vector3.INF
+	var back := camera.global_transform.basis.z
+	var right := camera.global_transform.basis.x
+	back.y = 0.0
+	right.y = 0.0
+	if back.length_squared() < 0.01 or right.length_squared() < 0.01:
+		return Vector3.INF
+	back = back.normalized()
+	right = right.normalized()
+
+	var space := get_world_3d().direct_space_state
+	var excluded: Array[RID] = []
+	if player is CollisionObject3D:
+		excluded.append((player as CollisionObject3D).get_rid())
+
+	for attempt in range(8):
+		var distance := rng.randf_range(5.8, 9.2)
+		var lateral := rng.randf_range(-3.4, 3.4)
+		var candidate := player.global_position + back * distance + right * lateral
+		var down_query := PhysicsRayQueryParameters3D.create(candidate + Vector3.UP * 3.2, candidate + Vector3.DOWN * 5.0)
+		down_query.exclude = excluded
+		var floor_hit := space.intersect_ray(down_query)
+		if floor_hit.is_empty():
+			continue
+		var floor_point: Vector3 = floor_hit.position
+		var floor_normal: Vector3 = floor_hit.normal
+		if floor_normal.dot(Vector3.UP) < 0.70:
+			continue
+		# Multi-floor safeguard: do not silently create it on the floor above or below.
+		if absf(floor_point.y - player.global_position.y) > 1.65:
+			continue
+
+		# Until navigation is integrated, only spawn where a straight ground chase
+		# is physically plausible. This also means it enters from behind rather than
+		# appearing through a wall and getting stuck there.
+		var sight_query := PhysicsRayQueryParameters3D.create(
+			player.global_position + Vector3.UP * 0.55,
+			floor_point + Vector3.UP * 0.55
+		)
+		sight_query.exclude = excluded
+		var obstruction := space.intersect_ray(sight_query)
+		if not obstruction.is_empty():
+			continue
+		return floor_point
+	return Vector3.INF
+
+func _spawn_pool_eel() -> bool:
+	if not is_instance_valid(player):
+		return false
 	var creature := Node3D.new()
 	creature.name = "PoolEel"
 	creature.set_script(POOL_EEL_SCRIPT)
 	creature.call("configure", player)
 	add_child(creature)
 	creature.add_to_group("enemy_ambient")
-	var angle := rng.randf_range(-PI, PI)
-	var distance := rng.randf_range(3.0, 5.0)
-	creature.global_position = player.global_position + Vector3(cos(angle) * distance, -0.35, sin(angle) * distance)
+
+	var back := Vector3(0.0, 0.0, 1.0)
+	var right := Vector3(1.0, 0.0, 0.0)
+	if is_instance_valid(camera):
+		back = camera.global_transform.basis.z
+		right = camera.global_transform.basis.x
+	back.y = 0.0
+	right.y = 0.0
+	back = back.normalized()
+	right = right.normalized()
+	creature.global_position = player.global_position + back * rng.randf_range(4.5, 6.5) + right * rng.randf_range(-2.2, 2.2) + Vector3.DOWN * 0.35
 	ambient_enemy_spawned.emit("pool_eel")
+	return true
 
 func _slam_back_psychic_props() -> void:
 	if is_instance_valid(player) and player.has_method("is_psychic_field_active"):
