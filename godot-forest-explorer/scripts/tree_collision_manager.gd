@@ -3,6 +3,7 @@ extends Node3D
 const COLLISION_RADIUS := 20.0
 const MAX_ACTIVE_TRUNKS := 72
 const REFRESH_INTERVAL := 0.22
+const OBSTACLE_LAYER := 2
 
 @onready var player: CharacterBody3D = get_node("../Player")
 
@@ -13,6 +14,8 @@ var _refresh_clock := 0.0
 func _ready() -> void:
     _body = StaticBody3D.new()
     _body.name = "NearbyTreeCollisionBody"
+    _body.collision_layer = OBSTACLE_LAYER
+    _body.collision_mask = 0
     add_child(_body)
     for i in range(MAX_ACTIVE_TRUNKS):
         var shape := CollisionShape3D.new()
