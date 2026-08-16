@@ -10,6 +10,7 @@ var active := false
 var scouting := false
 var phase := 0.0
 var formation_radius := 1.45
+var brightness := 1.0
 var visual_anchor := Vector3.ZERO
 var returning_to_default := false
 var spread_locked_until_release := false
@@ -24,6 +25,8 @@ const MAX_RADIUS := 5.6
 const COMBINE_RADIUS := 0.42
 const SCOUT_DISTANCE := 7.2
 const DEFAULT_RETURN_SPEED := 3.85
+const MIN_BRIGHTNESS := 0.35
+const MAX_BRIGHTNESS := 2.25
 
 func _ready() -> void:
 	anchor = get_parent() as Node3D
@@ -75,34 +78,53 @@ func is_scouting() -> bool:
 func adjust_radius(amount: float) -> float:
 	if not active:
 		set_enabled(true)
-		return formation_radius
-	scouting = false
-	if anchor != null:
-		visual_anchor = anchor.global_position
-		global_position = anchor.global_position
 	if amount > 0.0:
 		if spread_locked_until_release:
 			return formation_radius
-		formation_radius += amount
+		returning_to_default = false
+		formation_radius = clampf(formation_radius + amount, MIN_RADIUS, MAX_RADIUS)
 		if formation_radius >= MAX_RADIUS:
 			formation_radius = MAX_RADIUS
-			returning_to_default = true
 			spread_locked_until_release = true
 	else:
 		returning_to_default = false
 		formation_radius = clampf(formation_radius + amount, MIN_RADIUS, MAX_RADIUS)
+
+	# Radius is independent of anchor mode. HOME spreads around Arthur; SCOUT spreads
+	# around the forward scout anchor and remains in SCOUT for the entire gesture.
+	if not scouting and anchor != null:
+		visual_anchor = anchor.global_position
+		global_position = anchor.global_position
 	return formation_radius
 
 func end_radius_gesture() -> void:
 	spread_locked_until_release = false
 
-func reset_default_formation() -> void:
-	scouting = false
+func return_radius_to_default() -> void:
 	returning_to_default = true
-	spread_locked_until_release = true
-	if anchor != null:
+	spread_locked_until_release = false
+	if not scouting and anchor != null:
 		visual_anchor = anchor.global_position
 		global_position = anchor.global_position
+
+func reset_default_formation() -> void:
+	# Explicit HOME command retained for compatibility. Long-hold release now uses
+	# return_radius_to_default(), which deliberately preserves SCOUT state.
+	scouting = false
+	return_radius_to_default()
+
+func adjust_brightness(amount: float) -> float:
+	if not active:
+		set_enabled(true)
+	brightness = clampf(brightness + amount, MIN_BRIGHTNESS, MAX_BRIGHTNESS)
+	return brightness
+
+func set_brightness(value: float) -> float:
+	brightness = clampf(value, MIN_BRIGHTNESS, MAX_BRIGHTNESS)
+	return brightness
+
+func get_brightness() -> float:
+	return brightness
 
 func is_combined() -> bool:
 	return formation_radius <= COMBINE_RADIUS
@@ -181,11 +203,11 @@ func _update_combined() -> void:
 	)
 	var light := orb_a.get_node_or_null("Light") as OmniLight3D
 	if light != null:
-		light.light_energy = lerpf(2.7, 4.2, merge)
+		light.light_energy = lerpf(2.7, 4.2, merge) * brightness
 		light.omni_range = lerpf(11.5, 14.0, merge)
 
 func _restore_light(orb: Node3D, energy: float, light_range: float) -> void:
 	var light := orb.get_node_or_null("Light") as OmniLight3D
 	if light != null:
-		light.light_energy = energy
+		light.light_energy = energy * brightness
 		light.omni_range = light_range

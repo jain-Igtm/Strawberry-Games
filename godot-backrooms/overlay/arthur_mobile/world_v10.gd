@@ -1,23 +1,26 @@
 extends "res://arthur_mobile/world_v09.gd"
 
-# v0.10.1 keeps the proven v0.9 world generator intact and moves one complete
-# 2D world plane between storeys. Only the active storey is streamed.
-# This avoids building seven complete floors at once and prevents lights from
-# unloaded storeys bleeding through the current geometry.
+# v0.11 keeps the proven v0.9 2D generator as the actual floor and layers only
+# lightweight vertical connectors and pool architecture around it.
+const PoolComplexV11Script = preload("res://arthur_mobile/pool_complex_v11.gd")
+
 const STOREY_HEIGHT := 4.4
 const STOREY_SOURCE_OFFSET := Vector2i(997, -613)
 
-const STAIR_STEPS := 20
-const STAIR_RUN := 0.36
-const STAIR_WIDTH := 1.80
-const STAIR_SEARCH_RADIUS_BLOCKS := 2
-const STAIR_CUT_WIDTH := 2.75
-const STAIR_CUT_LENGTH := 4.25
+const STAIR_STEPS := 22
+const STAIR_RUN := 0.31
+const STAIR_WIDTH := 1.82
+const STAIR_TREAD_THICKNESS := 0.18
+const STAIR_SEARCH_RADIUS_BLOCKS := 1
+const STAIR_CUT_WIDTH := 2.45
+const STAIR_CUT_LENGTH := 3.65
 
 const FLOOR_LOCAL_Y := -0.5
 const CEILING_LOCAL_Y := 4.12
 const UP_SWITCH_MARGIN := 0.15
 const DOWN_SWITCH_MARGIN := -0.15
+const MOBILE_TILE_BUDGET := 6
+const DESKTOP_TILE_BUDGET := 14
 
 var current_level := 0
 var stair_cache: Dictionary = {}
@@ -60,11 +63,12 @@ func _process(delta: float) -> void:
 	var primary: int = int(sample["primary"])
 	var local_floor: bool = primary != BIOME_YELLOW
 
-	# Preserve v0.9's floor strategy exactly: the broad yellow plane is used only
-	# in the yellow biome. Pool/service surfaces remain the original per-cell geometry.
+	# The large planes remain exactly the yellow-biome strategy from v0.9, but the
+	# ceiling now has collision so levitation cannot simply phase through it.
 	floor_mesh.visible = not local_floor
 	floor_mesh.use_collision = not local_floor
 	ceiling_mesh.visible = not local_floor
+	ceiling_mesh.use_collision = not local_floor
 
 	var base_y: float = float(current_level) * STOREY_HEIGHT
 	if primary == BIOME_POOL and player.global_position.y < base_y - 4.6:
@@ -91,14 +95,23 @@ func _process(delta: float) -> void:
 			player.global_position.y
 		]
 
+func _build_some_tiles() -> void:
+	# CSG room anchors can be expensive on Android. Keep the same load radius but
+	# spread construction across more frames to remove the large one-frame spikes.
+	var budget := MOBILE_TILE_BUDGET if OS.has_feature("mobile") else DESKTOP_TILE_BUDGET
+	var count: int = mini(budget, build_queue.size())
+	for _i in range(count):
+		var cell: Vector2i = build_queue.pop_front()
+		if active_tiles.has(cell):
+			continue
+		_add_cell(cell)
+
 func _virtual_cell(world_cell: Vector2i, level: int) -> Vector2i:
 	if level == 0:
 		return world_cell
 	return world_cell + STOREY_SOURCE_OFFSET * level
 
 func _biome_sample_at_world(position: Vector3) -> Dictionary:
-	# Shift only the procedural source coordinates. The player's actual world-space
-	# position stays untouched, so atmosphere blending behaves exactly like v0.9.
 	var source_offset: Vector2i = STOREY_SOURCE_OFFSET * current_level
 	var shifted := position + Vector3(
 		float(source_offset.x) * CELL,
@@ -108,14 +121,13 @@ func _biome_sample_at_world(position: Vector3) -> Dictionary:
 	return super._biome_sample_at_world(shifted)
 
 func _add_cell(world_cell: Vector2i) -> void:
-	# Ask the exact v0.9 generator to build a source cell, then move that finished
-	# cell to this storey's world-space location. No biome internals are rebuilt here.
 	var source_cell: Vector2i = _virtual_cell(world_cell, current_level)
 	super._add_cell(source_cell)
 	if not active_tiles.has(source_cell):
 		return
 
 	var root: Node3D = active_tiles[source_cell] as Node3D
+	_enable_direct_ceiling_collisions(root)
 	active_tiles.erase(source_cell)
 	root.name = "cell_%d_%+d_%d" % [world_cell.x, current_level, world_cell.y]
 	root.position = Vector3(
@@ -124,6 +136,32 @@ func _add_cell(world_cell: Vector2i) -> void:
 		float(world_cell.y) * CELL
 	)
 	active_tiles[world_cell] = root
+
+func _add_pool_content(root: Node3D, cell: Vector2i, sample: Dictionary) -> void:
+	# Same v0.9 placement rule, upgraded room payload. This preserves the planar
+	# topology and biome transitions while making pool anchors architecturally rich.
+	var local_x: int = _positive_mod(cell.x, ROOM_SIZE)
+	var local_z: int = _positive_mod(cell.y, ROOM_SIZE)
+	if local_x != 0 or local_z != 0:
+		return
+	var room: Vector2i = _room_for_cell(cell)
+	var variant: int = _pool_variant(room)
+	var feature: Node3D = PoolComplexV11Script.new() as Node3D
+	feature.position = _macro_room_center()
+	root.add_child(feature)
+	feature.call("configure", _hash(room.x, room.y, 6501), variant)
+	_add_large_transition_detail(root, sample, _macro_room_center())
+
+func _enable_direct_ceiling_collisions(root: Node3D) -> void:
+	# v0.9 correctly drew local pool/service ceilings but intentionally left those
+	# thin CSG slabs non-colliding. For a flying Arthur they need to be solid.
+	for child in root.get_children():
+		if child is CSGBox3D:
+			var box := child as CSGBox3D
+			if box.position.y >= 3.8 and box.size.y <= 0.40:
+				box.use_collision = true
+				box.collision_layer = 3
+				box.collision_mask = 3
 
 func is_water_at_position(position: Vector3) -> bool:
 	var local_y: float = position.y - float(current_level) * STOREY_HEIGHT
@@ -137,6 +175,8 @@ func is_water_at_position(position: Vector3) -> bool:
 	return int(_biome_sample_for_cell(source_cell)["primary"]) == BIOME_POOL
 
 func _maybe_switch_storey() -> void:
+	if player.has_method("is_on_waterslide") and bool(player.call("is_on_waterslide")):
+		return
 	# Pool rooms intentionally descend far below their floor. Never interpret a
 	# dive as a storey change.
 	if is_water_at_position(player.global_position):
@@ -148,14 +188,16 @@ func _maybe_switch_storey() -> void:
 	elif player.global_position.y < base_y + DOWN_SWITCH_MARGIN:
 		_switch_storey(current_level - 1)
 
+func waterslide_arrive(floor_delta: int) -> void:
+	if floor_delta == 0:
+		return
+	_switch_storey(current_level + floor_delta)
+
 func _switch_storey(next_level: int) -> void:
 	if next_level == current_level:
 		return
 
 	current_level = next_level
-
-	# Drop only the old active plane. The v0.9 generator will repopulate the new
-	# storey around the player's unchanged X/Z position.
 	for raw_root in active_tiles.values():
 		if raw_root is Node:
 			var root := raw_root as Node
@@ -242,14 +284,8 @@ func _nearest_stair(lower_level: int, world_cell: Vector2i) -> Dictionary:
 	var best: Dictionary = {"valid": false}
 	var best_distance := INF
 
-	for bz in range(
-		center_block.y - STAIR_SEARCH_RADIUS_BLOCKS,
-		center_block.y + STAIR_SEARCH_RADIUS_BLOCKS + 1
-	):
-		for bx in range(
-			center_block.x - STAIR_SEARCH_RADIUS_BLOCKS,
-			center_block.x + STAIR_SEARCH_RADIUS_BLOCKS + 1
-		):
+	for bz in range(center_block.y - STAIR_SEARCH_RADIUS_BLOCKS, center_block.y + STAIR_SEARCH_RADIUS_BLOCKS + 1):
+		for bx in range(center_block.x - STAIR_SEARCH_RADIUS_BLOCKS, center_block.x + STAIR_SEARCH_RADIUS_BLOCKS + 1):
 			var candidate: Dictionary = _stair_descriptor(Vector2i(bx, bz), lower_level)
 			if not bool(candidate.get("valid", false)):
 				continue
@@ -268,17 +304,10 @@ func _stair_descriptor(block: Vector2i, lower_level: int) -> Dictionary:
 	if stair_cache.has(cache_key):
 		return stair_cache[cache_key] as Dictionary
 
-	var block_origin := Vector2i(
-		block.x * PLAN_BLOCK_CELLS,
-		block.y * PLAN_BLOCK_CELLS
-	)
-	var seed: int = _hash(
-		block.x + lower_level * 37,
-		block.y - lower_level * 53,
-		7601
-	)
+	var block_origin := Vector2i(block.x * PLAN_BLOCK_CELLS, block.y * PLAN_BLOCK_CELLS)
+	var seed: int = _hash(block.x + lower_level * 37, block.y - lower_level * 53, 7601)
 
-	for attempt in range(72):
+	for attempt in range(48):
 		var roll: int = _hash(seed + attempt * 17, lower_level * 101 + attempt, 7613)
 		var along_x: bool = (roll & 1) == 0
 		var local_x: int = 2 + posmod(roll >> 3, 6)
@@ -342,7 +371,7 @@ func _spawn_stair(stair: Dictionary, cuts_current_floor: bool) -> void:
 
 	var direction := Vector3(float(direction_2d.x), 0.0, float(direction_2d.y))
 	var total_run: float = float(STAIR_STEPS - 1) * STAIR_RUN
-	var cut_distance: float = total_run - 1.15
+	var cut_distance: float = total_run - 0.95
 	var cut_world := Vector3(
 		float(start.x) * CELL,
 		0.0,
@@ -351,22 +380,23 @@ func _spawn_stair(stair: Dictionary, cuts_current_floor: bool) -> void:
 
 	if cuts_current_floor:
 		_add_floor_cut(cut_world, direction_2d)
+		_add_opening_trim(cut_world, direction_2d, float(current_level) * STOREY_HEIGHT)
 	else:
 		_add_ceiling_cut(cut_world, direction_2d)
 
 func _build_stair_run(root: Node3D, direction_2d: Vector2i) -> void:
 	var direction := Vector3(float(direction_2d.x), 0.0, float(direction_2d.y))
 	var start_offset: Vector3 = -direction * 0.55
+	var rise_per_step: float = STOREY_HEIGHT / float(STAIR_STEPS)
 
 	for i in range(STAIR_STEPS):
-		var progress: float = float(i + 1) / float(STAIR_STEPS)
-		var height: float = STOREY_HEIGHT * progress
+		var top_y: float = rise_per_step * float(i + 1)
 		var step_position: Vector3 = start_offset + direction * (float(i) * STAIR_RUN)
-		step_position.y = height * 0.5
+		step_position.y = top_y - STAIR_TREAD_THICKNESS * 0.5
 
 		var step_box := CSGBox3D.new()
 		step_box.position = step_position
-		step_box.size = Vector3(STAIR_WIDTH, height, STAIR_RUN + 0.06)
+		step_box.size = Vector3(STAIR_WIDTH, STAIR_TREAD_THICKNESS, STAIR_RUN + 0.055)
 		if direction_2d.x != 0:
 			step_box.rotation.y = PI * 0.5
 		step_box.material_override = YELLOW_FLOOR
@@ -376,12 +406,12 @@ func _build_stair_run(root: Node3D, direction_2d: Vector2i) -> void:
 		root.add_child(step_box)
 
 	var total_run: float = float(STAIR_STEPS - 1) * STAIR_RUN
-	var landing_position: Vector3 = start_offset + direction * (total_run + 0.62)
+	var landing_position: Vector3 = start_offset + direction * (total_run + 0.58)
 	landing_position.y = STOREY_HEIGHT - 0.10
 
 	var landing := CSGBox3D.new()
 	landing.position = landing_position
-	landing.size = Vector3(3.0, 0.20, 1.9)
+	landing.size = Vector3(2.8, 0.20, 1.65)
 	if direction_2d.x != 0:
 		landing.rotation.y = PI * 0.5
 	landing.material_override = YELLOW_FLOOR
@@ -390,22 +420,59 @@ func _build_stair_run(root: Node3D, direction_2d: Vector2i) -> void:
 	landing.collision_mask = 3
 	root.add_child(landing)
 
-	# Two low rails are enough to make the connector readable without turning it
-	# into another dense procedural structure.
 	var side := Vector3(-direction.z, 0.0, direction.x)
 	for sign_value in [-1.0, 1.0]:
-		var rail := CSGBox3D.new()
-		rail.position = start_offset + direction * (total_run * 0.5)
-		rail.position += side * (STAIR_WIDTH * 0.57 * sign_value)
-		rail.position.y = STOREY_HEIGHT * 0.52
-		rail.size = Vector3(0.12, STOREY_HEIGHT * 0.88, total_run + 0.9)
-		if direction_2d.x != 0:
-			rail.rotation.y = PI * 0.5
-		rail.material_override = YELLOW_WALL
-		rail.use_collision = true
-		rail.collision_layer = 3
-		rail.collision_mask = 3
-		root.add_child(rail)
+		var side_offset := side * (STAIR_WIDTH * 0.57 * sign_value)
+		var rail_start := start_offset + side_offset + Vector3.UP * (rise_per_step + 0.80)
+		var rail_end := start_offset + direction * total_run + side_offset + Vector3.UP * (STOREY_HEIGHT + 0.80)
+		_add_beam_between(root, rail_start, rail_end, 0.10, YELLOW_WALL)
+		for fraction in [0.0, 0.5, 1.0]:
+			var post_base := start_offset + direction * (total_run * fraction) + side_offset
+			post_base.y = lerpf(rise_per_step, STOREY_HEIGHT, fraction)
+			var post := CSGBox3D.new()
+			post.position = post_base + Vector3.UP * 0.40
+			post.size = Vector3(0.10, 0.80, 0.10)
+			post.material_override = YELLOW_WALL
+			post.use_collision = true
+			post.collision_layer = 3
+			post.collision_mask = 3
+			root.add_child(post)
+
+func _add_beam_between(root: Node3D, a: Vector3, b: Vector3, thickness: float, material: Material) -> void:
+	var delta := b - a
+	var length := delta.length()
+	if length <= 0.01:
+		return
+	var pivot := Node3D.new()
+	pivot.position = (a + b) * 0.5
+	root.add_child(pivot)
+	pivot.look_at(pivot.global_position + delta.normalized(), Vector3.UP)
+	var beam := CSGBox3D.new()
+	beam.size = Vector3(thickness, thickness, length)
+	beam.material_override = material
+	beam.use_collision = true
+	beam.collision_layer = 3
+	beam.collision_mask = 3
+	pivot.add_child(beam)
+
+func _add_opening_trim(world_position: Vector3, direction_2d: Vector2i, floor_y: float) -> void:
+	var direction := Vector3(float(direction_2d.x), 0.0, float(direction_2d.y))
+	var side := Vector3(-direction.z, 0.0, direction.x)
+	for sign_value in [-1.0, 1.0]:
+		_add_trim_box(world_position + side * (STAIR_CUT_WIDTH * 0.5 + 0.11) * sign_value + Vector3.UP * (floor_y + 0.04), direction_2d, STAIR_CUT_LENGTH + 0.34, 0.18)
+	_add_trim_box(world_position + direction * (STAIR_CUT_LENGTH * 0.5 + 0.10) + Vector3.UP * (floor_y + 0.04), Vector2i(-direction_2d.y, direction_2d.x), STAIR_CUT_WIDTH + 0.34, 0.18)
+
+func _add_trim_box(center: Vector3, direction: Vector2i, length: float, width: float) -> void:
+	var trim := CSGBox3D.new()
+	trim.position = center
+	trim.size = Vector3(width, 0.08, length)
+	if direction.x != 0:
+		trim.rotation.y = PI * 0.5
+	trim.material_override = YELLOW_FLOOR
+	trim.use_collision = true
+	trim.collision_layer = 3
+	trim.collision_mask = 3
+	connector_root.add_child(trim)
 
 func _add_floor_cut(world_position: Vector3, direction: Vector2i) -> void:
 	var cut := _make_cut(direction, 2.2)

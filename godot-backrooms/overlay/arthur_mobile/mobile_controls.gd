@@ -9,6 +9,8 @@ var move_origin := Vector2.ZERO
 var move_current := Vector2.ZERO
 var tk_origin := Vector2.ZERO
 var tk_current := Vector2.ZERO
+var light_drag_origin := Vector2.ZERO
+var light_drag_current := Vector2.ZERO
 var joystick_radius := 168.0
 var response_radius := 96.0
 var knob_radius := 68.0
@@ -21,6 +23,7 @@ var tk_flick_up := false
 
 var light_press_started_ms := 0
 var light_hold_active := false
+var light_brightness_swipe := false
 var light_tap_count := 0
 var light_last_release_ms := -10000
 
@@ -32,6 +35,10 @@ const LEVITATION_STICK_DEADZONE := 12.0
 const LIGHT_TAP_WINDOW_MS := 280
 const LIGHT_HOLD_MS := 240
 const LIGHT_SPREAD_RATE := 2.45
+const LIGHT_BRIGHTNESS_SWIPE_PX := 18.0
+const LIGHT_BRIGHTNESS_PIXELS_PER_UNIT := 150.0
+const LIGHT_MIN_BRIGHTNESS := 0.35
+const LIGHT_MAX_BRIGHTNESS := 2.25
 
 func _ready() -> void:
 	mouse_filter = Control.MOUSE_FILTER_IGNORE
@@ -65,6 +72,11 @@ func _psychic_lights_on() -> bool:
 func _psychic_scouting() -> bool:
 	return player != null and player.has_method("is_psychic_scouting") and bool(player.call("is_psychic_scouting"))
 
+func _psychic_brightness() -> float:
+	if player != null and player.has_method("get_psychic_light_brightness"):
+		return float(player.call("get_psychic_light_brightness"))
+	return 1.0
+
 func _ensure_lights_on() -> void:
 	if not _psychic_lights_on() and player.has_method("toggle_psychic_light"):
 		player.call("toggle_psychic_light")
@@ -80,7 +92,7 @@ func _process(delta: float) -> void:
 			tk_field_started = true
 			queue_redraw()
 
-	if light_touch != -1:
+	if light_touch != -1 and not light_brightness_swipe:
 		var held_ms: int = now - light_press_started_ms
 		if held_ms >= LIGHT_HOLD_MS:
 			if not light_hold_active:
@@ -88,8 +100,8 @@ func _process(delta: float) -> void:
 				light_tap_count = 0
 				light_last_release_ms = -10000
 				_ensure_lights_on()
-				if _psychic_scouting() and player.has_method("lights_scout_toggle"):
-					player.call("lights_scout_toggle")
+			# HOME and SCOUT use the same radius gesture. The illumination object keeps
+			# whichever anchor mode is already active while these orbs spread.
 			if player.has_method("lights_adjust_radius"):
 				player.call("lights_adjust_radius", LIGHT_SPREAD_RATE * delta)
 			queue_redraw()
@@ -117,6 +129,9 @@ func _input(event: InputEvent) -> void:
 				light_touch = event.index
 				light_press_started_ms = Time.get_ticks_msec()
 				light_hold_active = false
+				light_brightness_swipe = false
+				light_drag_origin = event.position
+				light_drag_current = event.position
 				queue_redraw()
 				return
 
@@ -144,9 +159,14 @@ func _input(event: InputEvent) -> void:
 		else:
 			if event.index == light_touch:
 				light_touch = -1
-				if light_hold_active:
-					if player.has_method("lights_return_home"):
-						player.call("lights_return_home")
+				if light_brightness_swipe:
+					light_brightness_swipe = false
+					light_hold_active = false
+					light_tap_count = 0
+					light_last_release_ms = -10000
+				elif light_hold_active:
+					if player.has_method("lights_return_radius"):
+						player.call("lights_return_radius")
 					if player.has_method("lights_end_radius_gesture"):
 						player.call("lights_end_radius_gesture")
 					light_hold_active = false
@@ -194,6 +214,22 @@ func _input(event: InputEvent) -> void:
 				look_touch = -1
 
 	elif event is InputEventScreenDrag:
+		if event.index == light_touch:
+			light_drag_current = event.position
+			if not light_hold_active:
+				var light_delta: Vector2 = light_drag_current - light_drag_origin
+				if not light_brightness_swipe and absf(light_delta.x) >= LIGHT_BRIGHTNESS_SWIPE_PX and absf(light_delta.x) > absf(light_delta.y) * 0.75:
+					light_brightness_swipe = true
+					light_tap_count = 0
+					light_last_release_ms = -10000
+					_ensure_lights_on()
+				if light_brightness_swipe:
+					if player.has_method("lights_adjust_brightness"):
+						player.call("lights_adjust_brightness", event.relative.x / LIGHT_BRIGHTNESS_PIXELS_PER_UNIT)
+					queue_redraw()
+					return
+			return
+
 		if event.index == tk_touch:
 			tk_current = event.position
 			if _player_levitating():
@@ -273,6 +309,8 @@ func _draw() -> void:
 	)
 
 	_draw_ability_button(_light_center(), "LIGHTS", light_on, ability_radius)
+	if light_on:
+		_draw_light_brightness_meter()
 	if levitating:
 		_draw_levitation_stick()
 	else:
@@ -281,6 +319,15 @@ func _draw() -> void:
 	if _player_underwater():
 		var bubble_active := player.has_method("is_bubble_expanded") and bool(player.call("is_bubble_expanded"))
 		_draw_ability_button(_bubble_center(), "BUBBLE", bubble_active, bubble_radius)
+
+func _draw_light_brightness_meter() -> void:
+	var center := _light_center()
+	var left := center + Vector2(-34.0, 37.0)
+	var right := center + Vector2(34.0, 37.0)
+	var value: float = inverse_lerp(LIGHT_MIN_BRIGHTNESS, LIGHT_MAX_BRIGHTNESS, _psychic_brightness())
+	var knob := left.lerp(right, clampf(value, 0.0, 1.0))
+	draw_line(left, right, Color(1, 1, 1, 0.34), 3.0)
+	draw_circle(knob, 5.0, Color(0.88, 0.96, 1.0, 0.88))
 
 func _draw_levitation_stick() -> void:
 	var center := _tk_center()
