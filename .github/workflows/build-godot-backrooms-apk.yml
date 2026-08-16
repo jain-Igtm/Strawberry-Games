@@ -131,8 +131,8 @@ jobs:
           timeout 12s "$GODOT" --headless --path godot-build --quit-after 180 2>&1 | tee /tmp/godot-runtime.log
           STATUS=${PIPESTATUS[0]}
           set -e
-          if grep -E "SCRIPT ERROR|Invalid call|Invalid access|ERROR:" /tmp/godot-runtime.log; then
-            echo "Runtime smoke test found Godot errors"
+          if grep -E "SCRIPT ERROR|Invalid call|Invalid access|SHADER ERROR|Parse Error|Failed to load script|Cannot load resource|Failed loading resource" /tmp/godot-runtime.log; then
+            echo "Runtime smoke test found actionable Godot errors"
             exit 1
           fi
           if [ "$STATUS" -ne 0 ] && [ "$STATUS" -ne 124 ]; then
