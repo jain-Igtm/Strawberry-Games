@@ -1,0 +1,181 @@
+name: Build Arthur Infinite Parking APK
+
+on:
+  push:
+    branches:
+      - agent/arthur-infinite-parking-garage
+    paths:
+      - 'godot-backrooms/**'
+      - '.github/workflows/build-arthur-infinite-parking-apk.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  android:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    env:
+      GODOT_VERSION: 4.7.1
+      UPSTREAM_SHA: 6865f8b804f84441df8db3d0f3b6175a80195fd2
+      KAYKIT_SHA: 96d5930a8dbdb363409bbc2d3341718b00e17c9c
+      WATER_SFX_SHA: f2b6264f9ab89fabc266914c3654685d68c5a39b
+      APK_NAME: Arthur-Infinite-Parking.apk
+      RELEASE_TAG: arthur-parking-latest
+    steps:
+      - name: Checkout Strawberry Games
+        uses: actions/checkout@v4
+
+      - name: Checkout pinned Godot Backrooms environment
+        uses: actions/checkout@v4
+        with:
+          repository: zodiepupper/backrooms
+          ref: 6865f8b804f84441df8db3d0f3b6175a80195fd2
+          path: godot-build
+          fetch-depth: 1
+
+      - name: Checkout pinned CC0 furniture kit
+        uses: actions/checkout@v4
+        with:
+          repository: KayKit-Game-Assets/KayKit-Furniture-Bits-1.0
+          ref: 96d5930a8dbdb363409bbc2d3341718b00e17c9c
+          path: kaykit-furniture
+          fetch-depth: 1
+
+      - name: Apply parking branch overlay and runtime assets
+        run: |
+          cp -a godot-backrooms/overlay/. godot-build/
+          mkdir -p godot-build/arthur_mobile/audio
+          WATER_BASE="https://raw.githubusercontent.com/lavenderdotpet/CC0-Public-Domain-Sounds/${WATER_SFX_SHA}/40-cc0-water-splash-slime-sfx"
+          curl -L --fail --retry 3 "$WATER_BASE/loop_water_01.ogg" -o godot-build/arthur_mobile/audio/loop_water_01.ogg
+          curl -L --fail --retry 3 "$WATER_BASE/loop_water_02.ogg" -o godot-build/arthur_mobile/audio/loop_water_02.ogg
+          curl -L --fail --retry 3 "$WATER_BASE/loop_water_03.ogg" -o godot-build/arthur_mobile/audio/loop_water_03.ogg
+          curl -L --fail --retry 3 "$WATER_BASE/splash_01.ogg" -o godot-build/arthur_mobile/audio/splash_01.ogg
+          mkdir -p godot-build/arthur_assets/kaykit/gltf godot-build/build
+          cp -a kaykit-furniture/addons/kaykit_furniture_bits/Assets/gltf/. godot-build/arthur_assets/kaykit/gltf/
+
+      - name: Make this a separate Android app
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          import re
+
+          preset = Path('godot-build/export_presets.cfg')
+          text = preset.read_text()
+          text = re.sub(r'package/unique_name="[^"]+"', 'package/unique_name="com.strawberrygames.arthurinfiniteparking"', text)
+          text = re.sub(r'package/name="[^"]+"', 'package/name="Arthur Parking"', text)
+          text = re.sub(r'export_path="[^"]+"', 'export_path="build/Arthur-Infinite-Parking.apk"', text)
+          preset.write_text(text)
+
+          project = Path('godot-build/project.godot')
+          ptext = project.read_text()
+          ptext = ptext.replace('config/name="Arthur Backrooms"', 'config/name="Arthur Parking"')
+          project.write_text(ptext)
+          PY
+          grep -E 'package/unique_name|package/name|export_path' godot-build/export_presets.cfg
+          grep 'config/name' godot-build/project.godot
+
+      - name: Set up Java 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: Set up Android SDK
+        uses: android-actions/setup-android@v3
+
+      - name: Install Android export requirements
+        run: |
+          yes | sdkmanager --licenses >/dev/null || true
+          sdkmanager "platform-tools" "build-tools;35.0.1" "platforms;android-35"
+
+      - name: Install Godot and export templates
+        run: |
+          mkdir -p "$HOME/godot" "$HOME/.local/share/godot/export_templates/${GODOT_VERSION}.stable"
+          curl -L --fail --retry 3 -o /tmp/godot.zip "https://github.com/godotengine/godot-builds/releases/download/${GODOT_VERSION}-stable/Godot_v${GODOT_VERSION}-stable_linux.x86_64.zip"
+          unzip -q /tmp/godot.zip -d "$HOME/godot"
+          chmod +x "$HOME/godot/Godot_v${GODOT_VERSION}-stable_linux.x86_64"
+          curl -L --fail --retry 3 -o /tmp/templates.tpz "https://github.com/godotengine/godot-builds/releases/download/${GODOT_VERSION}-stable/Godot_v${GODOT_VERSION}-stable_export_templates.tpz"
+          rm -rf /tmp/godot-templates
+          mkdir -p /tmp/godot-templates
+          unzip -q /tmp/templates.tpz -d /tmp/godot-templates
+          cp -a /tmp/godot-templates/templates/. "$HOME/.local/share/godot/export_templates/${GODOT_VERSION}.stable/"
+
+      - name: Create Android debug keystore
+        run: |
+          mkdir -p "$HOME/.android"
+          if [ ! -f "$HOME/.android/debug.keystore" ]; then
+            keytool -genkeypair -v -keystore "$HOME/.android/debug.keystore" -storepass android -alias androiddebugkey -keypass android -keyalg RSA -keysize 2048 -validity 10000 -dname "CN=Android Debug,O=Android,C=US"
+          fi
+
+      - name: Initialize Godot editor settings
+        run: |
+          GODOT="$HOME/godot/Godot_v${GODOT_VERSION}-stable_linux.x86_64"
+          "$GODOT" --headless --editor --path godot-build --quit || true
+          python3 - <<'PY'
+          from pathlib import Path
+          import os, re
+          p = Path.home()/'.config/godot/editor_settings-4.tres'
+          p.parent.mkdir(parents=True, exist_ok=True)
+          if not p.exists():
+              p.write_text('[gd_resource type="EditorSettings" format=3]\n\n[resource]\n')
+          text = p.read_text()
+          settings = {
+              'export/android/android_sdk_path': os.environ.get('ANDROID_HOME', os.environ.get('ANDROID_SDK_ROOT', '')),
+              'export/android/java_sdk_path': os.environ['JAVA_HOME'],
+              'export/android/debug_keystore': str(Path.home()/'.android/debug.keystore'),
+          }
+          for key, value in settings.items():
+              line = f'{key} = "{value}"'
+              pattern = rf'(?m)^{re.escape(key)}\s*=.*$'
+              if re.search(pattern, text):
+                  text = re.sub(pattern, line, text)
+              else:
+                  text += '\n' + line
+          p.write_text(text)
+          PY
+
+      - name: Import and smoke test parking project
+        run: |
+          GODOT="$HOME/godot/Godot_v${GODOT_VERSION}-stable_linux.x86_64"
+          "$GODOT" --headless --editor --path godot-build --quit
+          set +e
+          timeout 14s "$GODOT" --headless --path godot-build --quit-after 240 2>&1 | tee /tmp/godot-runtime.log
+          STATUS=${PIPESTATUS[0]}
+          set -e
+          if grep -E "SCRIPT ERROR|Invalid call|Invalid access|SHADER ERROR|Parse Error|Failed to load script|Cannot load resource|Failed loading resource" /tmp/godot-runtime.log; then
+            exit 1
+          fi
+          if [ "$STATUS" -ne 0 ] && [ "$STATUS" -ne 124 ]; then
+            exit "$STATUS"
+          fi
+
+      - name: Export standalone parking APK
+        run: |
+          GODOT="$HOME/godot/Godot_v${GODOT_VERSION}-stable_linux.x86_64"
+          export GODOT_ANDROID_KEYSTORE_DEBUG_PATH="$HOME/.android/debug.keystore"
+          export GODOT_ANDROID_KEYSTORE_DEBUG_USER=androiddebugkey
+          export GODOT_ANDROID_KEYSTORE_DEBUG_PASSWORD=android
+          "$GODOT" --headless --path godot-build --export-debug "Android" "$GITHUB_WORKSPACE/godot-build/build/$APK_NAME"
+          test -s "$GITHUB_WORKSPACE/godot-build/build/$APK_NAME"
+          ls -lh "$GITHUB_WORKSPACE/godot-build/build/$APK_NAME"
+
+      - name: Upload standalone APK artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: Arthur-Infinite-Parking-APK
+          path: godot-build/build/Arthur-Infinite-Parking.apk
+          if-no-files-found: error
+
+      - name: Publish direct-download release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release delete "$RELEASE_TAG" --repo "$GITHUB_REPOSITORY" --yes --cleanup-tag 2>/dev/null || true
+          gh release create "$RELEASE_TAG" "godot-build/build/$APK_NAME" \
+            --repo "$GITHUB_REPOSITORY" \
+            --target "$GITHUB_SHA" \
+            --title "Arthur Infinite Parking" \
+            --notes "Standalone Android build of the Arthur infinite parking garage branch. Installs separately from Arthur Backrooms." \
+            --prerelease
