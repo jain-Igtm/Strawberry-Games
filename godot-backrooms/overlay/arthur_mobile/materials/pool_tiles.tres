@@ -1,0 +1,9 @@
+[gd_resource type="ShaderMaterial" load_steps=2 format=3]
+
+[ext_resource type="Shader" path="res://arthur_mobile/materials/pool_tiles.gdshader" id="1_shader"]
+
+[resource]
+shader = ExtResource("1_shader")
+shader_parameter/tile_color = Vector3(0.62, 0.84, 0.82)
+shader_parameter/grout_color = Vector3(0.30, 0.43, 0.43)
+shader_parameter/tiles_per_uv = 18.0
