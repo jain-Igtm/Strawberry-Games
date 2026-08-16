@@ -6,8 +6,11 @@ signal intrusion_started
 signal intrusion_ended
 signal dissociation_started
 signal dissociation_ended
+signal ambient_enemy_spawned(kind: String)
 
 const CROSS_SECTION_SCRIPT: Script = preload("res://arthur_mobile/enemies/cross_section_intrusion.gd")
+const VEIL_RAY_SCRIPT: Script = preload("res://arthur_mobile/enemies/veil_ray.gd")
+const POOL_EEL_SCRIPT: Script = preload("res://arthur_mobile/enemies/pool_eel.gd")
 const DISSOCIATION_SHADER: Shader = preload("res://arthur_mobile/enemies/dissociation_overlay.gdshader")
 
 enum EncounterState {
@@ -26,12 +29,15 @@ enum EncounterState {
 @export var repeat_event_max := 165.0
 @export var warning_min := 5.5
 @export var warning_max := 9.0
-@export_range(0.0, 1.0, 0.01) var dissociation_chance := 0.28
-@export var dissociation_duration_min := 1.35
-@export var dissociation_duration_max := 2.15
-@export var intrusion_window := 10.5
+@export_range(0.0, 1.0, 0.01) var dissociation_chance := 0.24
+@export var dissociation_duration_min := 1.15
+@export var dissociation_duration_max := 1.75
+@export var intrusion_window := 8.8
 @export var psychic_prop_slam_radius := 24.0
 @export var psychic_prop_down_speed := 15.0
+@export var ambient_enemy_min := 44.0
+@export var ambient_enemy_max := 92.0
+@export_range(1, 2, 1) var max_ambient_enemies := 1
 
 var rng := RandomNumberGenerator.new()
 var state := EncounterState.WAITING
@@ -44,12 +50,14 @@ var camera_base_fov := 75.0
 var overlay: ColorRect
 var overlay_material: ShaderMaterial
 var visual_phase := 0.0
+var ambient_timer := 12.0
 
 func _ready() -> void:
 	rng.randomize()
 	_acquire_player()
 	_create_overlay()
 	_schedule_next()
+	_reset_ambient_timer(true)
 
 func _process(delta: float) -> void:
 	if not enabled:
@@ -61,9 +69,10 @@ func _process(delta: float) -> void:
 		return
 
 	visual_phase += delta
-	if overlay_material != null:
+	if overlay_material != null and overlay != null and overlay.visible:
 		overlay_material.set_shader_parameter("phase", visual_phase)
 
+	_update_ambient_enemies(delta)
 	state_time -= delta
 	match state:
 		EncounterState.WAITING:
@@ -83,16 +92,16 @@ func _process(delta: float) -> void:
 				_finish_dissociation()
 				_begin_intrusion()
 		EncounterState.INTRUSION:
-			var pulse := 0.018 + 0.012 * (0.5 + 0.5 * sin(visual_phase * 5.2))
+			var pulse := 0.012 + 0.008 * (0.5 + 0.5 * sin(visual_phase * 4.6))
 			_set_overlay_intensity(pulse)
 			if state_time <= 0.0:
 				intrusion_ended.emit()
 				state = EncounterState.RECOVERY
-				state_total = 1.4
+				state_total = 1.2
 				state_time = state_total
 		EncounterState.RECOVERY:
 			var recovery_ratio := clampf(state_time / maxf(state_total, 0.001), 0.0, 1.0)
-			_set_overlay_intensity(recovery_ratio * 0.05)
+			_set_overlay_intensity(recovery_ratio * 0.035)
 			if state_time <= 0.0:
 				first_event = false
 				_schedule_next()
@@ -122,10 +131,10 @@ func _begin_warning() -> void:
 func _update_warning() -> void:
 	var progress := 1.0 - clampf(state_time / maxf(state_total, 0.001), 0.0, 1.0)
 	var pulse := 0.5 + 0.5 * sin(visual_phase * (4.0 + progress * 3.0))
-	var intensity := lerpf(0.015, 0.18, progress * progress) + pulse * progress * 0.018
+	var intensity := lerpf(0.012, 0.155, progress * progress) + pulse * progress * 0.015
 	_set_overlay_intensity(intensity)
 	if is_instance_valid(camera):
-		camera.fov = lerpf(camera_base_fov, camera_base_fov - 2.2, progress)
+		camera.fov = lerpf(camera_base_fov, camera_base_fov - 2.0, progress)
 
 func _begin_dissociation() -> void:
 	state = EncounterState.DISSOCIATING
@@ -136,10 +145,10 @@ func _begin_dissociation() -> void:
 func _update_dissociation() -> void:
 	var progress := 1.0 - clampf(state_time / maxf(state_total, 0.001), 0.0, 1.0)
 	var crest := sin(progress * PI)
-	var intensity := clampf(0.24 + crest * 0.86 + progress * 0.08, 0.0, 1.0)
+	var intensity := clampf(0.18 + crest * 0.62 + progress * 0.05, 0.0, 0.82)
 	_set_overlay_intensity(intensity)
 	if is_instance_valid(camera):
-		camera.fov = lerpf(camera_base_fov - 1.0, camera_base_fov + 29.0, smoothstep(0.0, 0.86, progress))
+		camera.fov = lerpf(camera_base_fov - 0.5, camera_base_fov + 18.0, smoothstep(0.0, 0.88, progress))
 
 func _finish_dissociation() -> void:
 	if is_instance_valid(camera):
@@ -173,9 +182,58 @@ func _spawn_cross_section_intrusion() -> void:
 	right.y = 0.0
 	forward = forward.normalized()
 	right = right.normalized()
-	var spawn_distance := rng.randf_range(6.0, 11.5)
-	var lateral := rng.randf_range(-5.0, 5.0)
-	intruder.global_position = player.global_position + forward * spawn_distance + right * lateral + Vector3(0.0, rng.randf_range(0.7, 2.4), 0.0)
+	var spawn_distance := rng.randf_range(6.5, 11.5)
+	var lateral := rng.randf_range(-4.5, 4.5)
+	intruder.global_position = player.global_position + forward * spawn_distance + right * lateral + Vector3(0.0, rng.randf_range(0.8, 2.3), 0.0)
+
+func _update_ambient_enemies(delta: float) -> void:
+	ambient_timer -= delta
+	if ambient_timer > 0.0:
+		return
+	if state == EncounterState.WARNING or state == EncounterState.DISSOCIATING or state == EncounterState.INTRUSION:
+		return
+	if get_tree().get_nodes_in_group("enemy_ambient").size() >= max_ambient_enemies:
+		_reset_ambient_timer(false)
+		return
+
+	var underwater := false
+	if player.has_method("is_underwater"):
+		underwater = bool(player.call("is_underwater"))
+	if underwater:
+		_spawn_pool_eel()
+	else:
+		_spawn_veil_ray()
+	_reset_ambient_timer(false)
+
+func _reset_ambient_timer(initial: bool) -> void:
+	if lab_mode:
+		ambient_timer = 9.0 if initial else rng.randf_range(14.0, 22.0)
+	else:
+		ambient_timer = rng.randf_range(ambient_enemy_min, ambient_enemy_max)
+
+func _spawn_veil_ray() -> void:
+	var creature := Node3D.new()
+	creature.name = "VeilRay"
+	creature.set_script(VEIL_RAY_SCRIPT)
+	creature.call("configure", player)
+	add_child(creature)
+	creature.add_to_group("enemy_ambient")
+	var angle := rng.randf_range(-PI, PI)
+	var distance := rng.randf_range(4.5, 7.0)
+	creature.global_position = player.global_position + Vector3(cos(angle) * distance, 3.0, sin(angle) * distance)
+	ambient_enemy_spawned.emit("veil_ray")
+
+func _spawn_pool_eel() -> void:
+	var creature := Node3D.new()
+	creature.name = "PoolEel"
+	creature.set_script(POOL_EEL_SCRIPT)
+	creature.call("configure", player)
+	add_child(creature)
+	creature.add_to_group("enemy_ambient")
+	var angle := rng.randf_range(-PI, PI)
+	var distance := rng.randf_range(3.0, 5.0)
+	creature.global_position = player.global_position + Vector3(cos(angle) * distance, -0.35, sin(angle) * distance)
+	ambient_enemy_spawned.emit("pool_eel")
 
 func _slam_back_psychic_props() -> void:
 	if is_instance_valid(player) and player.has_method("is_psychic_field_active"):
@@ -219,5 +277,8 @@ func _create_overlay() -> void:
 	_set_overlay_intensity(0.0)
 
 func _set_overlay_intensity(value: float) -> void:
+	var clamped := clampf(value, 0.0, 1.0)
 	if overlay_material != null:
-		overlay_material.set_shader_parameter("intensity", clampf(value, 0.0, 1.0))
+		overlay_material.set_shader_parameter("intensity", clamped)
+	if overlay != null:
+		overlay.visible = clamped > 0.002
