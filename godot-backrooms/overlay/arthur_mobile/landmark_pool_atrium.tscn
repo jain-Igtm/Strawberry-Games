@@ -1,0 +1,136 @@
+[gd_scene load_steps=6 format=3]
+
+[ext_resource type="Material" path="res://arthur_mobile/materials/pool_tiles.tres" id="1_tile"]
+[ext_resource type="Material" path="res://arthur_mobile/materials/pool_water.tres" id="2_water"]
+[ext_resource type="Material" path="res://arthur_mobile/materials/pool_plaster.tres" id="3_plaster"]
+
+[sub_resource type="StandardMaterial3D" id="Mat_dark"]
+albedo_color = Color(0.035, 0.11, 0.13, 1)
+metallic = 0.22
+roughness = 0.5
+
+[sub_resource type="PlaneMesh" id="WaterSquare"]
+material = ExtResource("2_water")
+size = Vector2(12.5, 12.5)
+subdivide_width = 10
+subdivide_depth = 10
+
+[node name="PoolAtriumLandmark" type="Node3D"]
+
+[node name="AtriumWater" type="MeshInstance3D" parent="."]
+position = Vector3(0, 0.065, 0)
+mesh = SubResource("WaterSquare")
+
+[node name="NorthLip" type="CSGBox3D" parent="."]
+position = Vector3(0, 0.13, -6.45)
+size = Vector3(13.1, 0.26, 0.45)
+material_override = ExtResource("1_tile")
+use_collision = true
+collision_layer = 3
+collision_mask = 3
+
+[node name="SouthLip" type="CSGBox3D" parent="."]
+position = Vector3(0, 0.13, 6.45)
+size = Vector3(13.1, 0.26, 0.45)
+material_override = ExtResource("1_tile")
+use_collision = true
+collision_layer = 3
+collision_mask = 3
+
+[node name="WestLip" type="CSGBox3D" parent="."]
+position = Vector3(-6.45, 0.13, 0)
+size = Vector3(0.45, 0.26, 13.1)
+material_override = ExtResource("1_tile")
+use_collision = true
+collision_layer = 3
+collision_mask = 3
+
+[node name="EastLip" type="CSGBox3D" parent="."]
+position = Vector3(6.45, 0.13, 0)
+size = Vector3(0.45, 0.26, 13.1)
+material_override = ExtResource("1_tile")
+use_collision = true
+collision_layer = 3
+collision_mask = 3
+
+[node name="Island" type="CSGBox3D" parent="."]
+position = Vector3(0, 0.18, 0)
+size = Vector3(2.9, 0.36, 2.9)
+material_override = ExtResource("1_tile")
+use_collision = true
+collision_layer = 3
+collision_mask = 3
+
+[node name="IslandColumn" type="CSGCylinder3D" parent="."]
+position = Vector3(0, 2.0, 0)
+radius = 0.72
+height = 4.0
+sides = 24
+material_override = ExtResource("1_tile")
+use_collision = true
+collision_layer = 3
+collision_mask = 3
+
+[node name="IslandCap" type="CSGCylinder3D" parent="."]
+position = Vector3(0, 3.65, 0)
+radius = 1.25
+height = 0.22
+sides = 24
+material_override = ExtResource("3_plaster")
+
+[node name="StepWest1" type="CSGBox3D" parent="."]
+position = Vector3(-7.45, 0.10, 0)
+size = Vector3(1.55, 0.20, 3.2)
+material_override = ExtResource("1_tile")
+use_collision = true
+collision_layer = 3
+collision_mask = 3
+
+[node name="StepWest2" type="CSGBox3D" parent="."]
+position = Vector3(-8.35, 0.22, 0)
+size = Vector3(0.75, 0.44, 2.5)
+material_override = ExtResource("1_tile")
+use_collision = true
+collision_layer = 3
+collision_mask = 3
+
+[node name="ArchLeft" type="CSGBox3D" parent="."]
+position = Vector3(-8.4, 2.0, -6.2)
+size = Vector3(0.65, 4.0, 0.65)
+material_override = ExtResource("1_tile")
+use_collision = true
+collision_layer = 3
+collision_mask = 3
+
+[node name="ArchRight" type="CSGBox3D" parent="."]
+position = Vector3(8.4, 2.0, -6.2)
+size = Vector3(0.65, 4.0, 0.65)
+material_override = ExtResource("1_tile")
+use_collision = true
+collision_layer = 3
+collision_mask = 3
+
+[node name="ArchTop" type="CSGBox3D" parent="."]
+position = Vector3(0, 3.65, -6.2)
+size = Vector3(17.4, 0.48, 0.65)
+material_override = ExtResource("3_plaster")
+
+[node name="RailA" type="CSGBox3D" parent="."]
+position = Vector3(-6.85, 0.9, -2.0)
+size = Vector3(0.10, 1.5, 3.1)
+material_override = SubResource("Mat_dark")
+
+[node name="RailB" type="CSGBox3D" parent="."]
+position = Vector3(-6.85, 0.9, 2.0)
+size = Vector3(0.10, 1.5, 3.1)
+material_override = SubResource("Mat_dark")
+
+[node name="AtriumGlow" type="OmniLight3D" parent="."]
+position = Vector3(0, 2.85, 0)
+light_color = Color(0.39, 0.88, 0.94, 1)
+light_energy = 0.75
+omni_range = 11.0
+shadow_enabled = false
+distance_fade_enabled = true
+distance_fade_begin = 12.0
+distance_fade_length = 8.0
