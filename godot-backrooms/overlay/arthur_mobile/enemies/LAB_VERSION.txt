@@ -1,3 +1,4 @@
-Arthur enemy lab v0.1
+Arthur enemy lab v0.1-test
 Base: 0006c507316cc6f9772e6657f668144d296df5a6
 Branch: lab/arthur-enemies-v011
+Standalone Android package: com.strawberrygames.arthurenemylab
