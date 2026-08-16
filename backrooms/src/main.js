@@ -155,6 +155,7 @@ function makeCanvasTexture(kind,theme){
   const tex=new THREE.CanvasTexture(c); tex.wrapS=tex.wrapT=THREE.RepeatWrapping; tex.colorSpace=THREE.SRGBColorSpace; tex.anisotropy=2; return tex;
 }
 const materialCache=new Map();
+const sharedMaterials=new Set();
 function themeMaterials(theme){
   if(materialCache.has(theme.id)) return materialCache.get(theme.id);
   const wallTex=makeCanvasTexture('wall',theme), floorTex=makeCanvasTexture('floor',theme);
@@ -167,6 +168,7 @@ function themeMaterials(theme){
     water:new THREE.MeshPhysicalMaterial({color:0x73dce8,transparent:true,opacity:.43,roughness:.08,metalness:0,transmission:.08,depthWrite:false}),
     accent:new THREE.MeshStandardMaterial({color:theme.id==='play'?0xffd353:0x9b9d99,roughness:.55})
   };
+  Object.values(mats).forEach(m=>sharedMaterials.add(m));
   materialCache.set(theme.id,mats);return mats;
 }
 
@@ -204,7 +206,7 @@ function boundaryOpen(data,x,z,nx,nz){
   return false;
 }
 function addInstances(group,geo,mat,items){
-  if(!items.length) return;
+  if(!items.length){geo.dispose();return;}
   const mesh=new THREE.InstancedMesh(geo,mat,items.length); mesh.frustumCulled=true; const m=new THREE.Matrix4(); const q=new THREE.Quaternion(); const s=new THREE.Vector3(1,1,1); const p=new THREE.Vector3();
   items.forEach((v,i)=>{p.set(v[0],v[1],v[2]);q.setFromAxisAngle(new THREE.Vector3(0,1,0),v[3]||0);m.compose(p,q,s);mesh.setMatrixAt(i,m);});mesh.instanceMatrix.needsUpdate=true;group.add(mesh);
 }
@@ -244,7 +246,11 @@ function updateStreaming(force=false){
   scene.fog.color.set(current.fog);renderer.setClearColor(current.fog,1);
 }
 function disposeChunkGroup(group){
-  group.traverse(o=>{ if(o.geometry) o.geometry.dispose(); });
+  group.traverse(o=>{
+    if(o.geometry) o.geometry.dispose();
+    const mats=Array.isArray(o.material)?o.material:[o.material];
+    for(const m of mats){if(m&&!sharedMaterials.has(m))m.dispose();}
+  });
 }
 
 function initRenderer(){
