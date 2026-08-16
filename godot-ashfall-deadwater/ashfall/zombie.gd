@@ -65,7 +65,7 @@ func _physics_process(delta: float) -> void:
 	move_and_slide()
 
 	if to_player.length_squared() > 0.2:
-		look_at(Vector3(target.global_position.x, global_position.y + 1.0, target.global_position.z), Vector3.UP)
+		look_at(Vector3(target.global_position.x, global_position.y, target.global_position.z), Vector3.UP)
 
 	var moved := global_position.distance_to(_last_position)
 	if distance > 1.5 and moved < 0.018:
@@ -134,7 +134,6 @@ func _build_visual() -> void:
 	_right_arm = _limb(Vector3(0.15,0.70,0.15), Vector3(0.43,1.08,-0.06), Color("#777369"))
 	_left_leg = _limb(Vector3(0.19,0.72,0.19), Vector3(-0.19,0.37,0), Color("#3d403c"))
 	_right_leg = _limb(Vector3(0.19,0.72,0.19), Vector3(0.19,0.37,0), Color("#3d403c"))
-	# Flat dark face details keep the zombie readable without returning to the over-detailed version.
 	var eye_mat := StandardMaterial3D.new()
 	eye_mat.albedo_color = Color("#181919")
 	eye_mat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
