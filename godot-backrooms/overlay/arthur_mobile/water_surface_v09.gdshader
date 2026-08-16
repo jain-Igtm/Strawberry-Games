@@ -14,7 +14,7 @@ void vertex() {
 }
 
 void fragment() {
-	float wave = sin((WORLD_MATRIX[3].x + VERTEX.x + TIME * 0.35) * 0.8) * 0.5 + 0.5;
+	float wave = sin((VERTEX.x + VERTEX.z * 0.63 + TIME * 0.35) * 0.8) * 0.5 + 0.5;
 	vec3 water = mix(deep_color.rgb, shallow_color.rgb, 0.42 + wave * 0.18);
 	ALBEDO = water;
 	ROUGHNESS = 0.08;
