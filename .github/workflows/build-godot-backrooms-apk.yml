@@ -16,6 +16,7 @@ jobs:
       GODOT_VERSION: 4.7.1
       GODOT_STATUS: stable
       UPSTREAM_SHA: 6865f8b804f84441df8db3d0f3b6175a80195fd2
+      KAYKIT_SHA: 96d5930a8dbdb363409bbc2d3341718b00e17c9c
     steps:
       - name: Checkout Strawberry Games
         uses: actions/checkout@v4
@@ -28,11 +29,23 @@ jobs:
           path: godot-build
           fetch-depth: 1
 
-      - name: Apply Arthur mobile overlay
+      - name: Checkout pinned CC0 furniture kit
+        uses: actions/checkout@v4
+        with:
+          repository: KayKit-Game-Assets/KayKit-Furniture-Bits-1.0
+          ref: 96d5930a8dbdb363409bbc2d3341718b00e17c9c
+          path: kaykit-furniture
+          fetch-depth: 1
+
+      - name: Apply Arthur mobile overlay and furniture
         run: |
           cp -a godot-backrooms/overlay/. godot-build/
+          mkdir -p godot-build/arthur_assets/kaykit/gltf
+          cp -a kaykit-furniture/addons/kaykit_furniture_bits/Assets/gltf/. godot-build/arthur_assets/kaykit/gltf/
+          cp kaykit-furniture/addons/kaykit_furniture_bits/Assets/LICENSE.txt godot-build/arthur_assets/kaykit/LICENSE.txt
           mkdir -p godot-build/build
           echo "Pinned environment: $UPSTREAM_SHA"
+          echo "Pinned KayKit furniture: $KAYKIT_SHA"
 
       - name: Set up Java 17
         uses: actions/setup-java@v4
