@@ -1,0 +1,20 @@
+[gd_scene load_steps=3 format=3]
+
+[ext_resource type="PackedScene" path="res://arthur_mobile/main.tscn" id="1_game"]
+[ext_resource type="Script" path="res://arthur_mobile/enemies/enemy_director.gd" id="2_director"]
+
+[node name="EnemyLab" type="Node3D"]
+
+[node name="Game" parent="." instance=ExtResource("1_game")]
+
+[node name="EnemyDirector" type="Node3D" parent="."]
+script = ExtResource("2_director")
+lab_mode = true
+first_event_min = 5.0
+first_event_max = 5.0
+repeat_event_min = 18.0
+repeat_event_max = 24.0
+warning_min = 4.0
+warning_max = 5.5
+dissociation_chance = 0.6
+intrusion_window = 9.5
