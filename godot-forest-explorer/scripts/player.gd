@@ -8,14 +8,15 @@ const JUMP_VELOCITY: float = 6.4
 const GRAVITY: float = 18.0
 const MOUSE_SENSITIVITY: float = 0.00175
 const TOUCH_SENSITIVITY: float = 0.00245
-const GROUND_OFFSET: float = 0.035
+const GROUND_OFFSET: float = 0.06
 const CHUNK_SIZE: float = 64.0
-const OBSTACLE_LAYER: int = 2
+const PLAYER_RADIUS: float = 0.36
 
 @onready var world: Node3D = get_parent()
 @onready var head: Node3D = $Head
 @onready var camera: Camera3D = $Head/Camera3D
 @onready var mobile_controls: CanvasLayer = get_node("../MobileControls")
+@onready var tree_collision_manager: Node3D = get_node("../TreeCollisionManager")
 
 var yaw: float = 0.0
 var pitch: float = -0.06
@@ -24,21 +25,17 @@ var sway: Vector2 = Vector2.ZERO
 var landing_kick: float = 0.0
 var mouse_captured: bool = false
 
-# Grounding is driven by the exact triangle surface sent to the renderer. The
-# terrain mesh is intentionally lower resolution on mobile, so sampling raw
-# noise directly can disagree slightly with the visible triangle between grid
-# vertices. Matching the rendered triangle removes that discrepancy entirely.
+# The rendered terrain itself is the authoritative floor. Forest traversal does
+# not use CharacterBody3D's ground solver at all, removing any device-dependent
+# possibility of tunneling, wedging, or being pushed under streamed terrain.
 var terrain_grounded: bool = true
 var vertical_speed: float = 0.0
 
 func _ready() -> void:
-    # Terrain elevation is analytical. The player only collides with dedicated
-    # obstacle-layer bodies such as nearby trunks. Streamed terrain bodies use
-    # the default layer and are therefore completely invisible to this capsule.
-    motion_mode = CharacterBody3D.MOTION_MODE_FLOATING
-    collision_layer = 1
-    collision_mask = OBSTACLE_LAYER
-    safe_margin = 0.025
+    # Keep the CharacterBody node for its convenient velocity property and future
+    # interactions, but do not use move_and_slide() for forest traversal.
+    collision_layer = 0
+    collision_mask = 0
 
     if not OS.has_feature("mobile"):
         Input.mouse_mode = Input.MOUSE_MODE_CAPTURED
@@ -59,8 +56,6 @@ func _physics_process(delta: float) -> void:
     if touch_look.length_squared() > 0.0:
         _apply_look(touch_look, TOUCH_SENSITIVITY)
 
-    # Establish the exact visible ground position before obstacle collision. This
-    # also repairs any frame that began inside or underneath a terrain triangle.
     if terrain_grounded:
         global_position.y = _rendered_ground_height_here() + GROUND_OFFSET
 
@@ -88,10 +83,14 @@ func _physics_process(delta: float) -> void:
         terrain_grounded = false
         vertical_speed = JUMP_VELOCITY
 
-    # Only horizontal motion is sent to the physics engine. Its collision mask
-    # contains only the obstacle layer, so terrain can never push or wedge us.
-    velocity.y = 0.0
-    move_and_slide()
+    # Advance horizontally ourselves, then resolve against the small cached set
+    # of nearby trunks. No terrain collider or CharacterBody solver participates.
+    var candidate: Vector3 = global_position
+    candidate.x += velocity.x * delta
+    candidate.z += velocity.z * delta
+    candidate = tree_collision_manager.call("resolve_horizontal_position", candidate, PLAYER_RADIUS)
+    global_position.x = candidate.x
+    global_position.z = candidate.z
 
     var ground_y: float = _rendered_ground_height_here() + GROUND_OFFSET
     var landed_this_frame: bool = false
@@ -144,7 +143,6 @@ func _rendered_ground_height_here() -> float:
     var h11: float = float(world.call("height_at", x1, z1))
 
     # world.gd emits each grid square as p00,p01,p10 and p10,p01,p11.
-    # Reproduce those exact two triangles here rather than bilinear interpolation.
     if u + v <= 1.0:
         return h00 + (h10 - h00) * u + (h01 - h00) * v
     return h11 + (h01 - h11) * (1.0 - u) + (h10 - h11) * (1.0 - v)
@@ -168,14 +166,14 @@ func _update_camera_motion(delta: float, input_vec: Vector2, sprinting: bool) ->
         bob_phase = lerpf(bob_phase, roundf(bob_phase / TAU) * TAU, minf(1.0, delta * 5.0))
 
     var bob_strength: float = clampf(planar_speed / SPRINT_SPEED, 0.0, 1.0)
-    var bob_y: float = sin(bob_phase * 2.0) * 0.014 * bob_strength
-    var bob_x: float = cos(bob_phase) * 0.012 * bob_strength
+    var bob_y: float = sin(bob_phase * 2.0) * 0.010 * bob_strength
+    var bob_x: float = cos(bob_phase) * 0.010 * bob_strength
     landing_kick = move_toward(landing_kick, 0.0, delta * 0.26)
     sway = sway.lerp(Vector2.ZERO, minf(1.0, delta * 5.5))
 
     camera.position.x = lerpf(camera.position.x, bob_x - sway.x, minf(1.0, delta * 11.0))
     camera.position.y = lerpf(camera.position.y, bob_y - landing_kick - sway.y, minf(1.0, delta * 12.0))
-    camera.rotation.z = lerpf(camera.rotation.z, -bob_x * 0.28, minf(1.0, delta * 8.0))
+    camera.rotation.z = lerpf(camera.rotation.z, -bob_x * 0.24, minf(1.0, delta * 8.0))
 
     var target_fov: float = 78.0 if sprinting and moving else 74.0
     camera.fov = lerpf(camera.fov, target_fov, minf(1.0, delta * 4.0))
