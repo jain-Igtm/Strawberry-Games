@@ -13,13 +13,6 @@ uniform float depth_fade = 4.8;
 
 varying vec3 water_world;
 
-float linear_depth_at(vec2 uv, float depth_value) {
-	vec3 ndc = vec3(uv * 2.0 - 1.0, depth_value);
-	vec4 view = INV_PROJECTION_MATRIX * vec4(ndc, 1.0);
-	view.xyz /= max(abs(view.w), 0.00001);
-	return -view.z;
-}
-
 void vertex() {
 	vec3 base_world = (MODEL_MATRIX * vec4(VERTEX, 1.0)).xyz;
 	float w1 = sin(base_world.x * 1.35 + TIME * 0.92);
@@ -35,13 +28,15 @@ void fragment() {
 	float p3 = sin((water_world.x - water_world.z) * 1.18 + TIME * 0.61);
 	vec2 ripple = vec2(p2 + p3 * 0.45, p1 - p3 * 0.35) * refraction_strength;
 
+	// Godot uses reverse-Z depth. Comparing the current water fragment against the
+	// opaque scene depth gives a stable depth cue without reconstructing view space.
+	// This works in the Mobile renderer and also compiles in the headless CI renderer.
 	float scene_depth_raw = texture(depth_texture, SCREEN_UV).r;
-	float scene_depth = linear_depth_at(SCREEN_UV, scene_depth_raw);
-	float surface_depth = linear_depth_at(SCREEN_UV, FRAGCOORD.z);
-	float thickness = max(scene_depth - surface_depth, 0.0);
-	float depth_mix = smoothstep(0.18, depth_fade, thickness);
+	float raw_gap = max(FRAGCOORD.z - scene_depth_raw, 0.0);
+	float fade_scale = clamp(4.8 / max(depth_fade, 0.1), 0.35, 3.0);
+	float depth_mix = smoothstep(0.00045 * fade_scale, 0.028 * fade_scale, raw_gap);
+	float edge = 1.0 - smoothstep(0.00025, 0.0045, raw_gap);
 
-	float edge = 1.0 - smoothstep(0.06, 0.52, thickness);
 	vec2 refracted_uv = clamp(SCREEN_UV + ripple * (0.45 + depth_mix * 0.65), vec2(0.002), vec2(0.998));
 	vec3 behind = texture(screen_texture, refracted_uv).rgb;
 
