@@ -1,7 +1,7 @@
 [gd_scene load_steps=13 format=3]
 
-[ext_resource type="Script" path="res://arthur_mobile/world_production_access.gd" id="1_world"]
-[ext_resource type="Script" path="res://arthur_mobile/player_production.gd" id="2_player"]
+[ext_resource type="Script" path="res://arthur_mobile/world_stair_access.gd" id="1_world"]
+[ext_resource type="Script" path="res://arthur_mobile/player_v09.gd" id="2_player"]
 [ext_resource type="Script" path="res://arthur_mobile/mobile_controls.gd" id="3_controls"]
 [ext_resource type="Material" path="res://procedural/assets/floor.tres" id="4_floor"]
 [ext_resource type="AudioStream" path="res://assets/audio/Neon Lighting Hum.mp3" id="5_hum"]
@@ -18,15 +18,15 @@ roughness = 0.92
 
 [sub_resource type="Environment" id="Environment_backrooms"]
 background_mode = 1
-background_color = Color(0.12, 0.108, 0.065, 1)
+background_color = Color(0.13, 0.12, 0.072, 1)
 ambient_light_source = 3
-ambient_light_color = Color(0.73, 0.69, 0.47, 1)
-ambient_light_energy = 0.54
+ambient_light_color = Color(0.76, 0.72, 0.49, 1)
+ambient_light_energy = 0.58
 tonemap_mode = 3
 fog_enabled = true
-fog_light_color = Color(0.49, 0.46, 0.29, 1)
-fog_light_energy = 0.48
-fog_density = 0.009
+fog_light_color = Color(0.50, 0.47, 0.29, 1)
+fog_light_energy = 0.52
+fog_density = 0.0075
 fog_height = 0.0
 fog_height_density = 0.0
 
@@ -83,7 +83,7 @@ position = Vector3(0, 0.62, 0)
 current = true
 fov = 75.0
 near = 0.05
-far = 96.0
+far = 120.0
 
 [node name="Hum" type="AudioStreamPlayer" parent="."]
 stream = ExtResource("5_hum")
@@ -120,7 +120,7 @@ theme_override_constants/separation = 0
 
 [node name="Title" type="Label" parent="UI/Overlay/InfoPanel/VBox"]
 layout_mode = 2
-text = "ARTHUR // BACKROOMS"
+text = "ARTHUR // GODOT BACKROOMS"
 label_settings = SubResource("LabelSettings_hud")
 
 [node name="Coords" type="Label" parent="UI/Overlay"]
@@ -164,25 +164,6 @@ horizontal_alignment = 1
 vertical_alignment = 1
 label_settings = SubResource("LabelSettings_hud")
 script = ExtResource("7_discovery")
-
-[node name="Interaction" type="Label" parent="UI/Overlay"]
-visible = false
-layout_mode = 1
-anchors_preset = 8
-anchor_left = 0.5
-anchor_top = 0.5
-anchor_right = 0.5
-anchor_bottom = 0.5
-offset_left = -260.0
-offset_top = 72.0
-offset_right = 260.0
-offset_bottom = 108.0
-grow_horizontal = 2
-grow_vertical = 2
-text = "TK TAP  //  DRIVE"
-horizontal_alignment = 1
-vertical_alignment = 1
-label_settings = SubResource("LabelSettings_hud")
 
 [node name="Crosshair" type="Label" parent="UI/Overlay"]
 layout_mode = 1
