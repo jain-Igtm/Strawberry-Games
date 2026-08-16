@@ -14,7 +14,11 @@ var visual_anchor := Vector3.ZERO
 var returning_to_default := false
 var spread_locked_until_release := false
 
+# HOME is sacred: these values and equations come directly from stable-v0.7-first-stable.
 const DEFAULT_RADIUS := 1.45
+const HOME_A_RADIUS := 1.45
+const HOME_B_RADIUS := 1.22
+const HOME_C_RADIUS := 1.70
 const MIN_RADIUS := 0.16
 const MAX_RADIUS := 5.6
 const COMBINE_RADIUS := 0.42
@@ -37,8 +41,9 @@ func set_enabled(value: bool) -> void:
 	set_process(value)
 	if value and anchor != null:
 		visual_anchor = anchor.global_position
-		global_position = visual_anchor
+		global_position = anchor.global_position
 	if value and not was_active:
+		# Every activation starts in the exact original close, world-space HOME orbit.
 		formation_radius = DEFAULT_RADIUS
 		returning_to_default = false
 		spread_locked_until_release = false
@@ -56,7 +61,12 @@ func is_enabled() -> bool:
 func toggle_scout() -> bool:
 	if not active:
 		set_enabled(true)
+		return false
 	scouting = not scouting
+	if not scouting and anchor != null:
+		# HOME follows Arthur exactly, as it did in v0.7. No generalized anchor smoothing.
+		visual_anchor = anchor.global_position
+		global_position = anchor.global_position
 	return scouting
 
 func is_scouting() -> bool:
@@ -65,7 +75,11 @@ func is_scouting() -> bool:
 func adjust_radius(amount: float) -> float:
 	if not active:
 		set_enabled(true)
+		return formation_radius
 	scouting = false
+	if anchor != null:
+		visual_anchor = anchor.global_position
+		global_position = anchor.global_position
 	if amount > 0.0:
 		if spread_locked_until_release:
 			return formation_radius
@@ -86,6 +100,9 @@ func reset_default_formation() -> void:
 	scouting = false
 	returning_to_default = true
 	spread_locked_until_release = true
+	if anchor != null:
+		visual_anchor = anchor.global_position
+		global_position = anchor.global_position
 
 func is_combined() -> bool:
 	return formation_radius <= COMBINE_RADIUS
@@ -106,12 +123,15 @@ func _process(delta: float) -> void:
 			formation_radius = DEFAULT_RADIUS
 			returning_to_default = false
 
-	var target_anchor: Vector3 = anchor.global_position
 	if scouting and camera != null:
 		var look: Vector3 = (-camera.global_transform.basis.z).normalized()
-		target_anchor += look * SCOUT_DISTANCE
-	visual_anchor = visual_anchor.lerp(target_anchor, clampf(delta * 5.4, 0.0, 1.0))
-	global_position = visual_anchor
+		var target_anchor: Vector3 = anchor.global_position + look * SCOUT_DISTANCE
+		visual_anchor = visual_anchor.lerp(target_anchor, clampf(delta * 5.4, 0.0, 1.0))
+		global_position = visual_anchor
+	else:
+		# This exact world-space anchoring is part of the original v0.7 feel.
+		global_position = anchor.global_position
+		visual_anchor = anchor.global_position
 
 	if is_combined():
 		_update_combined()
@@ -119,7 +139,6 @@ func _process(delta: float) -> void:
 		_update_separate()
 
 func _update_separate() -> void:
-	# This is intentionally the exact stable idle choreography from v0.7/v0.8.
 	orb_a.visible = true
 	orb_b.visible = true
 	orb_c.visible = true
@@ -130,21 +149,23 @@ func _update_separate() -> void:
 	_restore_light(orb_b, 1.2, 8.5)
 	_restore_light(orb_c, 1.15, 8.0)
 
-	var r := formation_radius
+	# At DEFAULT_RADIUS these are literally the original stable-v0.7 equations.
+	# Spread/contract only multiplies their horizontal world-space wander.
+	var spread: float = formation_radius / DEFAULT_RADIUS
 	orb_a.position = Vector3(
-		cos(phase * 0.62) * r,
+		cos(phase * 0.62) * HOME_A_RADIUS * spread,
 		1.72 + sin(phase * 1.31) * 0.18,
-		sin(phase * 0.62) * r
+		sin(phase * 0.62) * HOME_A_RADIUS * spread
 	)
 	orb_b.position = Vector3(
-		cos(phase * 0.54 + 2.1) * r * 0.84,
+		cos(phase * 0.54 + 2.1) * HOME_B_RADIUS * spread,
 		2.18 + sin(phase * 1.07 + 1.4) * 0.21,
-		sin(phase * 0.54 + 2.1) * r * 0.84
+		sin(phase * 0.54 + 2.1) * HOME_B_RADIUS * spread
 	)
 	orb_c.position = Vector3(
-		cos(phase * 0.47 + 4.15) * r * 1.17,
+		cos(phase * 0.47 + 4.15) * HOME_C_RADIUS * spread,
 		1.38 + sin(phase * 0.91 + 3.2) * 0.16,
-		sin(phase * 0.47 + 4.15) * r * 1.17
+		sin(phase * 0.47 + 4.15) * HOME_C_RADIUS * spread
 	)
 
 func _update_combined() -> void:
