@@ -76,7 +76,7 @@ func _desktop_levitation_vertical() -> float:
 	var out := 0.0
 	if Input.is_key_pressed(KEY_SPACE):
 		out += 1.0
-	if Input.is_key_pressed(KEY_CTRL) or Input.is_key_pressed(KEY_C:
+	if Input.is_key_pressed(KEY_CTRL) or Input.is_key_pressed(KEY_C):
 		out -= 1.0
 	return clampf(out, -1.0, 1.0)
 
