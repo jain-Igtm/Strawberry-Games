@@ -1,0 +1,39 @@
+[gd_scene load_steps=5 format=3]
+
+[ext_resource type="Material" path="res://arthur_mobile/materials/pool_tiles.tres" id="1_tile"]
+[ext_resource type="Material" path="res://arthur_mobile/materials/pool_water.tres" id="2_water"]
+
+[sub_resource type="PlaneMesh" id="SeepMesh"]
+material = ExtResource("2_water")
+size = Vector2(1.8, 2.7)
+subdivide_width = 2
+subdivide_depth = 3
+
+[sub_resource type="StandardMaterial3D" id="DrainMaterial"]
+albedo_color = Color(0.08, 0.11, 0.11, 1)
+metallic = 0.65
+roughness = 0.38
+
+[node name="YellowPoolRoomBleed" type="Node3D"]
+
+[node name="TilePatch" type="CSGBox3D" parent="."]
+position = Vector3(0.8, 0.024, 0.3)
+material_override = ExtResource("1_tile")
+size = Vector3(3.4, 0.045, 4.8)
+
+[node name="TileWallPatch" type="CSGBox3D" parent="."]
+position = Vector3(-1.82, 0.62, 0)
+material_override = ExtResource("1_tile")
+size = Vector3(0.045, 1.24, 3.2)
+
+[node name="WaterSeep" type="MeshInstance3D" parent="."]
+position = Vector3(0.8, 0.054, 0.65)
+mesh = SubResource("SeepMesh")
+
+[node name="Drain" type="CSGCylinder3D" parent="."]
+position = Vector3(0.1, 0.052, -1.45)
+rotation_degrees = Vector3(90, 0, 0)
+radius = 0.24
+height = 0.025
+sides = 16
+material_override = SubResource("DrainMaterial")
