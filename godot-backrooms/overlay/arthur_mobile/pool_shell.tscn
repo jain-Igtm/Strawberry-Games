@@ -1,0 +1,16 @@
+[gd_scene load_steps=3 format=3]
+
+[ext_resource type="Material" path="res://arthur_mobile/materials/pool_tiles.tres" id="1_tile"]
+[ext_resource type="Material" path="res://arthur_mobile/materials/pool_plaster.tres" id="2_plaster"]
+
+[node name="PoolShell" type="Node3D"]
+
+[node name="FloorSkin" type="CSGBox3D" parent="."]
+position = Vector3(0, 0.018, 0)
+material_override = ExtResource("1_tile")
+size = Vector3(23.7, 0.035, 23.7)
+
+[node name="CeilingSkin" type="CSGBox3D" parent="."]
+position = Vector3(0, 3.965, 0)
+material_override = ExtResource("2_plaster")
+size = Vector3(23.7, 0.05, 23.7)
