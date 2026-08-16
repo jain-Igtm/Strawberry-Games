@@ -1,0 +1,22 @@
+{
+  "name": "arthur-backrooms",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "scripts": {
+    "dev": "vite --host 0.0.0.0",
+    "build": "vite build",
+    "preview": "vite preview --host 0.0.0.0",
+    "android:add": "cap add android",
+    "android:sync": "npm run build && cap sync android"
+  },
+  "dependencies": {
+    "@capacitor/android": "8.4.2",
+    "@capacitor/core": "8.4.2",
+    "three": "0.185.1"
+  },
+  "devDependencies": {
+    "@capacitor/cli": "8.4.2",
+    "vite": "^7.1.0"
+  }
+}

@@ -1,0 +1,6 @@
+{
+  "appId": "com.strawberrygames.arthurbackrooms",
+  "appName": "Arthur Backrooms",
+  "webDir": "dist",
+  "android": { "backgroundColor": "#080806" }
+}
