@@ -24,19 +24,19 @@ mesh = SubResource("BoxMesh_housing")
 
 [node name="Glow" type="MeshInstance3D" parent="."]
 position = Vector3(0, 3.84, 0)
-rotation_degrees = Vector3(0, 0, 0)
 mesh = SubResource("PlaneMesh_glow")
 
 [node name="SpotLight3D" type="SpotLight3D" parent="."]
 position = Vector3(0, 3.72, 0)
 rotation_degrees = Vector3(-90, 0, 0)
 light_color = Color(1, 0.972, 0.72, 1)
-light_energy = 2.2
-light_size = 0.8
+light_energy = 1.2
+light_size = 0.9
 shadow_enabled = false
-spot_range = 13.5
-spot_angle = 72.0
+spot_range = 11.5
+spot_attenuation = 1.35
+spot_angle = 78.0
 distance_fade_enabled = true
-distance_fade_begin = 10.0
-distance_fade_length = 8.0
+distance_fade_begin = 8.5
+distance_fade_length = 7.0
 script = ExtResource("2_script")
