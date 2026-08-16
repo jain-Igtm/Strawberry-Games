@@ -1,12 +1,13 @@
-[gd_scene load_steps=13 format=3]
+[gd_scene load_steps=14 format=3]
 
-[ext_resource type="Script" path="res://arthur_mobile/world_v12.gd" id="1_world"]
-[ext_resource type="Script" path="res://arthur_mobile/player_v09.gd" id="2_player"]
+[ext_resource type="Script" path="res://arthur_mobile/parking_garage/parking_world.gd" id="1_world"]
+[ext_resource type="Script" path="res://arthur_mobile/parking_garage/parking_player.gd" id="2_player"]
 [ext_resource type="Script" path="res://arthur_mobile/mobile_controls.gd" id="3_controls"]
 [ext_resource type="Material" path="res://procedural/assets/floor.tres" id="4_floor"]
 [ext_resource type="AudioStream" path="res://assets/audio/Neon Lighting Hum.mp3" id="5_hum"]
 [ext_resource type="AudioStream" path="res://assets/audio/Deep Space Travel Background Noise.mp3" id="6_atmosphere"]
 [ext_resource type="Script" path="res://arthur_mobile/discovery.gd" id="7_discovery"]
+[ext_resource type="Script" path="res://arthur_mobile/parking_garage/vehicle_context_button.gd" id="8_vehicle_button"]
 
 [sub_resource type="CapsuleShape3D" id="CapsuleShape_player"]
 radius = 0.34
@@ -120,15 +121,15 @@ theme_override_constants/separation = 0
 
 [node name="Title" type="Label" parent="UI/Overlay/InfoPanel/VBox"]
 layout_mode = 2
-text = "ARTHUR // GODOT BACKROOMS"
+text = "ARTHUR // INFINITE PARKING"
 label_settings = SubResource("LabelSettings_hud")
 
 [node name="Coords" type="Label" parent="UI/Overlay"]
 offset_left = 36.0
 offset_top = 57.0
-offset_right = 800.0
+offset_right = 920.0
 offset_bottom = 86.0
-text = "0, 0"
+text = "INFINITE PARKING // LEVEL +0"
 label_settings = SubResource("LabelSettings_hud")
 
 [node name="LookHint" type="Label" parent="UI/Overlay"]
@@ -182,3 +183,20 @@ text = "•"
 horizontal_alignment = 1
 vertical_alignment = 1
 label_settings = SubResource("LabelSettings_hud")
+
+[node name="VehicleContext" type="Button" parent="UI/Overlay"]
+visible = false
+layout_mode = 1
+anchors_preset = 7
+anchor_left = 0.5
+anchor_top = 1.0
+anchor_right = 0.5
+anchor_bottom = 1.0
+offset_left = -92.0
+offset_top = -154.0
+offset_right = 92.0
+offset_bottom = -106.0
+grow_horizontal = 2
+grow_vertical = 0
+text = "ENTER / HIDE"
+script = ExtResource("8_vehicle_button")
