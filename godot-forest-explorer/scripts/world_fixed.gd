@@ -53,12 +53,14 @@ func height_at(x: float, z: float) -> float:
     # The visible dirt trail remains narrow (_path_blend still controls its
     # material and vegetation exclusion). Elevation transitions over a much
     # broader corridor so leaving the trail produces a hillside, not a shelf.
+    # Close to the trail we strongly converge on the path elevation; the blend
+    # then fades over almost thirty metres before full ridge terrain returns.
     var corridor: float = 1.0 - smoothstep(5.0, 34.0, distance_to_path)
-    h = lerpf(h, path_h, corridor * 0.62)
+    h = lerpf(h, path_h, corridor * 0.88)
 
     var trail: float = _path_blend(x, z)
     if trail > 0.0:
-        h = lerpf(h, path_h, trail * 0.48)
+        h = lerpf(h, path_h, trail * 0.52)
         h -= trail * 0.045
 
     return h
