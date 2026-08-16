@@ -3,7 +3,7 @@ extends Node
 # The visible forest floor is generated from world.height_at(). On mobile, using
 # a second physics representation of that same surface created mismatch states
 # where the player could fall through or become embedded in the terrain. Ground
-# locomotion now follows the authoritative procedural height directly. This node
+# locomotion now follows the authoritative rendered surface directly. This node
 # disables only streamed terrain colliders; trees and other nearby obstacle
 # colliders remain active.
 
@@ -15,11 +15,9 @@ func _ready() -> void:
     _disable_streamed_terrain_colliders()
 
 func _process(_delta: float) -> void:
-    # Chunks are created during the world's process step, so catch new terrain
-    # bodies before the following physics tick whenever possible.
-    _disable_streamed_terrain_colliders()
-
-func _physics_process(_delta: float) -> void:
+    # The world creates streamed chunks during its process pass. This child runs
+    # afterward in normal tree order, disabling those terrain bodies before the
+    # next physics tick. Avoid mutating collision state from _physics_process().
     _disable_streamed_terrain_colliders()
 
 func _disable_streamed_terrain_colliders() -> void:
