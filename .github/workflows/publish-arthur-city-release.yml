@@ -19,7 +19,7 @@ jobs:
       - name: Download validated Arthur City artifact
         env:
           GH_TOKEN: ${{ github.token }}
-          ARTIFACT_ID: '9267273964'
+          ARTIFACT_ID: '9267677606'
         run: |
           curl -L --fail \
             -H "Authorization: Bearer $GH_TOKEN" \
@@ -39,10 +39,11 @@ jobs:
         run: |
           if gh release view "$TAG" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
             gh release upload "$TAG" /tmp/arthur-city/Arthur-City-Godot-debug.apk --clobber --repo "$GITHUB_REPOSITORY"
+            gh release edit "$TAG" --repo "$GITHUB_REPOSITORY" --title "Arthur City Test 02" --notes "Rebuilt dense city pass from the isolated Arthur city branch."
           else
             gh release create "$TAG" /tmp/arthur-city/Arthur-City-Godot-debug.apk \
               --repo "$GITHUB_REPOSITORY" \
               --target agent/arthur-city-v01 \
-              --title "Arthur City Test 01" \
-              --notes "Validated Android build from the isolated Arthur city branch."
+              --title "Arthur City Test 02" \
+              --notes "Rebuilt dense city pass from the isolated Arthur city branch."
           fi
