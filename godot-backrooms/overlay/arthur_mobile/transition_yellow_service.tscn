@@ -1,0 +1,49 @@
+[gd_scene load_steps=4 format=3]
+
+[ext_resource type="Material" path="res://arthur_mobile/materials/service_concrete.tres" id="1_concrete"]
+[ext_resource type="Material" path="res://arthur_mobile/materials/service_metal.tres" id="2_metal"]
+[ext_resource type="Material" path="res://procedural/assets/wall.tres" id="3_wall"]
+
+[node name="YellowServiceTransition" type="Node3D"]
+
+[node name="ConcreteIntrusion" type="CSGBox3D" parent="."]
+position = Vector3(4.2, 0.025, 0)
+material_override = ExtResource("1_concrete")
+size = Vector3(10.5, 0.045, 18.2)
+
+[node name="ConcreteStrip" type="CSGBox3D" parent="."]
+position = Vector3(-2.4, 0.027, -4.8)
+material_override = ExtResource("1_concrete")
+size = Vector3(4.2, 0.048, 5.0)
+
+[node name="PipeA" type="CSGCylinder3D" parent="."]
+position = Vector3(1.0, 3.48, -5.8)
+rotation_degrees = Vector3(0, 0, 90)
+radius = 0.11
+height = 18.0
+sides = 12
+material_override = ExtResource("2_metal")
+
+[node name="PipeB" type="CSGCylinder3D" parent="."]
+position = Vector3(1.0, 3.25, -5.35)
+rotation_degrees = Vector3(0, 0, 90)
+radius = 0.075
+height = 18.0
+sides = 12
+material_override = ExtResource("2_metal")
+
+[node name="UtilityCabinet" type="CSGBox3D" parent="."]
+position = Vector3(6.8, 1.0, 5.8)
+material_override = ExtResource("2_metal")
+size = Vector3(2.0, 2.0, 0.9)
+use_collision = true
+collision_layer = 3
+collision_mask = 3
+
+[node name="WallpaperRemnant" type="CSGBox3D" parent="."]
+position = Vector3(-6.0, 1.6, 5.2)
+material_override = ExtResource("3_wall")
+size = Vector3(2.4, 3.2, 0.8)
+use_collision = true
+collision_layer = 3
+collision_mask = 3
