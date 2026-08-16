@@ -2,12 +2,12 @@ extends Node
 
 # Android-safe terrain collision layer. The visible world is a height field, so
 # use Godot's dedicated HeightMapShape3D instead of a hollow concave trimesh.
-# This node upgrades each streamed chunk as it appears and also catches the
-# player if a physics frame ever places them below the generated surface.
+# This node upgrades each streamed chunk as it appears and only performs an
+# emergency recovery if the player has genuinely fallen far beneath the world.
 
 const CHUNK_SIZE: float = 64.0
-const RECOVERY_DEPTH: float = 0.85
-const RECOVERY_HEIGHT: float = 1.15
+const RECOVERY_DEPTH: float = 6.0
+const RECOVERY_HEIGHT: float = 1.35
 
 @onready var world: Node3D = get_parent()
 @onready var player: CharacterBody3D = world.get_node("Player")
@@ -66,13 +66,18 @@ func _build_heightmap_shape(key: Vector2i, resolution: int) -> HeightMapShape3D:
     shape.map_width = side
     shape.map_depth = side
     shape.map_data = heights
-    shape.margin = 0.055
+    shape.margin = 0.04
     return shape
 
 func _recover_player_if_below_surface() -> void:
     if not is_instance_valid(player):
         return
 
+    # This is intentionally a deep-abyss recovery, not a terrain-following
+    # mechanism. Normal slopes can put the character origin below the sampled
+    # surface by a small amount, especially because the capsule is offset from
+    # the origin. A generous threshold prevents the guard from repeatedly
+    # lifting the player while walking over ordinary hills.
     var origin_offset: Vector2 = world.get("origin_offset")
     var abs_x: float = player.global_position.x + origin_offset.x
     var abs_z: float = player.global_position.z + origin_offset.y
