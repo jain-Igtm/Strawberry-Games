@@ -1,0 +1,121 @@
+name: Build Godot Backrooms APK
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - 'godot-backrooms/**'
+      - '.github/workflows/build-godot-backrooms-apk.yml'
+
+jobs:
+  android:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    env:
+      GODOT_VERSION: 4.7.1
+      GODOT_STATUS: stable
+      UPSTREAM_SHA: 6865f8b804f84441df8db3d0f3b6175a80195fd2
+    steps:
+      - name: Checkout Strawberry Games
+        uses: actions/checkout@v4
+
+      - name: Checkout pinned Godot Backrooms environment
+        uses: actions/checkout@v4
+        with:
+          repository: zodiepupper/backrooms
+          ref: 6865f8b804f84441df8db3d0f3b6175a80195fd2
+          path: godot-build
+          fetch-depth: 1
+
+      - name: Apply Arthur mobile overlay
+        run: |
+          cp -a godot-backrooms/overlay/. godot-build/
+          mkdir -p godot-build/build
+          echo "Pinned environment: $UPSTREAM_SHA"
+
+      - name: Set up Java 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: Set up Android SDK
+        uses: android-actions/setup-android@v3
+
+      - name: Install Android export requirements
+        run: |
+          yes | sdkmanager --licenses >/dev/null || true
+          sdkmanager "platform-tools" "build-tools;35.0.1" "platforms;android-35"
+
+      - name: Install Godot 4.7.1 and export templates
+        run: |
+          mkdir -p "$HOME/godot" "$HOME/.local/share/godot/export_templates/4.7.1.stable"
+          curl -L --retry 3 -o /tmp/godot.zip "https://github.com/godotengine/godot-builds/releases/download/4.7.1-stable/Godot_v4.7.1-stable_linux.x86_64.zip"
+          unzip -q /tmp/godot.zip -d "$HOME/godot"
+          chmod +x "$HOME/godot/Godot_v4.7.1-stable_linux.x86_64"
+          curl -L --retry 3 -o /tmp/templates.tpz "https://github.com/godotengine/godot-builds/releases/download/4.7.1-stable/Godot_v4.7.1-stable_export_templates.tpz"
+          rm -rf /tmp/godot-templates
+          mkdir -p /tmp/godot-templates
+          unzip -q /tmp/templates.tpz -d /tmp/godot-templates
+          cp -a /tmp/godot-templates/templates/. "$HOME/.local/share/godot/export_templates/4.7.1.stable/"
+          "$HOME/godot/Godot_v4.7.1-stable_linux.x86_64" --version
+
+      - name: Create Android debug keystore
+        run: |
+          mkdir -p "$HOME/.android"
+          if [ ! -f "$HOME/.android/debug.keystore" ]; then
+            keytool -genkeypair -v -keystore "$HOME/.android/debug.keystore" -storepass android -alias androiddebugkey -keypass android -keyalg RSA -keysize 2048 -validity 10000 -dname "CN=Android Debug,O=Android,C=US"
+          fi
+
+      - name: Initialize Godot editor settings
+        run: |
+          GODOT="$HOME/godot/Godot_v4.7.1-stable_linux.x86_64"
+          "$GODOT" --headless --editor --path godot-build --quit || true
+          python3 - <<'PY'
+          from pathlib import Path
+          import os, re
+          p = Path.home()/'.config/godot/editor_settings-4.tres'
+          p.parent.mkdir(parents=True, exist_ok=True)
+          if not p.exists():
+              p.write_text('[gd_resource type="EditorSettings" format=3]\n\n[resource]\n')
+          text = p.read_text()
+          settings = {
+              'export/android/android_sdk_path': os.environ.get('ANDROID_HOME', os.environ.get('ANDROID_SDK_ROOT', '')),
+              'export/android/java_sdk_path': os.environ['JAVA_HOME'],
+              'export/android/debug_keystore': str(Path.home()/'.android/debug.keystore'),
+          }
+          for key, value in settings.items():
+              line = f'{key} = "{value}"'
+              pattern = rf'(?m)^{re.escape(key)}\s*=.*$'
+              if re.search(pattern, text):
+                  text = re.sub(pattern, line, text)
+              else:
+                  text += '\n' + line
+          p.write_text(text)
+          print(p.read_text())
+          PY
+
+      - name: Import and validate Godot project
+        run: |
+          GODOT="$HOME/godot/Godot_v4.7.1-stable_linux.x86_64"
+          "$GODOT" --headless --editor --path godot-build --quit
+
+      - name: Export Android debug APK
+        env:
+          GODOT_ANDROID_KEYSTORE_DEBUG_PATH: ${{ github.workspace }}/../.android/debug.keystore
+          GODOT_ANDROID_KEYSTORE_DEBUG_USER: androiddebugkey
+          GODOT_ANDROID_KEYSTORE_DEBUG_PASSWORD: android
+        run: |
+          GODOT="$HOME/godot/Godot_v4.7.1-stable_linux.x86_64"
+          export GODOT_ANDROID_KEYSTORE_DEBUG_PATH="$HOME/.android/debug.keystore"
+          "$GODOT" --headless --path godot-build --export-debug "Android" "$GITHUB_WORKSPACE/godot-build/build/Arthur-Backrooms-Godot-debug.apk"
+          test -f godot-build/build/Arthur-Backrooms-Godot-debug.apk
+          ls -lh godot-build/build/Arthur-Backrooms-Godot-debug.apk
+
+      - name: Upload Godot APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: Arthur-Backrooms-Godot-debug-apk
+          path: godot-build/build/Arthur-Backrooms-Godot-debug.apk
+          if-no-files-found: error
