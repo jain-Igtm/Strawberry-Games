@@ -209,7 +209,7 @@ func arc_chain_from(origin: Vector3, damage: float) -> void:
 	var candidates: Array[Dictionary] = []
 	for zombie in _zombies:
 		if not is_instance_valid(zombie): continue
-		var distance := zombie.global_position.distance_to(origin)
+		var distance: float = float(zombie.global_position.distance_to(origin))
 		if distance > 0.8 and distance <= 7.5:
 			candidates.append({"node":zombie,"distance":distance})
 	candidates.sort_custom(func(a: Dictionary,b: Dictionary) -> bool: return float(a["distance"]) < float(b["distance"]))
