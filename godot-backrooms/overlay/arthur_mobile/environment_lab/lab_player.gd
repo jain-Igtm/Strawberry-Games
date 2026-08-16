@@ -1,11 +1,19 @@
 extends "res://arthur_mobile/player_v09.gd"
 
+const LAB_SAFE_SPAWN := Vector3(0, 1.15, 18)
+
 @export var vehicle_search_radius := 3.4
 
 var active_vehicle: RigidBody3D
 var vehicle_touch_input := Vector2.ZERO
 var saved_collision_layer := 1
 var saved_collision_mask := 3
+var spawn_guard_frames := 10
+
+func _ready() -> void:
+	super._ready()
+	global_position = LAB_SAFE_SPAWN
+	velocity = Vector3.ZERO
 
 func set_mobile_move(value: Vector2) -> void:
 	if is_in_vehicle():
@@ -95,14 +103,34 @@ func _sync_to_vehicle() -> void:
 	global_position = seat_position
 	rotation.y = active_vehicle.rotation.y
 
+func _recover_from_void_if_needed() -> void:
+	if is_in_vehicle():
+		return
+	if global_position.y < -2.0:
+		global_position = LAB_SAFE_SPAWN
+		velocity = Vector3.ZERO
+		set_psychic_levitation(false)
+		set_water_swimming(false)
+		underwater = false
+
 func _physics_process(delta: float) -> void:
+	_recover_from_void_if_needed()
+
+	if spawn_guard_frames > 0 and not is_in_vehicle():
+		spawn_guard_frames -= 1
+		if global_position.y < 0.55:
+			global_position = LAB_SAFE_SPAWN
+			velocity = Vector3.ZERO
+
 	if is_in_vehicle():
 		var drive := (_desktop_move() + vehicle_touch_input).limit_length(1.0)
 		active_vehicle.call("set_drive_input", drive)
 		_sync_to_vehicle()
 		velocity = Vector3.ZERO
 		return
+
 	super._physics_process(delta)
+	_recover_from_void_if_needed()
 
 func _unhandled_input(event: InputEvent) -> void:
 	super._unhandled_input(event)
