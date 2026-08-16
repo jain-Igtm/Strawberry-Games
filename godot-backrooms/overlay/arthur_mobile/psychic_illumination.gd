@@ -11,11 +11,15 @@ var scouting := false
 var phase := 0.0
 var formation_radius := 1.45
 var visual_anchor := Vector3.ZERO
+var returning_to_default := false
+var spread_locked_until_release := false
 
+const DEFAULT_RADIUS := 1.45
 const MIN_RADIUS := 0.16
 const MAX_RADIUS := 5.6
 const COMBINE_RADIUS := 0.42
 const SCOUT_DISTANCE := 7.2
+const DEFAULT_RETURN_SPEED := 3.85
 
 func _ready() -> void:
 	anchor = get_parent() as Node3D
@@ -27,12 +31,18 @@ func _ready() -> void:
 	set_process(false)
 
 func set_enabled(value: bool) -> void:
+	var was_active := active
 	active = value
 	visible = value
 	set_process(value)
 	if value and anchor != null:
 		visual_anchor = anchor.global_position
 		global_position = visual_anchor
+	if value and not was_active:
+		formation_radius = DEFAULT_RADIUS
+		returning_to_default = false
+		spread_locked_until_release = false
+		scouting = false
 	if not value:
 		scouting = false
 
@@ -56,8 +66,26 @@ func adjust_radius(amount: float) -> float:
 	if not active:
 		set_enabled(true)
 	scouting = false
-	formation_radius = clampf(formation_radius + amount, MIN_RADIUS, MAX_RADIUS)
+	if amount > 0.0:
+		if spread_locked_until_release:
+			return formation_radius
+		formation_radius += amount
+		if formation_radius >= MAX_RADIUS:
+			formation_radius = MAX_RADIUS
+			returning_to_default = true
+			spread_locked_until_release = true
+	else:
+		returning_to_default = false
+		formation_radius = clampf(formation_radius + amount, MIN_RADIUS, MAX_RADIUS)
 	return formation_radius
+
+func end_radius_gesture() -> void:
+	spread_locked_until_release = false
+
+func reset_default_formation() -> void:
+	scouting = false
+	returning_to_default = true
+	spread_locked_until_release = true
 
 func is_combined() -> bool:
 	return formation_radius <= COMBINE_RADIUS
@@ -72,6 +100,12 @@ func _process(delta: float) -> void:
 		camera = anchor.get_node_or_null("CameraPivot/Camera3D") as Camera3D
 
 	phase += delta
+	if returning_to_default:
+		formation_radius = move_toward(formation_radius, DEFAULT_RADIUS, DEFAULT_RETURN_SPEED * delta)
+		if absf(formation_radius - DEFAULT_RADIUS) <= 0.005:
+			formation_radius = DEFAULT_RADIUS
+			returning_to_default = false
+
 	var target_anchor: Vector3 = anchor.global_position
 	if scouting and camera != null:
 		var look: Vector3 = (-camera.global_transform.basis.z).normalized()
@@ -85,6 +119,7 @@ func _process(delta: float) -> void:
 		_update_separate()
 
 func _update_separate() -> void:
+	# This is intentionally the exact stable idle choreography from v0.7/v0.8.
 	orb_a.visible = true
 	orb_b.visible = true
 	orb_c.visible = true
