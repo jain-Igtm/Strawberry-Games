@@ -46,6 +46,10 @@ func lights_end_radius_gesture() -> void:
 	if illumination != null and illumination.has_method("end_radius_gesture"):
 		illumination.call("end_radius_gesture")
 
+func lights_return_home() -> void:
+	if illumination != null and illumination.has_method("reset_default_formation"):
+		illumination.call("reset_default_formation")
+
 func launch_psychic_field_at_enemies() -> void:
 	if not psychic_field_active:
 		return
