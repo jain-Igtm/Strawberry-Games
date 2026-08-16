@@ -2,13 +2,14 @@ extends Node3D
 
 const COLLISION_RADIUS := 20.0
 const MAX_ACTIVE_TRUNKS := 72
-const REFRESH_INTERVAL := 0.22
+const REFRESH_INTERVAL := 0.16
 const OBSTACLE_LAYER := 2
 
 @onready var player: CharacterBody3D = get_node("../Player")
 
 var _body: StaticBody3D
 var _pool: Array[CollisionShape3D] = []
+var _manual_obstacles: Array[Dictionary] = []
 var _refresh_clock := 0.0
 
 func _ready() -> void:
@@ -26,6 +27,7 @@ func _ready() -> void:
         shape.disabled = true
         _body.add_child(shape)
         _pool.append(shape)
+    _refresh_nearby_trunks()
 
 func _physics_process(delta: float) -> void:
     _refresh_clock -= delta
@@ -33,6 +35,28 @@ func _physics_process(delta: float) -> void:
         return
     _refresh_clock = REFRESH_INTERVAL
     _refresh_nearby_trunks()
+
+func resolve_horizontal_position(candidate: Vector3, player_radius: float = 0.36) -> Vector3:
+    # Forest traversal no longer relies on CharacterBody3D's terrain solver.
+    # Resolve the small set of nearby trunks directly in the X/Z plane instead.
+    var result: Vector3 = candidate
+    for _pass in range(2):
+        for obstacle in _manual_obstacles:
+            var center: Vector3 = obstacle["position"]
+            var radius: float = float(obstacle["radius"]) + player_radius
+            var dx: float = result.x - center.x
+            var dz: float = result.z - center.z
+            var distance_sq: float = dx * dx + dz * dz
+            if distance_sq >= radius * radius:
+                continue
+            if distance_sq < 0.000001:
+                result.x = center.x + radius
+                continue
+            var distance: float = sqrt(distance_sq)
+            var push: float = radius / distance
+            result.x = center.x + dx * push
+            result.z = center.z + dz * push
+    return result
 
 func _refresh_nearby_trunks() -> void:
     var candidates: Array = []
@@ -54,6 +78,8 @@ func _refresh_nearby_trunks() -> void:
 
     candidates.sort_custom(func(a, b): return a.distance_sq < b.distance_sq)
     var active := mini(candidates.size(), MAX_ACTIVE_TRUNKS)
+    _manual_obstacles.clear()
+
     for i in range(_pool.size()):
         var shape_node := _pool[i]
         if i >= active:
@@ -62,8 +88,10 @@ func _refresh_nearby_trunks() -> void:
         var item = candidates[i]
         var tree_t: Transform3D = item.transform
         var scale_y := maxf(0.45, tree_t.basis.get_scale().y)
+        var tree_radius: float = 0.36 * scale_y
         var cylinder := shape_node.shape as CylinderShape3D
-        cylinder.radius = 0.36 * scale_y
+        cylinder.radius = tree_radius
         cylinder.height = 7.0 * scale_y
         shape_node.global_position = tree_t.origin
         shape_node.disabled = false
+        _manual_obstacles.append({"position": tree_t.origin, "radius": tree_radius})
