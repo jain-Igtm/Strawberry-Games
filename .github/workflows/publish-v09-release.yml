@@ -1,0 +1,39 @@
+name: Publish Arthur Backrooms v0.9 Release
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/publish-v09-release.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  actions: read
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Download exact v0.9 APK artifact
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh api repos/${{ github.repository }}/actions/artifacts/9264202462/zip > /tmp/v09.zip
+          mkdir -p /tmp/v09
+          unzip -q /tmp/v09.zip -d /tmp/v09
+          APK=$(find /tmp/v09 -type f -name '*.apk' | head -n 1)
+          test -n "$APK"
+          cp "$APK" /tmp/Arthur-Backrooms-Godot-v0.9-vertical-pools.apk
+          ls -lh /tmp/Arthur-Backrooms-Godot-v0.9-vertical-pools.apk
+
+      - name: Publish permanent GitHub Release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release delete v0.9 --repo "${{ github.repository }}" --yes --cleanup-tag || true
+          gh release create v0.9 /tmp/Arthur-Backrooms-Godot-v0.9-vertical-pools.apk \
+            --repo "${{ github.repository }}" \
+            --target 55f97f5dfb4a1bc9f7fadd877e92e35e8b66fcee \
+            --title "Arthur Backrooms Godot v0.9 - Vertical Pools" \
+            --notes "Stable downloadable Android build for Arthur Backrooms Godot v0.9. Built from commit 55f97f5dfb4a1bc9f7fadd877e92e35e8b66fcee."
