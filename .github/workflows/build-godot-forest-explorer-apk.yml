@@ -85,6 +85,11 @@ jobs:
           GODOT="$HOME/godot/Godot_v4.7.1-stable_linux.x86_64"
           "$GODOT" --headless --editor --path godot-forest-explorer --quit
 
+      - name: Launch forest runtime smoke test
+        run: |
+          GODOT="$HOME/godot/Godot_v4.7.1-stable_linux.x86_64"
+          "$GODOT" --headless --path godot-forest-explorer --quit-after 8
+
       - name: Export Android debug APK
         run: |
           GODOT="$HOME/godot/Godot_v4.7.1-stable_linux.x86_64"
