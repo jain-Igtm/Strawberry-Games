@@ -1,6 +1,6 @@
 [gd_scene load_steps=9 format=3]
 
-[ext_resource type="Script" path="res://scripts/world.gd" id="1_world"]
+[ext_resource type="Script" path="res://scripts/world_fixed.gd" id="1_world"]
 [ext_resource type="Script" path="res://scripts/player.gd" id="2_player"]
 [ext_resource type="Script" path="res://scripts/mobile_controls.gd" id="3_mobile"]
 [ext_resource type="Script" path="res://scripts/tree_collision_manager.gd" id="4_tree_collision"]
