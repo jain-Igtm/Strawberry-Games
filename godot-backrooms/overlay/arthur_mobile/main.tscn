@@ -1,4 +1,4 @@
-[gd_scene load_steps=12 format=3]
+[gd_scene load_steps=13 format=3]
 
 [ext_resource type="Script" path="res://arthur_mobile/world.gd" id="1_world"]
 [ext_resource type="Script" path="res://arthur_mobile/player.gd" id="2_player"]
@@ -6,6 +6,7 @@
 [ext_resource type="Material" path="res://procedural/assets/floor.tres" id="4_floor"]
 [ext_resource type="AudioStream" path="res://assets/audio/Neon Lighting Hum.mp3" id="5_hum"]
 [ext_resource type="AudioStream" path="res://assets/audio/Deep Space Travel Background Noise.mp3" id="6_atmosphere"]
+[ext_resource type="Script" path="res://arthur_mobile/discovery.gd" id="7_discovery"]
 
 [sub_resource type="CapsuleShape3D" id="CapsuleShape_player"]
 radius = 0.34
@@ -159,6 +160,7 @@ text = "DISCOVERED // ATRIUM"
 horizontal_alignment = 1
 vertical_alignment = 1
 label_settings = SubResource("LabelSettings_hud")
+script = ExtResource("7_discovery")
 
 [node name="Crosshair" type="Label" parent="UI/Overlay"]
 layout_mode = 1
