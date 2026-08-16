@@ -1,0 +1,39 @@
+name: Publish Arthur Backrooms v0.10 Release
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/publish-v010-release.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  actions: read
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Download exact v0.10 APK artifact
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh api repos/${{ github.repository }}/actions/artifacts/9265139797/zip > /tmp/v010.zip
+          mkdir -p /tmp/v010
+          unzip -q /tmp/v010.zip -d /tmp/v010
+          APK=$(find /tmp/v010 -type f -name '*.apk' | head -n 1)
+          test -n "$APK"
+          cp "$APK" /tmp/Arthur-Backrooms-Godot-v0.10-infinite-3d.apk
+          ls -lh /tmp/Arthur-Backrooms-Godot-v0.10-infinite-3d.apk
+
+      - name: Publish permanent GitHub Release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release delete v0.10 --repo "${{ github.repository }}" --yes --cleanup-tag || true
+          gh release create v0.10 /tmp/Arthur-Backrooms-Godot-v0.10-infinite-3d.apk \
+            --repo "${{ github.repository }}" \
+            --target c4cde67a970c86c1aeda9a2f4646962dd199b407 \
+            --title "Arthur Backrooms Godot v0.10 - Infinite 3D World" \
+            --notes "Adds one-button psychic light gestures and a true procedural 3D storey lattice with working inter-floor stairways and vertically continuous service shafts. Built from commit c4cde67a970c86c1aeda9a2f4646962dd199b407."
