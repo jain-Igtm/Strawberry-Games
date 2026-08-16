@@ -11,6 +11,7 @@ extends "res://scripts/world.gd"
 
 const FIXED_MOBILE_RES: int = 29
 const FIXED_DESKTOP_RES: int = 41
+const BUILD_TAG: String = "terrain-fix-31"
 
 func _ready() -> void:
     view_radius = 2 if OS.has_feature("mobile") else 3
@@ -64,3 +65,9 @@ func height_at(x: float, z: float) -> float:
         h -= trail * 0.045
 
     return h
+
+func _update_hud() -> void:
+    var p: Vector2 = _absolute_player_position()
+    coords_label.text = "%.0f m E   %.0f m N  •  %s" % [p.x, p.y, BUILD_TAG]
+    biome_label.text = _biome_name(p.x, p.y)
+    hud.visible = not Input.is_action_pressed("toggle_ui")
