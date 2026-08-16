@@ -22,6 +22,14 @@ func toggle_psychic_light() -> bool:
 func is_psychic_light_enabled() -> bool:
 	return illumination != null and bool(illumination.call("is_enabled"))
 
+func toggle_psychic_scout() -> bool:
+	if illumination == null:
+		return false
+	return bool(illumination.call("toggle_scout"))
+
+func is_psychic_scout_far() -> bool:
+	return illumination != null and bool(illumination.call("is_scout_far"))
+
 func psychic_interact() -> void:
 	if held_prop != null and is_instance_valid(held_prop):
 		_throw_held_prop()
@@ -87,5 +95,7 @@ func _unhandled_input(event: InputEvent) -> void:
 	if event is InputEventKey and event.pressed and not event.echo:
 		if event.keycode == KEY_F:
 			toggle_psychic_light()
+		elif event.keycode == KEY_G:
+			toggle_psychic_scout()
 		elif event.keycode == KEY_E:
 			psychic_interact()
