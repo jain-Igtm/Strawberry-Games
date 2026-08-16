@@ -16,6 +16,7 @@ jobs:
       GODOT_VERSION: 4.7.1
       UPSTREAM_SHA: 6865f8b804f84441df8db3d0f3b6175a80195fd2
       KAYKIT_SHA: 96d5930a8dbdb363409bbc2d3341718b00e17c9c
+      GODOT_DEMOS_SHA: 34fc99545fc41520a958248f607101e7d0b95b05
     steps:
       - name: Checkout enemy lab branch
         uses: actions/checkout@v4
@@ -36,12 +37,23 @@ jobs:
           path: kaykit-furniture
           fetch-depth: 1
 
+      - name: Checkout pinned official Godot demo creature
+        uses: actions/checkout@v4
+        with:
+          repository: godotengine/godot-demo-projects
+          ref: 34fc99545fc41520a958248f607101e7d0b95b05
+          path: godot-demos
+          fetch-depth: 1
+
       - name: Apply isolated enemy lab overlay
         run: |
           cp -a godot-backrooms/overlay/. godot-build/
           mkdir -p godot-build/arthur_assets/kaykit/gltf
           cp -a kaykit-furniture/addons/kaykit_furniture_bits/Assets/gltf/. godot-build/arthur_assets/kaykit/gltf/
           cp kaykit-furniture/addons/kaykit_furniture_bits/Assets/LICENSE.txt godot-build/arthur_assets/kaykit/LICENSE.txt
+          mkdir -p godot-build/arthur_mobile/enemies/assets/godot_mob
+          cp godot-demos/3d/squash_the_creeps/art/mob.glb godot-build/arthur_mobile/enemies/assets/godot_mob/mob.glb
+          cp godot-demos/LICENSE.md godot-build/arthur_mobile/enemies/assets/godot_mob/LICENSE.md
           python3 - <<'PY'
           from pathlib import Path
           p = Path('godot-build/project.godot')
@@ -54,7 +66,7 @@ jobs:
           text = p.read_text()
           text = text.replace('package/unique_name="com.strawberrygames.arthurbackroomsgodot"', 'package/unique_name="com.strawberrygames.arthurenemylab"')
           text = text.replace('package/name="Arthur Backrooms"', 'package/name="Arthur Enemy Lab"')
-          text = text.replace('version/name="0.1.0"', 'version/name="enemy-lab-0.1"')
+          text = text.replace('version/name="0.1.0"', 'version/name="enemy-lab-0.3"')
           p.write_text(text)
           PY
           mkdir -p godot-build/build
