@@ -11,4 +11,4 @@ func _process(_delta: float) -> void:
 		if player == null:
 			visible = false
 			return
-	visible = global_position.distance_to(player.global_position) < 18.0
+	visible = global_position.distance_to(player.global_position) < 15.5
