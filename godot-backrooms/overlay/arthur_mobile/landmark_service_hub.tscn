@@ -1,0 +1,128 @@
+[gd_scene load_steps=5 format=3]
+
+[ext_resource type="Material" path="res://arthur_mobile/materials/service_concrete.tres" id="1_concrete"]
+
+[sub_resource type="StandardMaterial3D" id="Mat_metal"]
+albedo_color = Color(0.075, 0.085, 0.078, 1)
+metallic = 0.72
+roughness = 0.38
+
+[sub_resource type="StandardMaterial3D" id="Mat_red"]
+albedo_color = Color(0.28, 0.025, 0.018, 1)
+emission_enabled = true
+emission = Color(1.0, 0.04, 0.018, 1)
+emission_energy_multiplier = 3.0
+roughness = 0.3
+
+[sub_resource type="StandardMaterial3D" id="Mat_panel"]
+albedo_color = Color(0.055, 0.07, 0.06, 1)
+metallic = 0.35
+roughness = 0.42
+
+[node name="ServiceHubLandmark" type="Node3D"]
+
+[node name="MachineA" type="CSGBox3D" parent="."]
+position = Vector3(-4.7, 1.55, -2.8)
+size = Vector3(3.2, 3.1, 2.4)
+material_override = SubResource("Mat_panel")
+use_collision = true
+collision_layer = 3
+collision_mask = 3
+
+[node name="MachineB" type="CSGBox3D" parent="."]
+position = Vector3(4.7, 1.55, -2.8)
+size = Vector3(3.2, 3.1, 2.4)
+material_override = SubResource("Mat_panel")
+use_collision = true
+collision_layer = 3
+collision_mask = 3
+
+[node name="MachineC" type="CSGBox3D" parent="."]
+position = Vector3(0, 1.25, 4.5)
+size = Vector3(5.0, 2.5, 2.3)
+material_override = SubResource("Mat_panel")
+use_collision = true
+collision_layer = 3
+collision_mask = 3
+
+[node name="TankA" type="CSGCylinder3D" parent="."]
+position = Vector3(-7.5, 1.65, 4.0)
+radius = 1.05
+height = 3.3
+sides = 20
+material_override = SubResource("Mat_metal")
+use_collision = true
+collision_layer = 3
+collision_mask = 3
+
+[node name="TankB" type="CSGCylinder3D" parent="."]
+position = Vector3(7.5, 1.65, 4.0)
+radius = 1.05
+height = 3.3
+sides = 20
+material_override = SubResource("Mat_metal")
+use_collision = true
+collision_layer = 3
+collision_mask = 3
+
+[node name="PipeCrossX" type="CSGCylinder3D" parent="."]
+position = Vector3(0, 3.25, 0)
+rotation_degrees = Vector3(0, 0, 90)
+radius = 0.22
+height = 16.0
+sides = 14
+material_override = SubResource("Mat_metal")
+
+[node name="PipeCrossZ" type="CSGCylinder3D" parent="."]
+position = Vector3(0, 3.48, 0)
+rotation_degrees = Vector3(90, 0, 0)
+radius = 0.18
+height = 16.0
+sides = 14
+material_override = SubResource("Mat_metal")
+
+[node name="CenterColumn" type="CSGBox3D" parent="."]
+position = Vector3(0, 2.0, 0)
+size = Vector3(1.45, 4.0, 1.45)
+material_override = ExtResource("1_concrete")
+use_collision = true
+collision_layer = 3
+collision_mask = 3
+
+[node name="PanelA" type="CSGBox3D" parent="."]
+position = Vector3(-4.7, 1.75, -1.55)
+size = Vector3(2.2, 1.15, 0.08)
+material_override = SubResource("Mat_metal")
+
+[node name="PanelB" type="CSGBox3D" parent="."]
+position = Vector3(4.7, 1.75, -1.55)
+size = Vector3(2.2, 1.15, 0.08)
+material_override = SubResource("Mat_metal")
+
+[node name="AlarmA" type="CSGBox3D" parent="."]
+position = Vector3(-4.7, 2.22, -1.49)
+size = Vector3(0.32, 0.18, 0.05)
+material_override = SubResource("Mat_red")
+
+[node name="AlarmB" type="CSGBox3D" parent="."]
+position = Vector3(4.7, 2.22, -1.49)
+size = Vector3(0.32, 0.18, 0.05)
+material_override = SubResource("Mat_red")
+
+[node name="Walkway" type="CSGBox3D" parent="."]
+position = Vector3(0, 0.08, -5.4)
+size = Vector3(13.0, 0.16, 2.1)
+material_override = SubResource("Mat_metal")
+use_collision = true
+collision_layer = 3
+collision_mask = 3
+
+[node name="RedLight" type="OmniLight3D" parent="."]
+position = Vector3(0, 2.5, -2.0)
+light_color = Color(1, 0.055, 0.025, 1)
+light_energy = 0.55
+omni_range = 9.0
+shadow_enabled = false
+distance_fade_enabled = true
+distance_fade_begin = 10.0
+distance_fade_length = 7.0
