@@ -222,13 +222,13 @@ func _build_stair_run(root: Node3D, direction_2d: Vector2i) -> void:
 	_add_stair_visual_box(root, landing, Vector3(STAIR_WIDTH + 0.62, 0.18, 1.72), YELLOW_FLOOR, yaw)
 	_add_stair_collision_box(root, landing, Vector3(STAIR_WIDTH + 0.62, 0.18, 1.72), yaw)
 
-	for sign_value in [-1.0, 1.0]:
-		var lateral := side * ((STAIR_WIDTH * 0.5 + 0.075) * sign_value)
-		var rail_a := start_offset + lateral + Vector3.UP * (rise + 0.94)
-		var rail_b := start_offset + direction * total_run + lateral + Vector3.UP * (STOREY_HEIGHT + 0.94)
+	for sign_value: float in [-1.0, 1.0]:
+		var lateral: Vector3 = side * ((STAIR_WIDTH * 0.5 + 0.075) * sign_value)
+		var rail_a: Vector3 = start_offset + lateral + Vector3.UP * (rise + 0.94)
+		var rail_b: Vector3 = start_offset + direction * total_run + lateral + Vector3.UP * (STOREY_HEIGHT + 0.94)
 		_add_stair_slope(root, rail_a, rail_b, 0.07, 0.07, false, YELLOW_WALL)
 		for post_i in range(0, STAIR_STEPS, 4):
-			var base := start_offset + direction * (float(post_i) * STAIR_RUN) + lateral
+			var base: Vector3 = start_offset + direction * (float(post_i) * STAIR_RUN) + lateral
 			base.y = rise * float(post_i + 1)
 			_add_stair_visual_box(root, base + Vector3.UP * 0.46, Vector3(0.06, 0.92, 0.06), YELLOW_WALL, 0.0)
 
