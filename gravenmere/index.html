@@ -1,0 +1,291 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta
+      name="viewport"
+      content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover"
+    />
+    <meta name="theme-color" content="#080a0a" />
+    <title>World Explorer</title>
+    <style>
+      #world {
+        filter: brightness(1.14) contrast(0.63) saturate(1.1);
+      }
+
+      #app::after {
+        position: fixed;
+        z-index: 2;
+        inset: 0;
+        content: "";
+        pointer-events: none;
+        background: rgba(166, 188, 178, 0.065);
+        mix-blend-mode: screen;
+      }
+
+      #lantern-quick {
+        z-index: 12;
+        width: 56px;
+        height: 56px;
+        touch-action: none;
+      }
+    </style>
+  </head>
+  <body>
+    <main id="app">
+      <canvas id="world" aria-label="World Explorer game world"></canvas>
+
+      <section id="start-screen" class="screen screen--visible">
+        <div class="start-vignette"></div>
+        <div class="start-copy">
+          <span class="eyebrow">THE ROADS END AT GRAVENMERE</span>
+          <h1>WORLD<br />EXPLORER</h1>
+          <p>
+            Search the ranges and inner ruins. Recover the three ward seals,
+            uncover hidden paths with Revelare, and learn where the observatory points.
+          </p>
+          <button id="start-button" class="primary-button">ENTER GRAVENMERE</button>
+          <button id="continue-button" class="text-button" hidden>CONTINUE</button>
+          <small>Headphones recommended · saves automatically</small>
+        </div>
+      </section>
+
+      <section id="ending-screen" class="screen" aria-hidden="true">
+        <div class="ending-copy">
+          <span class="eyebrow">A FOURTH RING APPEARS</span>
+          <h2>THE ROAD CONTINUES<br />BEYOND THE WALLS.</h2>
+          <p id="ending-note"></p>
+          <button id="ending-close" class="primary-button">KEEP EXPLORING</button>
+        </div>
+      </section>
+
+      <div id="rotate-message" aria-hidden="true">
+        <div class="rotate-glyph">↻</div>
+        <strong>TURN YOUR PHONE SIDEWAYS</strong>
+        <span>World Explorer is built for landscape.</span>
+      </div>
+
+      <div id="hud" aria-hidden="true">
+        <header class="hud-top">
+          <div class="place-block">
+            <span id="place-kicker">GRAVENMERE · SOUTH APPROACH</span>
+            <strong id="place-name">THE YEW WALK</strong>
+          </div>
+          <div class="hud-menu-buttons">
+            <button id="inventory-button" class="round-button" aria-label="Open inventory">
+              <span class="pack-mark">▦</span>
+            </button>
+            <button id="journal-button" class="round-button" aria-label="Open field journal">
+              <span>III</span>
+            </button>
+          </div>
+        </header>
+
+        <div id="objective" class="objective">
+          <span>WARD SEALS</span>
+          <div id="seal-pips" class="seal-pips" aria-label="Zero of three seals found">
+            <i></i><i></i><i></i>
+          </div>
+          <strong id="objective-copy">Search the inner ruins</strong>
+        </div>
+
+        <div id="crosshair" aria-hidden="true"><i></i><i></i></div>
+        <div id="interaction-prompt" role="status"></div>
+        <div id="toast" role="status"></div>
+
+        <div id="joystick" class="joystick" aria-label="Movement joystick">
+          <div class="joystick-ring"></div>
+          <div id="joystick-knob" class="joystick-knob"></div>
+        </div>
+
+        <div id="look-pad" aria-label="Drag to look"></div>
+
+        <div class="action-cluster">
+          <button id="cast-button" class="action-button action-button--spell" aria-label="Cast Revelare">
+            <span class="spell-mark">✦</span>
+            <small>REVEAL</small>
+          </button>
+          <button id="interact-button" class="action-button" aria-label="Interact">
+            <span class="hand-mark">⌁</span>
+            <small>TOUCH</small>
+          </button>
+        </div>
+
+        <button
+          id="lantern-quick"
+          class="quick-slot"
+          aria-label="Equip or stow lantern"
+          aria-pressed="false"
+          onpointerdown="event.preventDefault(); event.stopPropagation(); this.click()"
+        >
+          <span class="lantern-glyph"><i></i></span>
+          <small>LANTERN</small>
+        </button>
+
+        <div id="spell-status" class="spell-status">
+          <span>REVELARE</span>
+          <i id="spell-cooldown"></i>
+        </div>
+      </div>
+
+      <aside id="journal" class="sheet" aria-hidden="true">
+        <div class="sheet-scrim" data-close-sheet></div>
+        <section class="sheet-panel">
+          <header>
+            <div>
+              <span class="eyebrow">FIELD JOURNAL</span>
+              <h2>What the ruins left behind</h2>
+            </div>
+            <button class="round-button" data-close-sheet aria-label="Close journal">×</button>
+          </header>
+          <div class="sheet-body">
+            <section class="journal-progress">
+              <div>
+                <span>Ward seals</span>
+                <strong id="journal-seals">0 / 3</strong>
+              </div>
+              <p id="journal-objective">The observatory door bears three empty impressions.</p>
+            </section>
+            <section>
+              <h3>NOTES</h3>
+              <div id="journal-entries" class="journal-entries">
+                <article class="journal-empty">
+                  <span>Nothing recorded yet.</span>
+                  <small>Read plaques and inspect unusual objects.</small>
+                </article>
+              </div>
+            </section>
+            <section class="settings">
+              <h3>SETTINGS</h3>
+              <label>
+                <span>Look sensitivity</span>
+                <input id="sensitivity" type="range" min="0.65" max="1.65" step="0.05" value="1" />
+              </label>
+              <label>
+                <span>Shadow visibility</span>
+                <input id="brightness" type="range" min="0.85" max="1.85" step="0.05" value="1.28" />
+              </label>
+              <label>
+                <span>Ambient sound</span>
+                <input id="sound-toggle" type="checkbox" checked />
+              </label>
+              <button id="reset-progress" class="danger-button">RESET PROGRESS</button>
+            </section>
+          </div>
+        </section>
+      </aside>
+
+      <aside id="inventory" class="sheet inventory-sheet" aria-hidden="true">
+        <div class="sheet-scrim" data-close-sheet></div>
+        <section class="sheet-panel">
+          <header>
+            <div>
+              <span class="eyebrow">FIELD KIT</span>
+              <h2>The Wanderer</h2>
+            </div>
+            <button class="round-button" data-close-sheet aria-label="Close inventory">×</button>
+          </header>
+          <div class="sheet-body inventory-layout">
+            <section id="character-stage" class="character-stage">
+              <span class="character-kicker">EQUIPMENT</span>
+              <svg viewBox="0 0 180 310" role="img" aria-label="The player character">
+                <defs>
+                  <radialGradient id="character-aura" cx="50%" cy="42%" r="55%">
+                    <stop offset="0" stop-color="#8ee6c4" stop-opacity=".15" />
+                    <stop offset="1" stop-color="#8ee6c4" stop-opacity="0" />
+                  </radialGradient>
+                  <radialGradient id="lantern-aura" cx="50%" cy="50%" r="50%">
+                    <stop offset="0" stop-color="#ffd28a" stop-opacity=".75" />
+                    <stop offset="1" stop-color="#ff9b43" stop-opacity="0" />
+                  </radialGradient>
+                </defs>
+                <ellipse cx="90" cy="151" rx="82" ry="135" fill="url(#character-aura)" />
+                <ellipse cx="90" cy="292" rx="48" ry="8" fill="#020403" opacity=".6" />
+                <path d="M67 93L51 175L38 261L72 280H108L142 261L129 175L113 93Z" fill="#263a33" stroke="#67887b" stroke-width="2" />
+                <path d="M67 101L90 127L113 101L105 88H75Z" fill="#52685f" />
+                <circle cx="90" cy="64" r="28" fill="#9b7f6b" />
+                <path d="M61 65C62 30 78 24 94 25C116 27 122 44 118 71L110 57L102 43L83 47L69 75Z" fill="#171b19" />
+                <path d="M58 111L31 190L44 198L73 139Z" fill="#30483e" stroke="#67887b" stroke-width="2" />
+                <path d="M122 111L149 190L136 198L107 139Z" fill="#30483e" stroke="#67887b" stroke-width="2" />
+                <path d="M64 277L56 299H81L84 277Z" fill="#171b19" />
+                <path d="M116 277L124 299H99L96 277Z" fill="#171b19" />
+                <path d="M78 62Q84 68 90 62Q96 68 102 62" fill="none" stroke="#4e372f" stroke-width="2" opacity=".65" />
+                <g id="character-lantern">
+                  <circle cx="147" cy="204" r="38" fill="url(#lantern-aura)" />
+                  <path d="M137 185Q147 169 157 185" fill="none" stroke="#b08f62" stroke-width="3" />
+                  <rect x="137" y="185" width="20" height="32" rx="4" fill="#d28743" stroke="#d9bd86" stroke-width="2" />
+                  <rect x="141" y="190" width="12" height="20" fill="#ffd994" />
+                  <path d="M137 193H157M137 209H157" stroke="#745938" stroke-width="2" />
+                </g>
+              </svg>
+              <div class="equipment-readout">
+                <div>
+                  <span>RIGHT HAND</span>
+                  <strong id="equipped-hand">Empty</strong>
+                </div>
+                <div>
+                  <span>CHARM</span>
+                  <strong>Revelare</strong>
+                </div>
+              </div>
+            </section>
+
+            <section class="inventory-pack">
+              <div class="inventory-summary">
+                <div>
+                  <span>WARD SEALS</span>
+                  <strong id="inventory-seals">0 / 3 carried</strong>
+                </div>
+                <div>
+                  <span>WAYSTONES</span>
+                  <strong id="grounds-clues">0 / 3 revealed</strong>
+                </div>
+              </div>
+
+              <h3>PACK</h3>
+              <div class="inventory-items">
+                <article id="inventory-lantern" class="inventory-item inventory-item--lantern">
+                  <i class="item-icon">⌑</i>
+                  <div>
+                    <strong>Brass lantern</strong>
+                    <p>A broad warm light for the grounds and deepest halls.</p>
+                  </div>
+                  <button id="lantern-equip" class="equip-button">EQUIP</button>
+                </article>
+                <article class="inventory-item">
+                  <i class="item-icon">III</i>
+                  <div>
+                    <strong>Field journal</strong>
+                    <p>Records discovered seals, inscriptions, and traces.</p>
+                  </div>
+                  <span class="item-state">CARRIED</span>
+                </article>
+                <article class="inventory-item">
+                  <i class="item-icon">✦</i>
+                  <div>
+                    <strong>Revelare charm</strong>
+                    <p>Exposes writing and paths hidden beneath old wards.</p>
+                  </div>
+                  <span class="item-state">EQUIPPED</span>
+                </article>
+                <article id="inventory-wayfinder" class="inventory-item inventory-item--rare" hidden>
+                  <i class="item-icon">◇</i>
+                  <div>
+                    <strong>Brass wayfinder</strong>
+                    <p>Recovered from the grounds cache. Its needle points south.</p>
+                  </div>
+                  <span class="item-state">QUEST ITEM</span>
+                </article>
+              </div>
+            </section>
+          </div>
+        </section>
+      </aside>
+    </main>
+
+    <script type="module">
+      import '/src/inner-ranges.ts'
+      import '/src/main.ts'
+    </script>
+  </body>
+</html>

@@ -1,0 +1,111 @@
+name: Build World Explorer Android APK
+
+on:
+  workflow_dispatch:
+  pull_request:
+    paths:
+      - "gravenmere/**"
+      - ".github/workflows/gravenmere-android.yml"
+  push:
+    branches:
+      - main
+    paths:
+      - "gravenmere/**"
+      - ".github/workflows/gravenmere-android.yml"
+
+permissions:
+  contents: write
+
+concurrency:
+  group: world-explorer-android-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  apk:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+
+    steps:
+      - name: Check out Strawberry Games
+        uses: actions/checkout@v4
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+          cache-dependency-path: gravenmere/package-lock.json
+
+      - name: Set up Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 21
+
+      - name: Restore stable personal signing identity
+        uses: actions/cache@v4
+        with:
+          path: ~/.android/debug.keystore
+          key: gravenmere-personal-debug-signing-v1
+
+      - name: Install dependencies
+        working-directory: gravenmere
+        run: npm ci
+
+      - name: Run game tests
+        working-directory: gravenmere
+        run: npm test
+
+      - name: Build and synchronize Android
+        working-directory: gravenmere
+        run: |
+          set -o pipefail
+          npm run build 2>&1 | tee build-output.txt
+          npx cap add android
+          npm run configure:android
+          npm run assets:android
+          npx cap sync android
+          chmod +x android/gradlew
+
+      - name: Upload build diagnostics
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: World-Explorer-build-diagnostics
+          path: gravenmere/build-output.txt
+          if-no-files-found: ignore
+          retention-days: 7
+
+      - name: Compile installable APK
+        working-directory: gravenmere/android
+        run: ./gradlew assembleDebug --no-daemon --stacktrace
+
+      - name: Prepare download and checksum
+        working-directory: gravenmere
+        run: |
+          cp android/app/build/outputs/apk/debug/app-debug.apk World-Explorer.apk
+          sha256sum World-Explorer.apk > World-Explorer.apk.sha256
+
+      - name: Upload World Explorer APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: World-Explorer-Android
+          path: |
+            gravenmere/World-Explorer.apk
+            gravenmere/World-Explorer.apk.sha256
+          if-no-files-found: error
+          retention-days: 30
+
+      - name: Publish durable World Explorer release
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+        working-directory: gravenmere
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          tag="world-explorer-android-${GITHUB_RUN_NUMBER}"
+          gh release create "$tag" \
+            World-Explorer.apk \
+            World-Explorer.apk.sha256 \
+            --title "World Explorer Android build ${GITHUB_RUN_NUMBER}" \
+            --notes "Install World-Explorer.apk on Android 7 or newer. The game runs offline and is designed for landscape touch play." \
+            --latest=false
