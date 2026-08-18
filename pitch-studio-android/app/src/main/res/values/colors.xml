@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <color name="pitch_ink">#091014</color>
+    <color name="pitch_surface">#121C22</color>
+    <color name="pitch_accent">#7CF4CA</color>
+    <color name="pitch_error">#FF5575</color>
+    <color name="pitch_text">#F2F7F7</color>
+</resources>
