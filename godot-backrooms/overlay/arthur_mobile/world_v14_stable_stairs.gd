@@ -16,8 +16,7 @@ func _build_stair_run(root: Node3D, direction_2d: Vector2i) -> void:
 	var total_run: float = float(STAIR_STEPS - 1) * STAIR_RUN
 
 	# The collision surface begins flush with the lower floor and ends flush with
-	# the upper landing. Its top surface follows the midpoint of the visible treads,
-	# so the visual/collision discrepancy never exceeds half one riser.
+	# the upper landing. The visible steps never participate in character collision.
 	var ramp_top_start := start_offset - direction * (STAIR_RUN * 0.5)
 	var ramp_top_end := start_offset + direction * (total_run + STAIR_RUN * 0.5)
 	ramp_top_start.y = 0.0
@@ -30,8 +29,6 @@ func _build_stair_run(root: Node3D, direction_2d: Vector2i) -> void:
 		STAIR_COLLISION_THICKNESS
 	)
 
-	# Visual stairs only. These never participate in character collision, which
-	# prevents each riser from becoming a tiny wall for move_and_slide().
 	for i in range(STAIR_STEPS):
 		var top_y: float = rise * float(i + 1)
 		var along: Vector3 = start_offset + direction * (float(i) * STAIR_RUN)
@@ -76,28 +73,40 @@ func _add_stair_collision_ramp(root: Node3D, top_start: Vector3, top_end: Vector
 	if delta.length() <= 0.01:
 		return
 
-	# Build an orthonormal basis whose local Z axis follows the ramp and whose
-	# local Y axis points away from the walking surface. The box is shifted half
-	# its thickness below the top line, making the requested endpoints the actual
-	# collision surface instead of the box centerline.
-	var z_axis := delta.normalized()
-	var horizontal := Vector3(delta.x, 0.0, delta.z).normalized()
-	var x_axis := Vector3(horizontal.z, 0.0, -horizontal.x)
-	var y_axis := z_axis.cross(x_axis).normalized()
-	if y_axis.y < 0.0:
-		x_axis = -x_axis
-		y_axis = z_axis.cross(x_axis).normalized()
+	# An exact convex prism is more robust than rotating a thin box collider.
+	# Its top four points are the walking plane and the lower four points merely
+	# give the static collider volume. No tread or riser collision is involved.
+	var horizontal := Vector3(delta.x, 0.0, delta.z)
+	if horizontal.length_squared() <= 0.0001:
+		return
+	horizontal = horizontal.normalized()
+	var side := Vector3(-horizontal.z, 0.0, horizontal.x)
+	var half_width := width * 0.5
+	var down := Vector3.DOWN * thickness
+
+	var a_left := top_start - side * half_width
+	var a_right := top_start + side * half_width
+	var b_left := top_end - side * half_width
+	var b_right := top_end + side * half_width
+
+	var shape := ConvexPolygonShape3D.new()
+	shape.points = PackedVector3Array([
+		a_left,
+		a_right,
+		b_left,
+		b_right,
+		a_left + down,
+		a_right + down,
+		b_left + down,
+		b_right + down
+	])
 
 	var body := StaticBody3D.new()
 	body.name = "StairCollisionRamp"
 	body.collision_layer = 3
 	body.collision_mask = 3
-	body.basis = Basis(x_axis, y_axis, z_axis)
-	body.position = (top_start + top_end) * 0.5 - y_axis * (thickness * 0.5)
 
 	var shape_node := CollisionShape3D.new()
-	var shape := BoxShape3D.new()
-	shape.size = Vector3(width, thickness, delta.length())
 	shape_node.shape = shape
 	body.add_child(shape_node)
 	root.add_child(body)
