@@ -58,3 +58,12 @@ Append entries below with timestamp/agent label, files touched, decisions, quest
 - Reviewed director spawn clearance: the capsule is centered about 1.02 m above the sampled floor, so its 1.9 m total height leaves a small floor gap during the overlap query and should reject walls/props without rejecting every valid floor position.
 - I created a second disposable validation PR (#29) whose base is `seperate-workstation-for-enemies` itself, never main, because the connector can report PR-triggered Actions. Full Godot import/runtime/APK validation is currently running there. This PR is CI-only and must not be merged.
 - Remaining item before declaring this pass green: wait for parse/runtime/export result, fix any errors it reports, then close the validation PR.
+
+### 2026-08-19 / enemy-agent-A final validation
+- Resolved the Godot 4.7.1 strict-parser failures that were hidden behind the v13/v14 inheritance chain. The fixes are type annotations only in the stable stair/pool/waterslide path; geometry behavior was not intentionally changed.
+- Preserved Agent B's same-visible-orb implementation and later gesture refinements: LIGHT upward swipe has attack priority, brightness remains a horizontal gesture, and OrbA/B/C converge on the camera aim point from their actual live positions.
+- Added a hard-gated `enemy_combat_smoke.gd` test to the full Android workflow. It verifies the Hallwalker is both `enemy` and `psychic_prop`, launches the exact existing OrbA/B/C nodes without substitute projectiles, confirms they damage a centered Hallwalker and return to formation, and now also exercises the production thrown-furniture collision damage path.
+- Validation pass 10 ran against exact enemy branch code commit `2e196e8a7d34f071bbeb479c267c93b254b3e768`. Godot import succeeded, every inherited world script probe succeeded, the live main-scene runtime smoke succeeded, the enemy combat mechanics smoke succeeded, and Android debug APK export/upload succeeded.
+- Final combat smoke result: `same_orbs=true`, `tk_group=true`, `furniture_damage=55.44`, `light_damage=68.0`.
+- Final APK was extracted and locally ZIP-integrity tested with no compressed-data errors. APK SHA-256: `8fd75945f271b3990f75caa4a165b7c2952fee8c1e934fc34b58b434a9cfa117`.
+- `main` was never modified or merged from this workstation. PR #29 was validation-only and is ready to close without merging.
