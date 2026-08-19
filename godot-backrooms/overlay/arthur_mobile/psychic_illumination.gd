@@ -10,7 +10,7 @@ var active := false
 var scouting := false
 var phase := 0.0
 var formation_radius := 1.45
-var brightness := 1.0
+var brightness := 1.30
 var visual_anchor := Vector3.ZERO
 var returning_to_default := false
 var spread_locked_until_release := false
@@ -27,6 +27,7 @@ const SCOUT_DISTANCE := 7.2
 const DEFAULT_RETURN_SPEED := 3.85
 const MIN_BRIGHTNESS := 0.35
 const MAX_BRIGHTNESS := 2.25
+const DEFAULT_BRIGHTNESS := 1.30
 
 func _ready() -> void:
 	anchor = get_parent() as Node3D
@@ -46,8 +47,10 @@ func set_enabled(value: bool) -> void:
 		visual_anchor = anchor.global_position
 		global_position = anchor.global_position
 	if value and not was_active:
-		# Every activation starts in the exact original close, world-space HOME orbit.
+		# Every activation starts in the exact original close, world-space HOME orbit,
+		# at 50% illumination capacity. The brightness control can then extend reach.
 		formation_radius = DEFAULT_RADIUS
+		brightness = DEFAULT_BRIGHTNESS
 		returning_to_default = false
 		spread_locked_until_release = false
 		scouting = false
@@ -132,6 +135,27 @@ func is_combined() -> bool:
 func get_formation_radius() -> float:
 	return formation_radius
 
+func _brightness_capacity() -> float:
+	return clampf(inverse_lerp(MIN_BRIGHTNESS, MAX_BRIGHTNESS, brightness), 0.0, 1.0)
+
+func _capacity_range_multiplier() -> float:
+	var capacity := _brightness_capacity()
+	if capacity <= 0.5:
+		return lerpf(0.62, 1.0, capacity / 0.5)
+	return lerpf(1.0, 1.85, (capacity - 0.5) / 0.5)
+
+func _capacity_energy_multiplier() -> float:
+	var capacity := _brightness_capacity()
+	if capacity <= 0.5:
+		return lerpf(0.72, 1.0, capacity / 0.5)
+	return lerpf(1.0, 1.18, (capacity - 0.5) / 0.5)
+
+func _capacity_attenuation(base_attenuation: float) -> float:
+	var capacity := _brightness_capacity()
+	if capacity <= 0.5:
+		return lerpf(base_attenuation * 1.18, base_attenuation, capacity / 0.5)
+	return lerpf(base_attenuation, maxf(0.68, base_attenuation * 0.72), (capacity - 0.5) / 0.5)
+
 func _process(delta: float) -> void:
 	if anchor == null or not is_instance_valid(anchor):
 		return
@@ -167,9 +191,9 @@ func _update_separate() -> void:
 	orb_a.scale = Vector3.ONE
 	orb_b.scale = Vector3.ONE
 	orb_c.scale = Vector3.ONE
-	_restore_light(orb_a, 1.45, 9.5)
-	_restore_light(orb_b, 1.2, 8.5)
-	_restore_light(orb_c, 1.15, 8.0)
+	_restore_light(orb_a, 1.45, 9.5, 1.20)
+	_restore_light(orb_b, 1.2, 8.5, 1.25)
+	_restore_light(orb_c, 1.15, 8.0, 1.30)
 
 	# At DEFAULT_RADIUS these are literally the original stable-v0.7 equations.
 	# Spread/contract only multiplies their horizontal world-space wander.
@@ -203,11 +227,17 @@ func _update_combined() -> void:
 	)
 	var light := orb_a.get_node_or_null("Light") as OmniLight3D
 	if light != null:
-		light.light_energy = lerpf(2.7, 4.2, merge) * brightness
-		light.omni_range = lerpf(11.5, 14.0, merge)
+		_apply_light_capacity(light, lerpf(2.7, 4.2, merge), lerpf(11.5, 14.0, merge), 1.05)
 
-func _restore_light(orb: Node3D, energy: float, light_range: float) -> void:
+func _restore_light(orb: Node3D, energy: float, light_range: float, attenuation: float) -> void:
 	var light := orb.get_node_or_null("Light") as OmniLight3D
 	if light != null:
-		light.light_energy = energy * brightness
-		light.omni_range = light_range
+		_apply_light_capacity(light, energy, light_range, attenuation)
+
+func _apply_light_capacity(light: OmniLight3D, base_energy: float, base_range: float, base_attenuation: float) -> void:
+	# Capacity is intentionally range-first. At the 50% activation point the old
+	# light footprint is preserved. Turning it up then pushes illumination farther
+	# into the room while nearby surfaces only become modestly brighter.
+	light.light_energy = base_energy * _capacity_energy_multiplier()
+	light.omni_range = base_range * _capacity_range_multiplier()
+	light.omni_attenuation = _capacity_attenuation(base_attenuation)
