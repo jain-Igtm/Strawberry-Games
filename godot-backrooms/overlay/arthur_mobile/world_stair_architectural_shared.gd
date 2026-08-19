@@ -1,15 +1,8 @@
-extends "res://arthur_mobile/world_v14_stable_stairs.gd"
+extends "res://arthur_mobile/world_stair_access.gd"
 
-# Shared production-safe architectural stair layer.
-# The v0.14 world lineage remains intact. This script combines the segmented
-# floor/ceiling opening system with constrained stair geometry directly, avoiding
-# an extra GDScript inheritance seam while leaving procedural placement unchanged.
-
-const SURFACE_SPAN := 120.0
-const FLOOR_THICKNESS := 1.0
-const CEILING_THICKNESS := 0.22
-const OPENING_PADDING := 0.48
-const MIN_STRIP := 0.08
+# Shared architectural stair layer. Placement remains the existing deterministic
+# Backrooms placement logic; only the geometry, collision, and opening profile are
+# derived here from one constrained stair specification.
 
 const ARCH_TARGET_RISER := 0.170
 const ARCH_MIN_RISER := 0.102
@@ -28,206 +21,9 @@ const ARCH_RISER_THICKNESS := 0.065
 const ARCH_LANDING_THICKNESS := 0.18
 const ARCH_RAIL_HEIGHT := 0.95
 
-var segmented_floor: Node3D
-var segmented_ceiling: Node3D
-var surface_signature := ""
-
 func _ready() -> void:
 	_validate_architectural_stair_profile()
 	super._ready()
-	segmented_floor = Node3D.new()
-	segmented_floor.name = "SegmentedYellowFloor"
-	add_child(segmented_floor)
-	segmented_ceiling = Node3D.new()
-	segmented_ceiling.name = "SegmentedYellowCeiling"
-	add_child(segmented_ceiling)
-	_disable_legacy_surfaces()
-	_rebuild_segmented_surfaces(true)
-	if DisplayServer.get_name().to_lower() == "headless":
-		_headless_stair_access_smoke()
-
-func _process(delta: float) -> void:
-	super._process(delta)
-	_disable_legacy_surfaces()
-	_rebuild_segmented_surfaces(false)
-
-func _disable_legacy_surfaces() -> void:
-	floor_mesh.visible = false
-	floor_mesh.use_collision = false
-	floor_mesh.collision_layer = 0
-	floor_mesh.collision_mask = 0
-	ceiling_mesh.visible = false
-	ceiling_mesh.use_collision = false
-	ceiling_mesh.collision_layer = 0
-	ceiling_mesh.collision_mask = 0
-
-func _rebuild_segmented_surfaces(force: bool) -> void:
-	if segmented_floor == null or segmented_ceiling == null:
-		return
-	var world_cell := Vector2i(
-		floori(player.global_position.x / CELL),
-		floori(player.global_position.z / CELL)
-	)
-	var source_cell: Vector2i = _virtual_cell(world_cell, current_level)
-	var sample: Dictionary = _biome_sample_for_cell(source_cell)
-	var yellow_active: bool = int(sample["primary"]) == BIOME_YELLOW
-	segmented_floor.visible = yellow_active
-	segmented_ceiling.visible = yellow_active
-	_set_segmented_collision_enabled(segmented_floor, yellow_active)
-	_set_segmented_collision_enabled(segmented_ceiling, yellow_active)
-	if not yellow_active:
-		surface_signature = "non-yellow:%d" % current_level
-		return
-
-	var next_signature: String = _make_surface_signature()
-	if not force and next_signature == surface_signature:
-		return
-	surface_signature = next_signature
-	_clear_segmented_surface(segmented_floor)
-	_clear_segmented_surface(segmented_ceiling)
-
-	var base_y: float = float(current_level) * STOREY_HEIGHT
-	_build_segmented_surface(
-		segmented_floor,
-		floor_mesh.global_position.x,
-		floor_mesh.global_position.z,
-		base_y + FLOOR_LOCAL_Y,
-		FLOOR_THICKNESS,
-		YELLOW_FLOOR,
-		floor_cutouts
-	)
-	_build_segmented_surface(
-		segmented_ceiling,
-		ceiling_mesh.global_position.x,
-		ceiling_mesh.global_position.z,
-		base_y + CEILING_LOCAL_Y,
-		CEILING_THICKNESS,
-		YELLOW_CEILING,
-		ceiling_cutouts
-	)
-
-func _make_surface_signature() -> String:
-	var text := "%d:%0.2f:%0.2f" % [
-		current_level,
-		floor_mesh.global_position.x,
-		floor_mesh.global_position.z
-	]
-	for cut in floor_cutouts:
-		if is_instance_valid(cut):
-			text += ":F:%0.2f:%0.2f:%0.2f:%0.2f" % [
-				float(cut.get_meta("world_x", 0.0)),
-				float(cut.get_meta("world_z", 0.0)),
-				cut.size.x,
-				cut.size.z
-			]
-	for cut in ceiling_cutouts:
-		if is_instance_valid(cut):
-			text += ":C:%0.2f:%0.2f:%0.2f:%0.2f" % [
-				float(cut.get_meta("world_x", 0.0)),
-				float(cut.get_meta("world_z", 0.0)),
-				cut.size.x,
-				cut.size.z
-			]
-	return text
-
-func _build_segmented_surface(
-	root: Node3D,
-	center_x: float,
-	center_z: float,
-	y: float,
-	thickness: float,
-	material: Material,
-	cuts: Array[CSGBox3D]
-) -> void:
-	var regions: Array[Rect2] = [
-		Rect2(
-			center_x - SURFACE_SPAN * 0.5,
-			center_z - SURFACE_SPAN * 0.5,
-			SURFACE_SPAN,
-			SURFACE_SPAN
-		)
-	]
-	for cut in cuts:
-		if not is_instance_valid(cut):
-			continue
-		var world_x: float = float(cut.get_meta("world_x", cut.global_position.x))
-		var world_z: float = float(cut.get_meta("world_z", cut.global_position.z))
-		var width: float = cut.size.x + OPENING_PADDING * 2.0
-		var depth: float = cut.size.z + OPENING_PADDING * 2.0
-		var hole := Rect2(world_x - width * 0.5, world_z - depth * 0.5, width, depth)
-		var next_regions: Array[Rect2] = []
-		for region in regions:
-			_split_segmented_region(region, hole, next_regions)
-		regions = next_regions
-
-	for region in regions:
-		if region.size.x >= MIN_STRIP and region.size.y >= MIN_STRIP:
-			_add_segmented_surface_rect(root, region, y, thickness, material)
-
-func _split_segmented_region(region: Rect2, hole: Rect2, output: Array[Rect2]) -> void:
-	var overlap: Rect2 = region.intersection(hole)
-	if overlap.size.x <= 0.001 or overlap.size.y <= 0.001:
-		output.append(region)
-		return
-
-	var left: float = region.position.x
-	var right: float = region.end.x
-	var top: float = region.position.y
-	var bottom: float = region.end.y
-	var hole_left: float = overlap.position.x
-	var hole_right: float = overlap.end.x
-	var hole_top: float = overlap.position.y
-	var hole_bottom: float = overlap.end.y
-
-	if hole_left - left >= MIN_STRIP:
-		output.append(Rect2(left, top, hole_left - left, region.size.y))
-	if right - hole_right >= MIN_STRIP:
-		output.append(Rect2(hole_right, top, right - hole_right, region.size.y))
-	if hole_top - top >= MIN_STRIP:
-		output.append(Rect2(hole_left, top, hole_right - hole_left, hole_top - top))
-	if bottom - hole_bottom >= MIN_STRIP:
-		output.append(Rect2(hole_left, hole_bottom, hole_right - hole_left, bottom - hole_bottom))
-
-func _add_segmented_surface_rect(root: Node3D, rect: Rect2, y: float, thickness: float, material: Material) -> void:
-	var center := Vector3(
-		rect.position.x + rect.size.x * 0.5,
-		y,
-		rect.position.y + rect.size.y * 0.5
-	)
-	var size := Vector3(rect.size.x, thickness, rect.size.y)
-
-	var visual := MeshInstance3D.new()
-	var mesh := BoxMesh.new()
-	mesh.size = size
-	mesh.material = material
-	visual.mesh = mesh
-	visual.position = center
-	visual.set_meta("surface_rect", rect)
-	root.add_child(visual)
-
-	var body := StaticBody3D.new()
-	body.position = center
-	body.collision_layer = 3
-	body.collision_mask = 3
-	body.set_meta("surface_rect", rect)
-	var collision := CollisionShape3D.new()
-	var shape := BoxShape3D.new()
-	shape.size = size
-	collision.shape = shape
-	body.add_child(collision)
-	root.add_child(body)
-
-func _set_segmented_collision_enabled(root: Node3D, enabled: bool) -> void:
-	for child in root.get_children():
-		if child is StaticBody3D:
-			var body := child as StaticBody3D
-			body.collision_layer = 3 if enabled else 0
-			body.collision_mask = 3 if enabled else 0
-
-func _clear_segmented_surface(root: Node3D) -> void:
-	for child in root.get_children():
-		root.remove_child(child)
-		child.queue_free()
 
 func _arch_total_risers() -> int:
 	var minimum_count: int = ceili(STOREY_HEIGHT / ARCH_MAX_RISER)
@@ -269,6 +65,9 @@ func _arch_top_landing_end_distance() -> float:
 	return _arch_top_landing_start_distance() + ARCH_LANDING_DEPTH
 
 func _arch_opening_start_distance() -> float:
+	# Find the point on the first continuous ramp where the remaining clearance to
+	# the underside of the ceiling reaches the required headroom, then open the
+	# ceiling slightly before it. This ties the cut to the actual stair profile.
 	var ceiling_bottom: float = CEILING_LOCAL_Y - CEILING_THICKNESS * 0.5
 	var maximum_stair_height: float = clampf(
 		ceiling_bottom - ARCH_REQUIRED_HEADROOM,
@@ -342,7 +141,6 @@ func _make_cut(direction: Vector2i, height: float) -> CSGBox3D:
 		cut.size = Vector3(_arch_opening_length(), height, _arch_opening_width())
 	else:
 		cut.size = Vector3(_arch_opening_width(), height, _arch_opening_length())
-	cut.calculate_tangents = false
 	cut.use_collision = false
 	return cut
 
@@ -367,6 +165,8 @@ func _build_stair_run(root: Node3D, direction_2d: Vector2i) -> void:
 	var top_landing_end := direction * _arch_top_landing_end_distance()
 	top_landing_end.y = STOREY_HEIGHT
 
+	# Continuous v0.14 box ramps are the only walking collision on the flights.
+	# Visible treads and risers are deliberately non-colliding.
 	_add_stair_collision_ramp(
 		root,
 		ramp1_start,
@@ -399,6 +199,7 @@ func _build_stair_run(root: Node3D, direction_2d: Vector2i) -> void:
 		stair_riser_material
 	)
 
+	# First flight. The intermediate landing is the thirteenth step surface.
 	for i in range(flight_treads):
 		var top_y: float = rise * float(i + 1)
 		var along := direction * (ARCH_START_TREAD_CENTER + float(i) * tread)
@@ -421,26 +222,15 @@ func _build_stair_run(root: Node3D, direction_2d: Vector2i) -> void:
 
 	var final_riser_1 := direction * _arch_mid_landing_start_distance()
 	final_riser_1.y = half_height - rise * 0.5
-	_add_stair_mesh_box(
-		root,
-		final_riser_1,
-		Vector3(STAIR_WIDTH, rise, ARCH_RISER_THICKNESS),
-		stair_riser_material,
-		yaw
-	)
+	_add_stair_mesh_box(root, final_riser_1, Vector3(STAIR_WIDTH, rise, ARCH_RISER_THICKNESS), stair_riser_material, yaw)
 
-	var mid_landing_center := direction * (
-		(_arch_mid_landing_start_distance() + _arch_mid_landing_end_distance()) * 0.5
-	)
+	var mid_landing_center := direction * ((_arch_mid_landing_start_distance() + _arch_mid_landing_end_distance()) * 0.5)
 	mid_landing_center.y = half_height - ARCH_LANDING_THICKNESS * 0.5
-	var mid_landing_size := Vector3(
-		STAIR_WIDTH + 0.28,
-		ARCH_LANDING_THICKNESS,
-		ARCH_LANDING_DEPTH
-	)
+	var mid_landing_size := Vector3(STAIR_WIDTH + 0.28, ARCH_LANDING_THICKNESS, ARCH_LANDING_DEPTH)
 	_add_stair_mesh_box(root, mid_landing_center, mid_landing_size, stair_tread_material, yaw)
 	_add_stair_collision_box(root, mid_landing_center, mid_landing_size, yaw)
 
+	# Second flight begins flush with the far edge of the intermediate landing.
 	for i in range(flight_treads):
 		var top_y: float = half_height + rise * float(i + 1)
 		var along_distance: float = _arch_mid_landing_end_distance() + (float(i) + 0.5) * tread
@@ -464,26 +254,15 @@ func _build_stair_run(root: Node3D, direction_2d: Vector2i) -> void:
 
 	var final_riser_2 := direction * _arch_top_landing_start_distance()
 	final_riser_2.y = STOREY_HEIGHT - rise * 0.5
-	_add_stair_mesh_box(
-		root,
-		final_riser_2,
-		Vector3(STAIR_WIDTH, rise, ARCH_RISER_THICKNESS),
-		stair_riser_material,
-		yaw
-	)
+	_add_stair_mesh_box(root, final_riser_2, Vector3(STAIR_WIDTH, rise, ARCH_RISER_THICKNESS), stair_riser_material, yaw)
 
-	var top_landing_center := direction * (
-		(_arch_top_landing_start_distance() + _arch_top_landing_end_distance()) * 0.5
-	)
+	var top_landing_center := direction * ((_arch_top_landing_start_distance() + _arch_top_landing_end_distance()) * 0.5)
 	top_landing_center.y = STOREY_HEIGHT - ARCH_LANDING_THICKNESS * 0.5
-	var top_landing_size := Vector3(
-		STAIR_WIDTH + 0.62,
-		ARCH_LANDING_THICKNESS,
-		ARCH_LANDING_DEPTH
-	)
+	var top_landing_size := Vector3(STAIR_WIDTH + 0.62, ARCH_LANDING_THICKNESS, ARCH_LANDING_DEPTH)
 	_add_stair_mesh_box(root, top_landing_center, top_landing_size, stair_tread_material, yaw)
 	_add_stair_collision_box(root, top_landing_center, top_landing_size, yaw)
 
+	# Rails and balusters follow both slopes and continue across both landings.
 	for sign_value: float in [-1.0, 1.0]:
 		var lateral := side * ((STAIR_WIDTH * 0.5 + 0.075) * sign_value)
 		var rail1_a := ramp1_start + lateral + Vector3.UP * ARCH_RAIL_HEIGHT
@@ -565,14 +344,8 @@ func _add_architectural_opening_trim(
 		var guard_a := center - direction * half_length + lateral + Vector3.UP * (STOREY_HEIGHT + ARCH_RAIL_HEIGHT)
 		var guard_b := center + direction * half_length + lateral + Vector3.UP * (STOREY_HEIGHT + ARCH_RAIL_HEIGHT)
 		_add_stair_beam_between(root, guard_a, guard_b, 0.07, stair_rail_material)
-		for guard_t in [0.0, 0.5, 1.0]:
-			var base := (
-				(center - direction * half_length).lerp(
-					center + direction * half_length,
-					float(guard_t)
-				)
-				+ lateral
-			)
+		for t: float in [0.0, 0.5, 1.0]:
+			var base := (center - direction * half_length).lerp(center + direction * half_length, t) + lateral
 			base.y = STOREY_HEIGHT
 			_add_stair_mesh_box(
 				root,
@@ -581,42 +354,3 @@ func _add_architectural_opening_trim(
 				stair_rail_material,
 				0.0
 			)
-
-func _headless_stair_access_smoke() -> void:
-	# v13_final already constructs both orientations through dynamic dispatch.
-	# Here we independently prove that the segmented floor/ceiling algorithm uses
-	# the exact architectural opening returned by this script's _make_cut().
-	var fake_cut: CSGBox3D = _make_cut(Vector2i(1, 0), 2.0)
-	fake_cut.set_meta("world_x", 0.0)
-	fake_cut.set_meta("world_z", 0.0)
-	var fake_cuts: Array[CSGBox3D] = [fake_cut]
-	var probe := Node3D.new()
-	add_child(probe)
-	_build_segmented_surface(
-		probe,
-		0.0,
-		0.0,
-		-0.5,
-		FLOOR_THICKNESS,
-		YELLOW_FLOOR,
-		fake_cuts
-	)
-
-	var hole := Rect2(
-		-(fake_cut.size.x + OPENING_PADDING * 2.0) * 0.5,
-		-(fake_cut.size.z + OPENING_PADDING * 2.0) * 0.5,
-		fake_cut.size.x + OPENING_PADDING * 2.0,
-		fake_cut.size.z + OPENING_PADDING * 2.0
-	)
-	for child in probe.get_children():
-		if not child.has_meta("surface_rect"):
-			continue
-		var rect: Rect2 = child.get_meta("surface_rect")
-		var overlap := rect.intersection(hole)
-		assert(
-			overlap.size.x <= 0.001 or overlap.size.y <= 0.001,
-			"STAIR ACCESS FAILURE: segmented surface still spans architectural opening"
-		)
-
-	probe.queue_free()
-	fake_cut.queue_free()
