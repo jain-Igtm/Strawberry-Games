@@ -7,6 +7,12 @@ on:
       - 'godot-backrooms/**'
       - 'enemy-workstation/**'
       - '.github/workflows/enemy-workstation-smoke.yml'
+  pull_request:
+    branches: [enemy-smoke-base]
+    paths:
+      - 'godot-backrooms/**'
+      - 'enemy-workstation/**'
+      - '.github/workflows/enemy-workstation-smoke.yml'
   workflow_dispatch:
 
 jobs:
