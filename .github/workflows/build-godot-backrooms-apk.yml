@@ -155,7 +155,15 @@ jobs:
           GODOT="$HOME/godot/Godot_v4.7.1-stable_linux.x86_64"
           set +e
           "$GODOT" --headless --path godot-build --script res://ci_parent_probe.gd 2>&1 | tee /tmp/godot-parent-probe.log
+          STATUS=${PIPESTATUS[0]}
           set -e
+          if grep -E "SCRIPT ERROR|Parse Error|Failed to load script|Compilation failed|Failed to compile depended scripts" /tmp/godot-parent-probe.log; then
+            echo "Inherited world probe found actionable Godot errors"
+            exit 1
+          fi
+          if [ "$STATUS" -ne 0 ]; then
+            exit "$STATUS"
+          fi
 
       - name: Runtime smoke test main scene
         run: |
@@ -171,6 +179,12 @@ jobs:
           if [ "$STATUS" -ne 0 ] && [ "$STATUS" -ne 124 ]; then
             exit "$STATUS"
           fi
+
+      - name: Enemy combat mechanics smoke test
+        run: |
+          GODOT="$HOME/godot/Godot_v4.7.1-stable_linux.x86_64"
+          "$GODOT" --headless --path godot-build --script res://arthur_mobile/tests/enemy_combat_smoke.gd 2>&1 | tee /tmp/enemy-combat-smoke.log
+          grep -q "ENEMY_COMBAT_SMOKE_PASS" /tmp/enemy-combat-smoke.log
 
       - name: Export Android debug APK
         env:
@@ -199,4 +213,5 @@ jobs:
           path: |
             /tmp/godot-parent-probe.log
             /tmp/godot-runtime.log
+            /tmp/enemy-combat-smoke.log
           if-no-files-found: ignore
