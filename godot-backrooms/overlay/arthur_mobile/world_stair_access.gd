@@ -1,8 +1,9 @@
-extends "res://arthur_mobile/world_v12.gd"
+extends "res://arthur_mobile/world_v14_stable_stairs.gd"
 
-# Structural production baseline: the active yellow floor and ceiling are ordinary
-# segmented meshes/colliders built around stair openings. The old giant moving CSG
-# slabs stay disabled, so there is no surface that can accidentally cap a stair.
+# Production-safe stair access layer, rebased on the current v0.14 world lineage.
+# The active yellow floor and ceiling are ordinary segmented meshes/colliders built
+# around stair cutouts. The giant moving CSG slabs are kept disabled, so no broad
+# collision plane can silently cap an otherwise valid stairwell.
 
 const SURFACE_SPAN := 120.0
 const FLOOR_THICKNESS := 1.0
@@ -104,12 +105,18 @@ func _make_surface_signature() -> String:
 	for cut in floor_cutouts:
 		if is_instance_valid(cut):
 			text += ":F:%0.2f:%0.2f:%0.2f:%0.2f" % [
-				float(cut.get_meta("world_x", 0.0)), float(cut.get_meta("world_z", 0.0)), cut.size.x, cut.size.z
+				float(cut.get_meta("world_x", 0.0)),
+				float(cut.get_meta("world_z", 0.0)),
+				cut.size.x,
+				cut.size.z
 			]
 	for cut in ceiling_cutouts:
 		if is_instance_valid(cut):
 			text += ":C:%0.2f:%0.2f:%0.2f:%0.2f" % [
-				float(cut.get_meta("world_x", 0.0)), float(cut.get_meta("world_z", 0.0)), cut.size.x, cut.size.z
+				float(cut.get_meta("world_x", 0.0)),
+				float(cut.get_meta("world_z", 0.0)),
+				cut.size.x,
+				cut.size.z
 			]
 	return text
 
@@ -122,7 +129,14 @@ func _build_surface(
 	material: Material,
 	cuts: Array[CSGBox3D]
 ) -> void:
-	var regions: Array[Rect2] = [Rect2(center_x - SURFACE_SPAN * 0.5, center_z - SURFACE_SPAN * 0.5, SURFACE_SPAN, SURFACE_SPAN)]
+	var regions: Array[Rect2] = [
+		Rect2(
+			center_x - SURFACE_SPAN * 0.5,
+			center_z - SURFACE_SPAN * 0.5,
+			SURFACE_SPAN,
+			SURFACE_SPAN
+		)
+	]
 	for cut in cuts:
 		if not is_instance_valid(cut):
 			continue
@@ -145,6 +159,7 @@ func _split_region(region: Rect2, hole: Rect2, output: Array[Rect2]) -> void:
 	if overlap.size.x <= 0.001 or overlap.size.y <= 0.001:
 		output.append(region)
 		return
+
 	var left: float = region.position.x
 	var right: float = region.end.x
 	var top: float = region.position.y
@@ -153,6 +168,7 @@ func _split_region(region: Rect2, hole: Rect2, output: Array[Rect2]) -> void:
 	var hole_right: float = overlap.end.x
 	var hole_top: float = overlap.position.y
 	var hole_bottom: float = overlap.end.y
+
 	if hole_left - left >= MIN_STRIP:
 		output.append(Rect2(left, top, hole_left - left, region.size.y))
 	if right - hole_right >= MIN_STRIP:
@@ -163,8 +179,13 @@ func _split_region(region: Rect2, hole: Rect2, output: Array[Rect2]) -> void:
 		output.append(Rect2(hole_left, hole_bottom, hole_right - hole_left, bottom - hole_bottom))
 
 func _add_surface_rect(root: Node3D, rect: Rect2, y: float, thickness: float, material: Material) -> void:
-	var center := Vector3(rect.position.x + rect.size.x * 0.5, y, rect.position.y + rect.size.y * 0.5)
+	var center := Vector3(
+		rect.position.x + rect.size.x * 0.5,
+		y,
+		rect.position.y + rect.size.y * 0.5
+	)
 	var size := Vector3(rect.size.x, thickness, rect.size.y)
+
 	var visual := MeshInstance3D.new()
 	var mesh := BoxMesh.new()
 	mesh.size = size
@@ -173,6 +194,7 @@ func _add_surface_rect(root: Node3D, rect: Rect2, y: float, thickness: float, ma
 	visual.position = center
 	visual.set_meta("surface_rect", rect)
 	root.add_child(visual)
+
 	var body := StaticBody3D.new()
 	body.position = center
 	body.collision_layer = 3
@@ -197,124 +219,45 @@ func _clear_surface(root: Node3D) -> void:
 		root.remove_child(child)
 		child.queue_free()
 
-func _build_stair_run(root: Node3D, direction_2d: Vector2i) -> void:
-	var direction := Vector3(float(direction_2d.x), 0.0, float(direction_2d.y))
-	var side := Vector3(-direction.z, 0.0, direction.x)
-	var yaw: float = PI * 0.5 if direction_2d.x != 0 else 0.0
-	var rise: float = STOREY_HEIGHT / float(STAIR_STEPS)
-	var start_offset := -direction * 0.55
-	var total_run: float = float(STAIR_STEPS - 1) * STAIR_RUN
-
-	for i in range(STAIR_STEPS):
-		var top_y: float = rise * float(i + 1)
-		var along := start_offset + direction * (float(i) * STAIR_RUN)
-		_add_stair_visual_box(root, along + Vector3.UP * (top_y - 0.045), Vector3(STAIR_WIDTH, 0.09, STAIR_RUN + 0.025), YELLOW_FLOOR, yaw)
-		var riser := along - direction * (STAIR_RUN * 0.5) + Vector3.UP * (top_y - rise * 0.5)
-		_add_stair_visual_box(root, riser, Vector3(STAIR_WIDTH, rise, 0.055), YELLOW_WALL, yaw)
-
-	var ramp_a := start_offset - direction * 0.12 + Vector3.UP * 0.07
-	var ramp_b := start_offset + direction * (total_run + 0.16) + Vector3.UP * (STOREY_HEIGHT - 0.20)
-	_add_stair_slope(root, ramp_a, ramp_b, STAIR_WIDTH * 0.90, 0.16, true, null)
-	_add_stair_slope(root, ramp_a - Vector3.UP * 0.14, ramp_b - Vector3.UP * 0.14, STAIR_WIDTH * 0.94, 0.10, false, YELLOW_WALL)
-
-	var landing := start_offset + direction * (total_run + 0.72)
-	landing.y = STOREY_HEIGHT - 0.09
-	_add_stair_visual_box(root, landing, Vector3(STAIR_WIDTH + 0.62, 0.18, 1.72), YELLOW_FLOOR, yaw)
-	_add_stair_collision_box(root, landing, Vector3(STAIR_WIDTH + 0.62, 0.18, 1.72), yaw)
-
-	for sign_value: float in [-1.0, 1.0]:
-		var lateral: Vector3 = side * ((STAIR_WIDTH * 0.5 + 0.075) * sign_value)
-		var rail_a: Vector3 = start_offset + lateral + Vector3.UP * (rise + 0.94)
-		var rail_b: Vector3 = start_offset + direction * total_run + lateral + Vector3.UP * (STOREY_HEIGHT + 0.94)
-		_add_stair_slope(root, rail_a, rail_b, 0.07, 0.07, false, YELLOW_WALL)
-		for post_i in range(0, STAIR_STEPS, 4):
-			var base: Vector3 = start_offset + direction * (float(post_i) * STAIR_RUN) + lateral
-			base.y = rise * float(post_i + 1)
-			_add_stair_visual_box(root, base + Vector3.UP * 0.46, Vector3(0.06, 0.92, 0.06), YELLOW_WALL, 0.0)
-
-func _add_stair_visual_box(root: Node3D, position: Vector3, size: Vector3, material: Material, yaw: float) -> void:
-	var visual := MeshInstance3D.new()
-	var mesh := BoxMesh.new()
-	mesh.size = size
-	mesh.material = material
-	visual.mesh = mesh
-	visual.position = position
-	visual.rotation.y = yaw
-	root.add_child(visual)
-
-func _add_stair_collision_box(root: Node3D, position: Vector3, size: Vector3, yaw: float) -> void:
-	var body := StaticBody3D.new()
-	body.position = position
-	body.rotation.y = yaw
-	body.collision_layer = 3
-	body.collision_mask = 3
-	var collision := CollisionShape3D.new()
-	var shape := BoxShape3D.new()
-	shape.size = size
-	collision.shape = shape
-	body.add_child(collision)
-	root.add_child(body)
-
-func _add_stair_slope(root: Node3D, a: Vector3, b: Vector3, width: float, thickness: float, collision_only: bool, material: Material) -> void:
-	var delta := b - a
-	if delta.length() <= 0.01:
-		return
-	var pivot := Node3D.new()
-	pivot.position = (a + b) * 0.5
-	root.add_child(pivot)
-	pivot.look_at(pivot.global_position + delta.normalized(), Vector3.UP)
-	if collision_only:
-		var body := StaticBody3D.new()
-		body.collision_layer = 3
-		body.collision_mask = 3
-		var collision := CollisionShape3D.new()
-		var shape := BoxShape3D.new()
-		shape.size = Vector3(width, thickness, delta.length() + 0.20)
-		collision.shape = shape
-		body.add_child(collision)
-		pivot.add_child(body)
-	else:
-		var visual := MeshInstance3D.new()
-		var mesh := BoxMesh.new()
-		mesh.size = Vector3(width, thickness, delta.length())
-		mesh.material = material
-		visual.mesh = mesh
-		pivot.add_child(visual)
-
 func _headless_stair_access_smoke() -> void:
-	# This does not depend on random procedural placement. CI must always construct
-	# both stair orientations and a synthetic opening, then prove no floor/ceiling
-	# rectangle overlaps that opening.
+	# Construct both stair orientations through dynamic dispatch, then construct a
+	# synthetic opening using the active stair subclass's _make_cut(). This catches
+	# stale opening dimensions as well as stair-builder runtime errors.
 	var stair_x := Node3D.new()
 	stair_x.position = Vector3(0.0, 40.0, 60.0)
 	tiles.add_child(stair_x)
 	_build_stair_run(stair_x, Vector2i(1, 0))
 	stair_x.queue_free()
+
 	var stair_z := Node3D.new()
 	stair_z.position = Vector3(20.0, 40.0, 60.0)
 	tiles.add_child(stair_z)
 	_build_stair_run(stair_z, Vector2i(0, 1))
 	stair_z.queue_free()
 
-	var fake_cut := CSGBox3D.new()
-	fake_cut.size = Vector3(PROD_STAIR_CUT_LENGTH, 2.0, PROD_STAIR_CUT_WIDTH)
+	var fake_cut: CSGBox3D = _make_cut(Vector2i(1, 0), 2.0)
 	fake_cut.set_meta("world_x", 0.0)
 	fake_cut.set_meta("world_z", 0.0)
 	var fake_cuts: Array[CSGBox3D] = [fake_cut]
 	var probe := Node3D.new()
 	add_child(probe)
 	_build_surface(probe, 0.0, 0.0, -0.5, FLOOR_THICKNESS, YELLOW_FLOOR, fake_cuts)
+
 	var hole := Rect2(
-		-(PROD_STAIR_CUT_LENGTH + OPENING_PADDING * 2.0) * 0.5,
-		-(PROD_STAIR_CUT_WIDTH + OPENING_PADDING * 2.0) * 0.5,
-		PROD_STAIR_CUT_LENGTH + OPENING_PADDING * 2.0,
-		PROD_STAIR_CUT_WIDTH + OPENING_PADDING * 2.0
+		-(fake_cut.size.x + OPENING_PADDING * 2.0) * 0.5,
+		-(fake_cut.size.z + OPENING_PADDING * 2.0) * 0.5,
+		fake_cut.size.x + OPENING_PADDING * 2.0,
+		fake_cut.size.z + OPENING_PADDING * 2.0
 	)
 	for child in probe.get_children():
 		if not child.has_meta("surface_rect"):
 			continue
 		var rect: Rect2 = child.get_meta("surface_rect")
 		var overlap := rect.intersection(hole)
-		assert(overlap.size.x <= 0.001 or overlap.size.y <= 0.001, "STAIR ACCESS FAILURE: floor still spans opening")
+		assert(
+			overlap.size.x <= 0.001 or overlap.size.y <= 0.001,
+			"STAIR ACCESS FAILURE: segmented surface still spans opening"
+		)
+
 	probe.queue_free()
 	fake_cut.queue_free()
