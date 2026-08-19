@@ -8,7 +8,7 @@ on:
       - 'godot-backrooms/**'
       - '.github/workflows/build-godot-backrooms-apk.yml'
   pull_request:
-    branches: [main]
+    branches: [main, seperate-workstation-for-enemies]
     paths:
       - 'godot-backrooms/**'
       - '.github/workflows/build-godot-backrooms-apk.yml'
