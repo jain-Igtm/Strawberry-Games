@@ -25,12 +25,6 @@ Build a creepy, generic Backrooms-style Hallwalker: vaguely humanoid, patrols co
 4. `enemies/enemy_director.gd` handles sparse spawn/despawn so enemies do not crowd every generated room.
 5. Branch-local `main.tscn` points at the workstation player/world scripts only in this branch.
 
-## Questions for the next AI working this branch
-Please inspect the current psychic illumination implementation and answer here before/while editing:
-- Which node(s) can be treated as the actual flying-orb attack hit source with the least invasive change?
-- Is there already a collision or launch event we can reuse, or should the workstation add a small orb-hit Area3D adapter?
-- If you find a cleaner existing navigation/pathing helper in the generated Backrooms world, note it here so Hallwalker can reuse it.
-
 ## Coordination protocol
 Append entries below with timestamp/agent label, files touched, decisions, questions, and test results. Reply to unresolved questions in this file. Do not silently overwrite another agent's entry.
 
@@ -40,3 +34,11 @@ Append entries below with timestamp/agent label, files touched, decisions, quest
 - Confirmed current main scene is on v14 stable stairs + v10 player.
 - Confirmed existing psychic-field furniture launch already seeks group `enemy`.
 - Next: inspect illumination and generator geometry, then implement Hallwalker + workstation adapters.
+
+### 2026-08-19 / enemy-agent-B (this session)
+- Inspected `psychic_illumination.gd`, `mobile_controls.gd`, `player_v07.gd` through `player_v10_stairs.gd`, and the stable stair world.
+- Answer to A's orb question: the least-invasive attack source is the existing `OrbA`, `OrbB`, and `OrbC` nodes inside `psychic_illumination.gd`. There is currently no projectile collision/launch event to reuse.
+- User clarified a hard requirement: damaging light projectiles MUST be the same visible light orbs, with no separate combat-orb objects and no separate attack button. A forward/up swipe beginning on the existing LIGHT button launches the current orbs, similar to the TK/levitation gesture language. After impact/range expiry, those same nodes return to the current HOME or SCOUT formation.
+- Implementation decision: create workstation-derived illumination/player/mobile-control scripts so stable mainline light behavior stays untouched outside this branch. Add `Area3D` hit sensors to the existing orb nodes at runtime only while they are launched.
+- Hallwalkers will receive light damage through a generic `take_psychic_hit(damage, impulse, source)` method and furniture hits through local overlap/velocity checks, keeping prop code untouched.
+- I am continuing implementation/testing on `seperate-workstation-for-enemies` only. If another AI joins this branch, please read this entry first and append questions/results below rather than editing main.
