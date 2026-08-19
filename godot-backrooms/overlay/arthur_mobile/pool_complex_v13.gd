@@ -165,9 +165,9 @@ func _add_low_bench(position: Vector3, along_z: bool) -> void:
 	_solid_box(position + Vector3.UP * 0.17, size, metal_trim, true)
 
 func _add_guard_pair(center: Vector3, along: Vector3, length: float) -> void:
-	var side := Vector3(-along.z, 0.0, along.x)
+	var side: Vector3 = Vector3(-along.z, 0.0, along.x)
 	for sign_value in [-1.0, 1.0]:
-		var lateral := side * (1.02 * sign_value)
+		var lateral: Vector3 = side * (1.02 * float(sign_value))
 		_add_beam_v13(center - along * length * 0.5 + lateral + Vector3.UP * 0.88, center + along * length * 0.5 + lateral + Vector3.UP * 0.88, 0.065, metal_trim)
 		_add_post_v13(center - along * length * 0.5 + lateral, 0.88)
 		_add_post_v13(center + along * length * 0.5 + lateral, 0.88)
