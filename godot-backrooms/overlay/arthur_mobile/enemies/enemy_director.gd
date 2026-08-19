@@ -10,6 +10,9 @@ const BIOME_POOL := 1
 const EDGE_SOLID := 2
 const ENEMY_PATH_RADIUS_CELLS := 16
 const ENEMY_PATH_NODE_BUDGET := 420
+# Roughly the front 156-degree cone. Candidates outside it are already out of
+# view; candidates inside it must be occluded by level geometry before spawning.
+const SPAWN_FRONT_DOT := 0.20
 
 @export var desired_population := 3
 @export var max_population := 5
@@ -23,6 +26,7 @@ var world: Node3D
 var player: CharacterBody3D
 var rng := RandomNumberGenerator.new()
 var spawn_timer := 0.0
+var tracked_level := 0
 
 func setup(world_node: Node3D, player_node: CharacterBody3D) -> void:
 	world = world_node
@@ -36,6 +40,7 @@ func _ready() -> void:
 		world = get_parent() as Node3D
 	if player == null or not is_instance_valid(player):
 		player = get_tree().get_first_node_in_group("player") as CharacterBody3D
+	tracked_level = _current_level()
 
 func _process(delta: float) -> void:
 	if world == null or not is_instance_valid(world):
@@ -44,6 +49,13 @@ func _process(delta: float) -> void:
 		player = get_tree().get_first_node_in_group("player") as CharacterBody3D
 	if world == null or player == null:
 		return
+
+	var current_level: int = _current_level()
+	if current_level != tracked_level:
+		tracked_level = current_level
+		# Old-floor Hallwalkers cannot use this branch's 2D corridor path query to
+		# traverse stairwells reliably, so retire them and repopulate the new floor.
+		spawn_timer = minf(spawn_timer, 0.25)
 
 	_despawn_far_enemies()
 	spawn_timer -= delta
@@ -66,40 +78,45 @@ func _live_enemy_count() -> int:
 	return count
 
 func _despawn_far_enemies() -> void:
+	var current_level: int = _current_level()
 	for node: Node in get_tree().get_nodes_in_group("enemy"):
 		if not (node is Node3D):
 			continue
 		var enemy := node as Node3D
 		if not is_instance_valid(enemy):
 			continue
-		var planar := Vector2(enemy.global_position.x - player.global_position.x, enemy.global_position.z - player.global_position.z).length()
-		var vertical := absf(enemy.global_position.y - player.global_position.y)
-		if planar > despawn_distance or vertical > 6.2:
+		var spawn_level: int = int(enemy.get_meta("enemy_spawn_level", current_level))
+		if spawn_level != current_level:
+			enemy.queue_free()
+			continue
+		var planar: float = Vector2(enemy.global_position.x - player.global_position.x, enemy.global_position.z - player.global_position.z).length()
+		var vertical: float = absf(enemy.global_position.y - player.global_position.y)
+		if planar > despawn_distance or vertical > STOREY_HEIGHT * 0.90:
 			enemy.queue_free()
 
 func _try_spawn_one() -> bool:
-	var angle := rng.randf_range(0.0, TAU)
-	var radius := rng.randf_range(min_spawn_distance, max_spawn_distance)
-	var candidate_xz := player.global_position + Vector3(cos(angle) * radius, 0.0, sin(angle) * radius)
+	var angle: float = rng.randf_range(0.0, TAU)
+	var radius: float = rng.randf_range(min_spawn_distance, max_spawn_distance)
+	var candidate_xz: Vector3 = player.global_position + Vector3(cos(angle) * radius, 0.0, sin(angle) * radius)
 	candidate_xz.y = player.global_position.y
 
 	if not enemy_spawn_allowed(candidate_xz):
 		return false
 
-	var base_y := enemy_floor_height()
+	var base_y: float = enemy_floor_height()
 	var ray_from := Vector3(candidate_xz.x, base_y + 3.5, candidate_xz.z)
 	var ray_to := Vector3(candidate_xz.x, base_y - 1.5, candidate_xz.z)
 	var ray := PhysicsRayQueryParameters3D.create(ray_from, ray_to)
 	ray.exclude = [player.get_rid()]
 	ray.collision_mask = 3
-	var hit := player.get_world_3d().direct_space_state.intersect_ray(ray)
+	var hit: Dictionary = player.get_world_3d().direct_space_state.intersect_ray(ray)
 	if hit.is_empty():
 		return false
 	var normal: Vector3 = hit.get("normal", Vector3.ZERO)
 	if normal.y < 0.72:
 		return false
 	var floor_point: Vector3 = hit.get("position", candidate_xz)
-	var spawn_position := floor_point + Vector3.UP * 1.02
+	var spawn_position: Vector3 = floor_point + Vector3.UP * 1.02
 
 	if spawn_position.distance_to(player.global_position) < min_spawn_distance:
 		return false
@@ -115,15 +132,44 @@ func _try_spawn_one() -> bool:
 	shape_query.transform = Transform3D(Basis.IDENTITY, spawn_position + Vector3.UP * 0.02)
 	shape_query.collision_mask = 3
 	shape_query.exclude = [player.get_rid()]
-	var overlaps := player.get_world_3d().direct_space_state.intersect_shape(shape_query, 8)
+	var overlaps: Array[Dictionary] = player.get_world_3d().direct_space_state.intersect_shape(shape_query, 8)
 	if not overlaps.is_empty():
 		return false
 
+	if not _spawn_is_hidden_enough(spawn_position):
+		return false
+
 	var enemy := HallwalkerScene.instantiate() as RigidBody3D
+	enemy.set_meta("enemy_spawn_level", _current_level())
 	add_child(enemy)
 	enemy.global_position = spawn_position
 	enemy.rotation.y = rng.randf_range(-PI, PI)
 	return true
+
+func _spawn_is_hidden_enough(spawn_position: Vector3) -> bool:
+	if player == null:
+		return false
+	var camera := player.get_node_or_null("CameraPivot/Camera3D") as Camera3D
+	if camera == null:
+		return true
+	var eye: Vector3 = camera.global_position
+	var target: Vector3 = spawn_position + Vector3.UP * 0.45
+	var to_spawn: Vector3 = target - eye
+	if to_spawn.length_squared() <= 0.01:
+		return false
+	var direction: Vector3 = to_spawn.normalized()
+	var forward: Vector3 = (-camera.global_transform.basis.z).normalized()
+
+	# Anything sufficiently far outside the player's forward view can spawn without
+	# a wall test. Inside the forward cone, require actual level geometry between
+	# camera and spawn point so Hallwalkers never visibly pop into an open corridor.
+	if forward.dot(direction) <= SPAWN_FRONT_DOT:
+		return true
+	var query := PhysicsRayQueryParameters3D.create(eye, target)
+	query.exclude = [player.get_rid()]
+	query.collision_mask = 1
+	var hit: Dictionary = player.get_world_3d().direct_space_state.intersect_ray(query)
+	return not hit.is_empty()
 
 func enemy_floor_height() -> float:
 	return float(_current_level()) * STOREY_HEIGHT
@@ -131,11 +177,11 @@ func enemy_floor_height() -> float:
 func enemy_spawn_allowed(position: Vector3) -> bool:
 	if world == null:
 		return false
-	var cell := _enemy_world_cell(position)
+	var cell: Vector2i = _enemy_world_cell(position)
 	var active_tiles_value: Variant = world.get("active_tiles")
 	if active_tiles_value is Dictionary and not (active_tiles_value as Dictionary).has(cell):
 		return false
-	var sample := _world_biome_sample(cell)
+	var sample: Dictionary = _world_biome_sample(cell)
 	if sample.is_empty():
 		return true
 	return int(sample.get("primary", 0)) != BIOME_POOL
@@ -143,8 +189,8 @@ func enemy_spawn_allowed(position: Vector3) -> bool:
 func enemy_path_step(origin: Vector3, target: Vector3) -> Vector3:
 	if world == null:
 		return target
-	var start := _enemy_world_cell(origin)
-	var goal := _enemy_world_cell(target)
+	var start: Vector2i = _enemy_world_cell(origin)
+	var goal: Vector2i = _enemy_world_cell(target)
 	if start == goal:
 		return target
 
@@ -167,7 +213,7 @@ func enemy_path_step(origin: Vector3, target: Vector3) -> Vector3:
 			break
 
 		for direction: Vector2i in [Vector2i(1, 0), Vector2i(-1, 0), Vector2i(0, 1), Vector2i(0, -1)]:
-			var next := current + direction
+			var next: Vector2i = current + direction
 			if came_from.has(next):
 				continue
 			if maxi(abs(next.x - start.x), abs(next.y - start.y)) > ENEMY_PATH_RADIUS_CELLS:
@@ -184,7 +230,7 @@ func enemy_path_step(origin: Vector3, target: Vector3) -> Vector3:
 	if not found and not came_from.has(goal):
 		return target
 
-	var step := goal
+	var step: Vector2i = goal
 	if not came_from.has(step):
 		return target
 	while came_from.has(step) and (came_from[step] as Vector2i) != start:
@@ -196,7 +242,7 @@ func _enemy_world_cell(position: Vector3) -> Vector2i:
 	return Vector2i(floori(position.x / CELL), floori(position.z / CELL))
 
 func _enemy_cell_walkable(world_cell: Vector2i) -> bool:
-	var sample := _world_biome_sample(world_cell)
+	var sample: Dictionary = _world_biome_sample(world_cell)
 	if sample.is_empty():
 		return true
 	return int(sample.get("primary", 0)) != BIOME_POOL
@@ -206,7 +252,7 @@ func _enemy_cells_connected(a_world: Vector2i, b_world: Vector2i) -> bool:
 		return false
 	if world == null or not world.has_method("_topology_edge") or not world.has_method("_virtual_cell"):
 		return true
-	var level := _current_level()
+	var level: int = _current_level()
 	var a_source: Vector2i = world.call("_virtual_cell", a_world, level)
 	var b_source: Vector2i = world.call("_virtual_cell", b_world, level)
 	return int(world.call("_topology_edge", a_source, b_source)) != EDGE_SOLID
@@ -214,7 +260,7 @@ func _enemy_cells_connected(a_world: Vector2i, b_world: Vector2i) -> bool:
 func _world_biome_sample(world_cell: Vector2i) -> Dictionary:
 	if world == null or not world.has_method("_biome_sample_for_cell"):
 		return {}
-	var source := world_cell
+	var source: Vector2i = world_cell
 	if world.has_method("_virtual_cell"):
 		source = world.call("_virtual_cell", world_cell, _current_level()) as Vector2i
 	var result: Variant = world.call("_biome_sample_for_cell", source)
