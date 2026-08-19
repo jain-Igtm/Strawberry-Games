@@ -52,6 +52,23 @@ func _run() -> void:
 		_fail("Hallwalker is not liftable by Arthur's existing psychic_prop TK")
 		return
 
+	# Exercise the exact furniture-impact path with a real RigidBody3D psychic prop.
+	# The direct callback keeps this deterministic while still using the production
+	# relative-speed, mass scaling, stun and damage code in Hallwalker._on_body_entered.
+	var thrown_prop := RigidBody3D.new()
+	thrown_prop.name = "SmokeThrownFurniture"
+	thrown_prop.add_to_group("psychic_prop")
+	thrown_prop.mass = 2.0
+	thrown_prop.linear_velocity = Vector3(0.0, 0.0, -10.0)
+	stage.add_child(thrown_prop)
+	var furniture_health_before: float = float(enemy.get("health"))
+	enemy.call("_on_body_entered", thrown_prop)
+	var furniture_health_after: float = float(enemy.get("health"))
+	if furniture_health_after >= furniture_health_before:
+		_fail("Thrown psychic furniture did not damage the Hallwalker")
+		return
+	thrown_prop.queue_free()
+
 	var orb_a := illumination.get_node_or_null("OrbA") as Node3D
 	var orb_b := illumination.get_node_or_null("OrbB") as Node3D
 	var orb_c := illumination.get_node_or_null("OrbC") as Node3D
@@ -104,7 +121,12 @@ func _run() -> void:
 			_fail("An existing light orb remained detached after returning")
 			return
 
-	print("ENEMY_COMBAT_SMOKE_PASS same_orbs=true tk_group=true damage=", health_before - health_after)
+	print(
+		"ENEMY_COMBAT_SMOKE_PASS same_orbs=true tk_group=true furniture_damage=",
+		furniture_health_before - furniture_health_after,
+		" light_damage=",
+		health_before - health_after
+	)
 	stage.queue_free()
 	await process_frame
 	quit(0)
