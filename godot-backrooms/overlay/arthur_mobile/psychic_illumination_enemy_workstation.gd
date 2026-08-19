@@ -2,7 +2,8 @@ extends "res://arthur_mobile/psychic_illumination.gd"
 
 # Enemy-workstation extension: the visible illumination orbs ARE the projectiles.
 # No duplicate bolt meshes are created. A launched orb leaves its current HOME or
-# SCOUT formation, hits with its own node, then flies back into that formation.
+# SCOUT formation, flies from that exact position toward the camera aim point,
+# hits with its own node, then flies back into the live formation.
 
 @export var attack_speed := 22.0
 @export var attack_range := 38.0
@@ -20,6 +21,7 @@ var attack_orbs: Array[Node3D] = []
 var orb_modes: Dictionary = {}
 var orb_velocities: Dictionary = {}
 var orb_distances: Dictionary = {}
+var attack_damage_multiplier := 1.0
 var hit_shape: SphereShape3D
 
 func _ready() -> void:
@@ -43,9 +45,10 @@ func launch_forward() -> bool:
 	if camera == null:
 		return false
 
-	# Ensure the orbit is at its current visual position before detaching nodes.
+	# Put the inherited orbit at its exact live position before detaching any orb.
 	super._process(0.0)
-	var direction: Vector3 = (-camera.global_transform.basis.z).normalized()
+	var aim_point: Vector3 = _camera_aim_point()
+	attack_damage_multiplier = 3.0 if is_combined() else 1.0
 	attack_orbs.clear()
 	orb_modes.clear()
 	orb_velocities.clear()
@@ -55,6 +58,9 @@ func launch_forward() -> bool:
 		if orb == null or not orb.visible:
 			continue
 		var start: Vector3 = orb.global_position
+		var direction: Vector3 = (aim_point - start).normalized()
+		if direction.length_squared() <= 0.0001:
+			direction = (-camera.global_transform.basis.z).normalized()
 		orb.top_level = true
 		orb.global_position = start
 		attack_orbs.append(orb)
@@ -64,6 +70,7 @@ func launch_forward() -> bool:
 		orb_distances[id] = 0.0
 
 	if attack_orbs.is_empty():
+		attack_damage_multiplier = 1.0
 		return false
 	attacking = true
 	set_process(true)
@@ -100,11 +107,25 @@ func _process(delta: float) -> void:
 
 	if all_home:
 		attacking = false
+		attack_damage_multiplier = 1.0
 		attack_orbs.clear()
 		orb_modes.clear()
 		orb_velocities.clear()
 		orb_distances.clear()
 		super._process(0.0)
+
+func _camera_aim_point() -> Vector3:
+	var from: Vector3 = camera.global_position
+	var direction: Vector3 = (-camera.global_transform.basis.z).normalized()
+	var to: Vector3 = from + direction * attack_range
+	var query := PhysicsRayQueryParameters3D.create(from, to)
+	query.collision_mask = 3
+	if anchor is CollisionObject3D:
+		query.exclude = [(anchor as CollisionObject3D).get_rid()]
+	var hit: Dictionary = get_world_3d().direct_space_state.intersect_ray(query)
+	if not hit.is_empty():
+		return hit.get("position", to) as Vector3
+	return to
 
 func _update_attack_anchor(delta: float) -> void:
 	phase += delta
@@ -198,8 +219,7 @@ func _ray_attack_collision(from: Vector3, to: Vector3) -> Dictionary:
 	query.collision_mask = 3
 	if anchor is CollisionObject3D:
 		query.exclude = [(anchor as CollisionObject3D).get_rid()]
-	var hit: Dictionary = get_world_3d().direct_space_state.intersect_ray(query)
-	return hit
+	return get_world_3d().direct_space_state.intersect_ray(query)
 
 func _enemy_overlapping_orb(position_value: Vector3) -> Node:
 	if hit_shape == null:
@@ -221,10 +241,11 @@ func _enemy_overlapping_orb(position_value: Vector3) -> Node:
 
 func _damage_enemy(enemy: Node, direction: Vector3) -> void:
 	var impulse: Vector3 = direction * attack_impulse + Vector3.UP * 0.45
+	var damage: float = attack_damage * attack_damage_multiplier
 	if enemy.has_method("take_psychic_damage"):
-		enemy.call("take_psychic_damage", attack_damage, impulse, "light_orb")
+		enemy.call("take_psychic_damage", damage, impulse, "light_orb")
 	elif enemy.has_method("take_psychic_hit"):
-		enemy.call("take_psychic_hit", attack_damage, impulse, self)
+		enemy.call("take_psychic_hit", damage, impulse, self)
 
 func _cancel_attack_to_formation() -> void:
 	for orb: Node3D in attack_orbs:
@@ -233,6 +254,7 @@ func _cancel_attack_to_formation() -> void:
 		orb.top_level = false
 		orb.position = _formation_local_target(orb)
 	attacking = false
+	attack_damage_multiplier = 1.0
 	attack_orbs.clear()
 	orb_modes.clear()
 	orb_velocities.clear()
