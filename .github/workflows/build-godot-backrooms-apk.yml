@@ -131,6 +131,32 @@ jobs:
           GODOT="$HOME/godot/Godot_v4.7.1-stable_linux.x86_64"
           "$GODOT" --headless --editor --path godot-build --quit
 
+      - name: Probe inherited world scripts
+        run: |
+          cat > godot-build/ci_parent_probe.gd <<'GDSCRIPT'
+          extends SceneTree
+
+          func _initialize() -> void:
+              var paths: Array[String] = [
+                  "res://arthur_mobile/pool_complex_v12.gd",
+                  "res://arthur_mobile/pool_complex_v13.gd",
+                  "res://arthur_mobile/pool_complex_v13_stairfix.gd",
+                  "res://arthur_mobile/world_v12.gd",
+                  "res://arthur_mobile/world_v13.gd",
+                  "res://arthur_mobile/world_v13_final.gd",
+                  "res://arthur_mobile/world_v14_stable_stairs.gd",
+              ]
+              for path: String in paths:
+                  print("CI_PARENT_PROBE_START ", path)
+                  var resource: Resource = load(path)
+                  print("CI_PARENT_PROBE_RESULT ", path, " => ", resource)
+              quit()
+          GDSCRIPT
+          GODOT="$HOME/godot/Godot_v4.7.1-stable_linux.x86_64"
+          set +e
+          "$GODOT" --headless --path godot-build --script res://ci_parent_probe.gd 2>&1 | tee /tmp/godot-parent-probe.log
+          set -e
+
       - name: Runtime smoke test main scene
         run: |
           GODOT="$HOME/godot/Godot_v4.7.1-stable_linux.x86_64"
@@ -165,10 +191,12 @@ jobs:
           path: godot-build/build/Arthur-Backrooms-Godot-debug.apk
           if-no-files-found: error
 
-      - name: Upload runtime smoke log
+      - name: Upload runtime smoke logs
         if: always()
         uses: actions/upload-artifact@v4
         with:
           name: enemy-workstation-runtime-log
-          path: /tmp/godot-runtime.log
+          path: |
+            /tmp/godot-parent-probe.log
+            /tmp/godot-runtime.log
           if-no-files-found: ignore
