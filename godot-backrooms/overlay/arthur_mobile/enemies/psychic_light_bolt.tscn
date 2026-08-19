@@ -1,0 +1,38 @@
+[gd_scene load_steps=5 format=3]
+
+[ext_resource type="Script" path="res://arthur_mobile/enemies/psychic_light_bolt.gd" id="1_script"]
+
+[sub_resource type="StandardMaterial3D" id="OrbMaterial"]
+albedo_color = Color(0.68, 0.9, 1, 1)
+emission_enabled = true
+emission = Color(0.52, 0.84, 1, 1)
+emission_energy_multiplier = 8.0
+roughness = 0.12
+
+[sub_resource type="SphereMesh" id="OrbMesh"]
+material = SubResource("OrbMaterial")
+radius = 0.15
+height = 0.3
+radial_segments = 16
+rings = 8
+
+[sub_resource type="SphereShape3D" id="OrbShape"]
+radius = 0.17
+
+[node name="PsychicLightBolt" type="Area3D"]
+collision_layer = 0
+collision_mask = 2
+script = ExtResource("1_script")
+
+[node name="Mesh" type="MeshInstance3D" parent="."]
+mesh = SubResource("OrbMesh")
+
+[node name="CollisionShape3D" type="CollisionShape3D" parent="."]
+shape = SubResource("OrbShape")
+
+[node name="Light" type="OmniLight3D" parent="."]
+light_color = Color(0.63, 0.86, 1, 1)
+light_energy = 2.5
+light_size = 0.42
+omni_range = 7.5
+shadow_enabled = false
