@@ -46,7 +46,11 @@ var impact_speed_cache := 0.0
 func _ready() -> void:
 	health = max_health
 	player = get_tree().get_first_node_in_group("player") as CharacterBody3D
-	world = get_tree().current_scene
+	# Hallwalkers are spawned under the standalone EnemyDirector, which owns the
+	# branch-local path query while the stable stair world remains untouched.
+	world = get_parent()
+	if world == null or not world.has_method("enemy_path_step"):
+		world = get_tree().get_first_node_in_group("enemy_director")
 	rng.seed = int(get_instance_id()) * 92821 + 17
 	patrol_direction = Vector3(cos(rng.randf_range(0.0, TAU)), 0.0, sin(rng.randf_range(0.0, TAU))).normalized()
 	contact_monitor = true
