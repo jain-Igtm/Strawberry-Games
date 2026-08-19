@@ -26,8 +26,8 @@ func _add_pool_content(root: Node3D, cell: Vector2i, sample: Dictionary) -> void
 	_add_large_transition_detail(root, sample, _macro_room_center())
 
 func _add_cell_water_surface(root: Node3D) -> void:
-	var mesh := MeshInstance3D.new()
-	var plane := PlaneMesh.new()
+	var mesh: MeshInstance3D = MeshInstance3D.new()
+	var plane: PlaneMesh = PlaneMesh.new()
 	plane.size = Vector2(CELL, CELL)
 	plane.subdivide_width = 8
 	plane.subdivide_depth = 8
@@ -55,7 +55,7 @@ func _rebuild_connectors(force: bool) -> void:
 	if connector_root == null:
 		return
 
-	var world_cell := Vector2i(
+	var world_cell: Vector2i = Vector2i(
 		floori(player.global_position.x / CELL),
 		floori(player.global_position.z / CELL)
 	)
@@ -121,8 +121,8 @@ func _stair_starts_too_close(a: Vector2i, b: Vector2i) -> bool:
 
 func _build_stair_run(root: Node3D, direction_2d: Vector2i) -> void:
 	_ensure_stair_materials()
-	var direction := Vector3(float(direction_2d.x), 0.0, float(direction_2d.y))
-	var side := Vector3(-direction.z, 0.0, direction.x)
+	var direction: Vector3 = Vector3(float(direction_2d.x), 0.0, float(direction_2d.y))
+	var side: Vector3 = Vector3(-direction.z, 0.0, direction.x)
 	var yaw: float = PI * 0.5 if direction_2d.x != 0 else 0.0
 	var rise: float = STOREY_HEIGHT / float(STAIR_STEPS)
 	var start_offset: Vector3 = -direction * 0.55
@@ -130,8 +130,8 @@ func _build_stair_run(root: Node3D, direction_2d: Vector2i) -> void:
 
 	# A real closed stair flight: thin visible treads/risers on a continuous soffit,
 	# while proven box-step collision remains invisible and cheap.
-	var soffit_a := start_offset - direction * 0.18 + Vector3.UP * 0.03
-	var soffit_b := start_offset + direction * (total_run + 0.20) + Vector3.UP * (STOREY_HEIGHT - 0.34)
+	var soffit_a: Vector3 = start_offset - direction * 0.18 + Vector3.UP * 0.03
+	var soffit_b: Vector3 = start_offset + direction * (total_run + 0.20) + Vector3.UP * (STOREY_HEIGHT - 0.34)
 	_add_sloped_stair_slab(root, soffit_a, soffit_b, STAIR_WIDTH * 0.93, 0.16, stair_riser_material)
 
 	for i in range(STAIR_STEPS):
@@ -139,7 +139,7 @@ func _build_stair_run(root: Node3D, direction_2d: Vector2i) -> void:
 		var along: Vector3 = start_offset + direction * (float(i) * STAIR_RUN)
 
 		_add_stair_mesh_box(root, along + Vector3.UP * (top_y - 0.045), Vector3(STAIR_WIDTH, 0.09, STAIR_RUN + 0.025), stair_tread_material, yaw)
-		var riser_position := along - direction * (STAIR_RUN * 0.5) + Vector3.UP * (top_y - rise * 0.5)
+		var riser_position: Vector3 = along - direction * (STAIR_RUN * 0.5) + Vector3.UP * (top_y - rise * 0.5)
 		_add_stair_mesh_box(root, riser_position, Vector3(STAIR_WIDTH, rise, 0.065), stair_riser_material, yaw)
 
 		# One primitive StaticBody per step. It keeps CharacterBody traversal as solid
@@ -153,19 +153,19 @@ func _build_stair_run(root: Node3D, direction_2d: Vector2i) -> void:
 
 	# Rails sit 95 cm above the stair nosing, with slim balusters every four steps.
 	for sign_value in [-1.0, 1.0]:
-		var lateral := side * ((STAIR_WIDTH * 0.5 + 0.075) * sign_value)
-		var rail_a := start_offset + lateral + Vector3.UP * (rise + 0.95)
-		var rail_b := start_offset + direction * total_run + lateral + Vector3.UP * (STOREY_HEIGHT + 0.95)
+		var lateral: Vector3 = side * ((STAIR_WIDTH * 0.5 + 0.075) * float(sign_value))
+		var rail_a: Vector3 = start_offset + lateral + Vector3.UP * (rise + 0.95)
+		var rail_b: Vector3 = start_offset + direction * total_run + lateral + Vector3.UP * (STOREY_HEIGHT + 0.95)
 		_add_stair_beam_between(root, rail_a, rail_b, 0.070, stair_rail_material)
 		for post_i in range(0, STAIR_STEPS, 4):
 			var base_y: float = rise * float(post_i + 1)
-			var base := start_offset + direction * (float(post_i) * STAIR_RUN) + lateral
+			var base: Vector3 = start_offset + direction * (float(post_i) * STAIR_RUN) + lateral
 			base.y = base_y
 			_add_stair_mesh_box(root, base + Vector3.UP * 0.46, Vector3(0.065, 0.92, 0.065), stair_rail_material, 0.0)
 
 	# Proper coping and guardrails around the upper opening make it read as a stairwell,
 	# not a rectangular deletion punched into a floor plane.
-	var opening_center := direction * (total_run - 1.15)
+	var opening_center: Vector3 = direction * (total_run - 1.15)
 	_add_stair_opening_trim(root, opening_center, direction, side, yaw)
 	_add_stairwell_light(root, opening_center - direction * 0.30)
 
@@ -191,8 +191,8 @@ func _ensure_stair_materials() -> void:
 	stair_lamp_material.emission = Color(1.0, 0.88, 0.52, 1.0)
 
 func _add_stair_mesh_box(root: Node3D, position: Vector3, size: Vector3, material: Material, yaw: float) -> MeshInstance3D:
-	var instance := MeshInstance3D.new()
-	var mesh := BoxMesh.new()
+	var instance: MeshInstance3D = MeshInstance3D.new()
+	var mesh: BoxMesh = BoxMesh.new()
 	mesh.size = size
 	mesh.material = material
 	instance.mesh = mesh
@@ -202,43 +202,43 @@ func _add_stair_mesh_box(root: Node3D, position: Vector3, size: Vector3, materia
 	return instance
 
 func _add_stair_collision_box(root: Node3D, position: Vector3, size: Vector3, yaw: float) -> void:
-	var body := StaticBody3D.new()
+	var body: StaticBody3D = StaticBody3D.new()
 	body.position = position
 	body.rotation.y = yaw
 	body.collision_layer = 3
 	body.collision_mask = 3
-	var shape_node := CollisionShape3D.new()
-	var shape := BoxShape3D.new()
+	var shape_node: CollisionShape3D = CollisionShape3D.new()
+	var shape: BoxShape3D = BoxShape3D.new()
 	shape.size = size
 	shape_node.shape = shape
 	body.add_child(shape_node)
 	root.add_child(body)
 
 func _add_sloped_stair_slab(root: Node3D, a: Vector3, b: Vector3, width: float, thickness: float, material: Material) -> void:
-	var delta := b - a
+	var delta: Vector3 = b - a
 	if delta.length() <= 0.01:
 		return
-	var pivot := Node3D.new()
+	var pivot: Node3D = Node3D.new()
 	pivot.position = (a + b) * 0.5
 	root.add_child(pivot)
 	pivot.look_at(pivot.global_position + delta.normalized(), Vector3.UP)
-	var slab := MeshInstance3D.new()
-	var mesh := BoxMesh.new()
+	var slab: MeshInstance3D = MeshInstance3D.new()
+	var mesh: BoxMesh = BoxMesh.new()
 	mesh.size = Vector3(width, thickness, delta.length())
 	mesh.material = material
 	slab.mesh = mesh
 	pivot.add_child(slab)
 
 func _add_stair_beam_between(root: Node3D, a: Vector3, b: Vector3, thickness: float, material: Material) -> void:
-	var delta := b - a
+	var delta: Vector3 = b - a
 	if delta.length() <= 0.01:
 		return
-	var pivot := Node3D.new()
+	var pivot: Node3D = Node3D.new()
 	pivot.position = (a + b) * 0.5
 	root.add_child(pivot)
 	pivot.look_at(pivot.global_position + delta.normalized(), Vector3.UP)
-	var beam := MeshInstance3D.new()
-	var mesh := BoxMesh.new()
+	var beam: MeshInstance3D = MeshInstance3D.new()
+	var mesh: BoxMesh = BoxMesh.new()
 	mesh.size = Vector3(thickness, thickness, delta.length())
 	mesh.material = material
 	beam.mesh = mesh
@@ -249,30 +249,30 @@ func _add_stair_opening_trim(root: Node3D, center: Vector3, direction: Vector3, 
 	var half_width: float = STAIR_V13_CUT_WIDTH * 0.5
 	var half_length: float = STAIR_V13_CUT_LENGTH * 0.5
 	for sign_value in [-1.0, 1.0]:
-		var side_center := center + side * ((half_width + 0.10) * sign_value)
+		var side_center: Vector3 = center + side * ((half_width + 0.10) * float(sign_value))
 		side_center.y = y
 		_add_stair_mesh_box(root, side_center, Vector3(0.18, 0.13, STAIR_V13_CUT_LENGTH + 0.34), stair_tread_material, yaw)
 
 	for sign_value in [-1.0, 1.0]:
-		var end_center := center + direction * ((half_length + 0.10) * sign_value)
+		var end_center: Vector3 = center + direction * ((half_length + 0.10) * float(sign_value))
 		end_center.y = y
 		_add_stair_mesh_box(root, end_center, Vector3(STAIR_V13_CUT_WIDTH + 0.36, 0.13, 0.18), stair_tread_material, yaw)
 
 	# Side guards continue across the exposed upper-floor opening.
 	for sign_value in [-1.0, 1.0]:
-		var lateral := side * ((half_width + 0.02) * sign_value)
-		var guard_a := center - direction * half_length + lateral + Vector3.UP * (STOREY_HEIGHT + 0.94)
-		var guard_b := center + direction * half_length + lateral + Vector3.UP * (STOREY_HEIGHT + 0.94)
+		var lateral: Vector3 = side * ((half_width + 0.02) * float(sign_value))
+		var guard_a: Vector3 = center - direction * half_length + lateral + Vector3.UP * (STOREY_HEIGHT + 0.94)
+		var guard_b: Vector3 = center + direction * half_length + lateral + Vector3.UP * (STOREY_HEIGHT + 0.94)
 		_add_stair_beam_between(root, guard_a, guard_b, 0.07, stair_rail_material)
 		for t in [0.0, 0.5, 1.0]:
-			var base := (center - direction * half_length).lerp(center + direction * half_length, float(t)) + lateral
+			var base: Vector3 = (center - direction * half_length).lerp(center + direction * half_length, float(t)) + lateral
 			base.y = STOREY_HEIGHT
 			_add_stair_mesh_box(root, base + Vector3.UP * 0.46, Vector3(0.065, 0.92, 0.065), stair_rail_material, 0.0)
 
 func _add_stairwell_light(root: Node3D, opening_center: Vector3) -> void:
-	var fixture_position := opening_center + Vector3.UP * (STOREY_HEIGHT - 0.26)
+	var fixture_position: Vector3 = opening_center + Vector3.UP * (STOREY_HEIGHT - 0.26)
 	_add_stair_mesh_box(root, fixture_position, Vector3(1.10, 0.055, 0.24), stair_lamp_material, 0.0)
-	var light := OmniLight3D.new()
+	var light: OmniLight3D = OmniLight3D.new()
 	light.position = opening_center + Vector3.UP * (STOREY_HEIGHT - 0.55)
 	light.light_color = Color(1.0, 0.87, 0.58, 1.0)
 	light.light_energy = 0.78
@@ -281,7 +281,7 @@ func _add_stairwell_light(root: Node3D, opening_center: Vector3) -> void:
 	root.add_child(light)
 
 func _make_cut(direction: Vector2i, height: float) -> CSGBox3D:
-	var cut := CSGBox3D.new()
+	var cut: CSGBox3D = CSGBox3D.new()
 	cut.operation = CSGShape3D.OPERATION_SUBTRACTION
 	if direction.x != 0:
 		cut.size = Vector3(STAIR_V13_CUT_LENGTH, height, STAIR_V13_CUT_WIDTH)
