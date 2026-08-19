@@ -51,13 +51,13 @@ func _build_smooth_ride_path() -> void:
 
 	var controls: Array[Vector3] = []
 	controls.append(actual[0])
-	for point in actual:
+	for point: Vector3 in actual:
 		controls.append(point)
 	controls.append(actual[actual.size() - 1])
 
-	var samples_per_segment := 7
-	for segment in range(1, controls.size() - 2):
-		for sample in range(samples_per_segment):
+	var samples_per_segment: int = 7
+	for segment: int in range(1, controls.size() - 2):
+		for sample: int in range(samples_per_segment):
 			var t: float = float(sample) / float(samples_per_segment)
 			ride_points.append(_catmull_rom(controls[segment - 1], controls[segment], controls[segment + 1], controls[segment + 2], t))
 	ride_points.append(actual[actual.size() - 1])
@@ -68,35 +68,35 @@ func _catmull_rom(p0: Vector3, p1: Vector3, p2: Vector3, p3: Vector3, t: float) 
 	return 0.5 * ((2.0 * p1) + (-p0 + p2) * t + (2.0 * p0 - 5.0 * p1 + 4.0 * p2 - p3) * t2 + (-p0 + 3.0 * p1 - 3.0 * p2 + p3) * t3)
 
 func _add_continuous_trough() -> void:
-	var tool := SurfaceTool.new()
+	var tool: SurfaceTool = SurfaceTool.new()
 	tool.begin(Mesh.PRIMITIVE_TRIANGLES)
 	tool.set_material(slide_shell)
-	var offsets := [-0.98, -0.58, 0.0, 0.58, 0.98]
-	var heights := [0.44, 0.12, 0.0, 0.12, 0.44]
+	var offsets: Array[float] = [-0.98, -0.58, 0.0, 0.58, 0.98]
+	var heights: Array[float] = [0.44, 0.12, 0.0, 0.12, 0.44]
 
-	for i in range(ride_points.size() - 1):
+	for i: int in range(ride_points.size() - 1):
 		var p0: Vector3 = ride_points[i]
 		var p1: Vector3 = ride_points[i + 1]
 		var side0: Vector3 = _path_side(i)
 		var side1: Vector3 = _path_side(i + 1)
-		for j in range(offsets.size() - 1):
-			var a := p0 + side0 * float(offsets[j]) + Vector3.UP * float(heights[j])
-			var b := p0 + side0 * float(offsets[j + 1]) + Vector3.UP * float(heights[j + 1])
-			var c := p1 + side1 * float(offsets[j + 1]) + Vector3.UP * float(heights[j + 1])
-			var d := p1 + side1 * float(offsets[j]) + Vector3.UP * float(heights[j])
+		for j: int in range(offsets.size() - 1):
+			var a: Vector3 = p0 + side0 * offsets[j] + Vector3.UP * heights[j]
+			var b: Vector3 = p0 + side0 * offsets[j + 1] + Vector3.UP * heights[j + 1]
+			var c: Vector3 = p1 + side1 * offsets[j + 1] + Vector3.UP * heights[j + 1]
+			var d: Vector3 = p1 + side1 * offsets[j] + Vector3.UP * heights[j]
 			_add_surface_quad(tool, a, d, c, b)
 
 	tool.generate_normals()
 	var mesh: ArrayMesh = tool.commit()
-	var instance := MeshInstance3D.new()
+	var instance: MeshInstance3D = MeshInstance3D.new()
 	instance.mesh = mesh
 	add_child(instance)
 
-	var body := StaticBody3D.new()
+	var body: StaticBody3D = StaticBody3D.new()
 	body.collision_layer = 3
 	body.collision_mask = 3
-	var shape_node := CollisionShape3D.new()
-	var shape := ConcavePolygonShape3D.new()
+	var shape_node: CollisionShape3D = CollisionShape3D.new()
+	var shape: ConcavePolygonShape3D = ConcavePolygonShape3D.new()
 	shape.backface_collision = true
 	shape.set_faces(mesh.get_faces())
 	shape_node.shape = shape
@@ -104,22 +104,22 @@ func _add_continuous_trough() -> void:
 	add_child(body)
 
 func _add_slide_water_ribbon() -> void:
-	var tool := SurfaceTool.new()
+	var tool: SurfaceTool = SurfaceTool.new()
 	tool.begin(Mesh.PRIMITIVE_TRIANGLES)
 	tool.set_material(WATER_V13)
-	for i in range(ride_points.size() - 1):
+	for i: int in range(ride_points.size() - 1):
 		var p0: Vector3 = ride_points[i] + Vector3.UP * 0.095
 		var p1: Vector3 = ride_points[i + 1] + Vector3.UP * 0.095
 		var side0: Vector3 = _path_side(i)
 		var side1: Vector3 = _path_side(i + 1)
-		var a := p0 - side0 * 0.67
-		var b := p0 + side0 * 0.67
-		var c := p1 + side1 * 0.67
-		var d := p1 - side1 * 0.67
+		var a: Vector3 = p0 - side0 * 0.67
+		var b: Vector3 = p0 + side0 * 0.67
+		var c: Vector3 = p1 + side1 * 0.67
+		var d: Vector3 = p1 - side1 * 0.67
 		_add_surface_quad(tool, a, d, c, b)
 	tool.generate_normals()
 	var mesh: ArrayMesh = tool.commit()
-	var instance := MeshInstance3D.new()
+	var instance: MeshInstance3D = MeshInstance3D.new()
 	instance.mesh = mesh
 	add_child(instance)
 
@@ -127,7 +127,7 @@ func _path_side(index: int) -> Vector3:
 	var previous_index: int = maxi(index - 1, 0)
 	var next_index: int = mini(index + 1, ride_points.size() - 1)
 	var tangent: Vector3 = (ride_points[next_index] - ride_points[previous_index]).normalized()
-	var horizontal := Vector3(-tangent.z, 0.0, tangent.x)
+	var horizontal: Vector3 = Vector3(-tangent.z, 0.0, tangent.x)
 	if horizontal.length_squared() < 0.001:
 		return Vector3.RIGHT
 	return horizontal.normalized()
@@ -144,27 +144,27 @@ func _add_entry_platform_v13() -> void:
 	var start: Vector3 = ride_points[0]
 	var tangent: Vector3 = (ride_points[1] - ride_points[0]).normalized()
 	var side: Vector3 = _path_side(0)
-	var platform_center := start - tangent * 1.18 + Vector3.DOWN * 0.20
+	var platform_center: Vector3 = start - tangent * 1.18 + Vector3.DOWN * 0.20
 	_add_slide_static_box(platform_center, Vector3(3.25, 0.24, 2.55), slide_rail)
 
 	for sign_value in [-1.0, 1.0]:
-		var lateral := side * (1.47 * sign_value)
-		var post_a := platform_center + lateral - tangent * 0.80 + Vector3.UP * 0.62
-		var post_b := platform_center + lateral + tangent * 0.65 + Vector3.UP * 0.62
+		var lateral: Vector3 = side * (1.47 * float(sign_value))
+		var post_a: Vector3 = platform_center + lateral - tangent * 0.80 + Vector3.UP * 0.62
+		var post_b: Vector3 = platform_center + lateral + tangent * 0.65 + Vector3.UP * 0.62
 		_add_slide_beam(post_a, post_b, 0.07, slide_support)
 		_add_slide_post(platform_center + lateral - tangent * 0.80, 0.78)
 		_add_slide_post(platform_center + lateral + tangent * 0.65, 0.78)
 
 func _add_sparse_supports() -> void:
-	var indices := [int(ride_points.size() * 0.30), int(ride_points.size() * 0.60)]
-	for raw_index in indices:
-		var index: int = clampi(int(raw_index), 0, ride_points.size() - 1)
+	var indices: Array[int] = [int(ride_points.size() * 0.30), int(ride_points.size() * 0.60)]
+	for raw_index: int in indices:
+		var index: int = clampi(raw_index, 0, ride_points.size() - 1)
 		var point: Vector3 = ride_points[index]
 		if point.y <= 1.0:
 			continue
 		var height: float = point.y - 0.12
-		var support := MeshInstance3D.new()
-		var mesh := CylinderMesh.new()
+		var support: MeshInstance3D = MeshInstance3D.new()
+		var mesh: CylinderMesh = CylinderMesh.new()
 		mesh.top_radius = 0.18
 		mesh.bottom_radius = 0.23
 		mesh.height = height
@@ -175,43 +175,43 @@ func _add_sparse_supports() -> void:
 		add_child(support)
 
 func _add_slide_static_box(position: Vector3, size: Vector3, material: Material) -> void:
-	var instance := MeshInstance3D.new()
-	var mesh := BoxMesh.new()
+	var instance: MeshInstance3D = MeshInstance3D.new()
+	var mesh: BoxMesh = BoxMesh.new()
 	mesh.size = size
 	mesh.material = material
 	instance.mesh = mesh
 	instance.position = position
 	add_child(instance)
 
-	var body := StaticBody3D.new()
+	var body: StaticBody3D = StaticBody3D.new()
 	body.position = position
 	body.collision_layer = 3
 	body.collision_mask = 3
-	var shape_node := CollisionShape3D.new()
-	var shape := BoxShape3D.new()
+	var shape_node: CollisionShape3D = CollisionShape3D.new()
+	var shape: BoxShape3D = BoxShape3D.new()
 	shape.size = size
 	shape_node.shape = shape
 	body.add_child(shape_node)
 	add_child(body)
 
 func _add_slide_beam(a: Vector3, b: Vector3, thickness: float, material: Material) -> void:
-	var delta := b - a
+	var delta: Vector3 = b - a
 	if delta.length() <= 0.01:
 		return
-	var pivot := Node3D.new()
+	var pivot: Node3D = Node3D.new()
 	pivot.position = (a + b) * 0.5
 	add_child(pivot)
 	pivot.look_at(pivot.global_position + delta.normalized(), Vector3.UP)
-	var beam := MeshInstance3D.new()
-	var mesh := BoxMesh.new()
+	var beam: MeshInstance3D = MeshInstance3D.new()
+	var mesh: BoxMesh = BoxMesh.new()
 	mesh.size = Vector3(thickness, thickness, delta.length())
 	mesh.material = material
 	beam.mesh = mesh
 	pivot.add_child(beam)
 
 func _add_slide_post(base: Vector3, height: float) -> void:
-	var post := MeshInstance3D.new()
-	var mesh := BoxMesh.new()
+	var post: MeshInstance3D = MeshInstance3D.new()
+	var mesh: BoxMesh = BoxMesh.new()
 	mesh.size = Vector3(0.07, height, 0.07)
 	mesh.material = slide_support
 	post.mesh = mesh
