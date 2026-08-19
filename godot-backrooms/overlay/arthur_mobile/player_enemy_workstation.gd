@@ -100,8 +100,3 @@ func _physics_process(delta: float) -> void:
 	hurt_roll = move_toward(hurt_roll, 0.0, delta * 0.18)
 	if camera_pivot != null:
 		camera_pivot.rotation.z = sin(float(Time.get_ticks_msec()) * 0.028) * hurt_roll
-
-func _unhandled_input(event: InputEvent) -> void:
-	super._unhandled_input(event)
-	if event is InputEventKey and event.pressed and not event.echo and event.keycode == KEY_G:
-		fire_psychic_light_attack()
