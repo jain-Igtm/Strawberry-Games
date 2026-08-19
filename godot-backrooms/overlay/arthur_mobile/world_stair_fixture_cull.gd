@@ -1,10 +1,14 @@
 extends "res://arthur_mobile/world_stair_collision_polish.gd"
 
 # Visual-only polish over the phone-tested stair/collision build.
-# 1. Cull ordinary streamed fluorescent fixtures whose cells overlap a stair opening.
+# 1. Cull ordinary streamed fluorescent fixtures that overlap a stair opening.
 # 2. Keep the stairwell's useful fill light, but remove its floating visible fixture.
 # 3. Keep side coping + guard rails, but omit the crosswise opening-end trim slabs
 #    that can read as floating ceiling tiles when viewed from below.
+
+const STREAMED_FIXTURE_WIDTH := 1.14
+const STREAMED_FIXTURE_LENGTH := 3.14
+const STREAMED_FIXTURE_MARGIN := 0.10
 
 var stair_fixture_cull_signature := ""
 
@@ -46,24 +50,29 @@ func _refresh_stair_opening_fixture_for_cell(world_cell: Vector2i) -> void:
 	if root == null or not is_instance_valid(root):
 		return
 
-	var hide_fixture := _cell_overlaps_stair_ceiling_opening(world_cell)
 	for child in root.get_children():
 		if not (child is Node3D):
 			continue
 		var node := child as Node3D
 		if not String(node.name).begins_with("FluorescentFixture"):
 			continue
+		var hide_fixture := _fixture_overlaps_stair_ceiling_opening(node)
 		node.visible = not hide_fixture
 		node.set_meta("stair_opening_fixture_hidden", hide_fixture)
 
-func _cell_overlaps_stair_ceiling_opening(world_cell: Vector2i) -> bool:
-	var center_x := float(world_cell.x) * CELL
-	var center_z := float(world_cell.y) * CELL
-	var cell_rect := Rect2(
-		center_x - CELL * 0.5,
-		center_z - CELL * 0.5,
-		CELL,
-		CELL
+func _fixture_overlaps_stair_ceiling_opening(fixture: Node3D) -> bool:
+	# Test the actual 1.14 x 3.14 m fixture footprint instead of hiding every light
+	# in a 4 m cell that merely brushes the opening. This keeps nearby ceiling lights
+	# alive while guaranteeing no housing or glow panel hangs over empty stairwell air.
+	var yaw: float = fixture.global_rotation.y
+	var rotated_quarter_turn := absf(sin(yaw)) > 0.5
+	var footprint_width: float = STREAMED_FIXTURE_LENGTH if rotated_quarter_turn else STREAMED_FIXTURE_WIDTH
+	var footprint_depth: float = STREAMED_FIXTURE_WIDTH if rotated_quarter_turn else STREAMED_FIXTURE_LENGTH
+	var fixture_rect := Rect2(
+		fixture.global_position.x - footprint_width * 0.5 - STREAMED_FIXTURE_MARGIN,
+		fixture.global_position.z - footprint_depth * 0.5 - STREAMED_FIXTURE_MARGIN,
+		footprint_width + STREAMED_FIXTURE_MARGIN * 2.0,
+		footprint_depth + STREAMED_FIXTURE_MARGIN * 2.0
 	)
 
 	for cut in ceiling_cutouts:
@@ -79,7 +88,7 @@ func _cell_overlaps_stair_ceiling_opening(world_cell: Vector2i) -> bool:
 			width,
 			depth
 		)
-		if cell_rect.intersects(opening_rect):
+		if fixture_rect.intersects(opening_rect):
 			return true
 	return false
 
@@ -92,6 +101,7 @@ func _add_stairwell_light(root: Node3D, opening_center: Vector3) -> void:
 	light.light_color = Color(1.0, 0.87, 0.58, 1.0)
 	light.light_energy = 0.58
 	light.omni_range = 4.8
+	light.omni_attenuation = 1.35
 	light.shadow_enabled = false
 	light.set_meta("stair_invisible_fill_light", true)
 	root.add_child(light)
