@@ -164,3 +164,11 @@ jobs:
           name: Arthur-Backrooms-Godot-debug-apk
           path: godot-build/build/Arthur-Backrooms-Godot-debug.apk
           if-no-files-found: error
+
+      - name: Upload runtime smoke log
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: enemy-workstation-runtime-log
+          path: /tmp/godot-runtime.log
+          if-no-files-found: ignore
