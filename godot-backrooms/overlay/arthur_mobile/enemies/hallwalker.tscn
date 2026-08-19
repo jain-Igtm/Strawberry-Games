@@ -1,0 +1,111 @@
+[gd_scene load_steps=10 format=3]
+
+[ext_resource type="Script" path="res://arthur_mobile/enemies/hallwalker.gd" id="1_script"]
+
+[sub_resource type="CapsuleShape3D" id="CapsuleShape_body"]
+radius = 0.34
+height = 1.88
+
+[sub_resource type="StandardMaterial3D" id="Material_skin"]
+albedo_color = Color(0.105, 0.115, 0.105, 1)
+roughness = 0.96
+metallic = 0.0
+
+[sub_resource type="StandardMaterial3D" id="Material_cloth"]
+albedo_color = Color(0.055, 0.06, 0.052, 1)
+roughness = 0.94
+
+[sub_resource type="StandardMaterial3D" id="Material_face"]
+albedo_color = Color(0.004, 0.005, 0.004, 1)
+roughness = 1.0
+
+[sub_resource type="BoxMesh" id="TorsoMesh"]
+material = SubResource("Material_cloth")
+size = Vector3(0.58, 0.82, 0.29)
+
+[sub_resource type="SphereMesh" id="HeadMesh"]
+material = SubResource("Material_skin")
+radius = 0.28
+height = 0.64
+radial_segments = 18
+rings = 10
+
+[sub_resource type="SphereMesh" id="FaceMesh"]
+material = SubResource("Material_face")
+radius = 0.19
+height = 0.42
+radial_segments = 14
+rings = 8
+
+[sub_resource type="CapsuleMesh" id="LimbMesh"]
+material = SubResource("Material_skin")
+radius = 0.085
+height = 0.78
+radial_segments = 12
+rings = 4
+
+[node name="Hallwalker" type="RigidBody3D" groups=["enemy", "psychic_prop"]]
+collision_layer = 2
+collision_mask = 3
+mass = 1.0
+gravity_scale = 1.0
+continuous_cd = true
+script = ExtResource("1_script")
+
+[node name="CollisionShape3D" type="CollisionShape3D" parent="."]
+shape = SubResource("CapsuleShape_body")
+
+[node name="VisualRig" type="Node3D" parent="."]
+position = Vector3(0, 0, 0)
+
+[node name="TorsoPivot" type="Node3D" parent="VisualRig"]
+position = Vector3(0, 0.17, 0)
+
+[node name="Mesh" type="MeshInstance3D" parent="VisualRig/TorsoPivot"]
+mesh = SubResource("TorsoMesh")
+
+[node name="HeadPivot" type="Node3D" parent="VisualRig"]
+position = Vector3(0, 0.85, -0.015)
+
+[node name="Mesh" type="MeshInstance3D" parent="VisualRig/HeadPivot"]
+mesh = SubResource("HeadMesh")
+scale = Vector3(0.93, 1.18, 0.86)
+
+[node name="FaceVoid" type="MeshInstance3D" parent="VisualRig/HeadPivot"]
+position = Vector3(0, -0.015, -0.245)
+mesh = SubResource("FaceMesh")
+scale = Vector3(0.72, 0.88, 0.12)
+
+[node name="ArmL" type="Node3D" parent="VisualRig"]
+position = Vector3(-0.39, 0.49, 0)
+rotation = Vector3(0, 0, -0.08)
+
+[node name="Mesh" type="MeshInstance3D" parent="VisualRig/ArmL"]
+position = Vector3(0, -0.36, 0)
+mesh = SubResource("LimbMesh")
+scale = Vector3(0.95, 1.12, 0.95)
+
+[node name="ArmR" type="Node3D" parent="VisualRig"]
+position = Vector3(0.39, 0.49, 0)
+rotation = Vector3(0, 0, 0.08)
+
+[node name="Mesh" type="MeshInstance3D" parent="VisualRig/ArmR"]
+position = Vector3(0, -0.36, 0)
+mesh = SubResource("LimbMesh")
+scale = Vector3(0.95, 1.12, 0.95)
+
+[node name="LegL" type="Node3D" parent="VisualRig"]
+position = Vector3(-0.17, -0.24, 0)
+
+[node name="Mesh" type="MeshInstance3D" parent="VisualRig/LegL"]
+position = Vector3(0, -0.43, 0)
+mesh = SubResource("LimbMesh")
+scale = Vector3(1.08, 1.18, 1.08)
+
+[node name="LegR" type="Node3D" parent="VisualRig"]
+position = Vector3(0.17, -0.24, 0)
+
+[node name="Mesh" type="MeshInstance3D" parent="VisualRig/LegR"]
+position = Vector3(0, -0.43, 0)
+mesh = SubResource("LimbMesh")
+scale = Vector3(1.08, 1.18, 1.08)
