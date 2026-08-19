@@ -1,19 +1,23 @@
 extends "res://arthur_mobile/player_v10_stairs.gd"
 
-const PsychicLightBoltScene: PackedScene = preload("res://arthur_mobile/enemies/psychic_light_bolt.tscn")
+const EnemyIlluminationScene: PackedScene = preload("res://arthur_mobile/psychic_illumination_enemy_workstation.tscn")
 
 @export var enemy_max_health := 100.0
-@export var light_orb_damage := 34.0
-@export var light_orb_impulse := 5.2
 
 var enemy_health := 100.0
 var hurt_roll := 0.0
 var enemy_dead := false
-var light_attack_index := 0
 
 func _ready() -> void:
 	super._ready()
 	enemy_health = enemy_max_health
+	# Replace only this branch's illumination instance with the combat-capable
+	# version. It uses the same three visible light-orb nodes and the same HOME /
+	# SCOUT behavior; it merely lets those nodes leave formation and return.
+	if illumination != null and is_instance_valid(illumination):
+		illumination.free()
+	illumination = EnemyIlluminationScene.instantiate() as Node3D
+	add_child(illumination)
 
 func receive_enemy_attack(amount: float, impulse: Vector3, _attacker: Node = null) -> void:
 	if enemy_dead:
@@ -37,34 +41,21 @@ func _restart_after_enemy_death() -> void:
 func fire_psychic_light_attack() -> bool:
 	if enemy_dead:
 		return false
+	if illumination == null:
+		return false
 	if not is_psychic_light_enabled():
 		toggle_psychic_light()
-	if illumination == null or camera == null:
-		return false
-
-	var orb_names := ["OrbA", "OrbB", "OrbC"]
-	var launch_origin := camera.global_position + (-camera.global_transform.basis.z).normalized() * 0.42
-	for offset in range(orb_names.size()):
-		var index := (light_attack_index + offset) % orb_names.size()
-		var orb := illumination.get_node_or_null(orb_names[index]) as Node3D
-		if orb != null and orb.visible:
-			launch_origin = orb.global_position
-			light_attack_index = (index + 1) % orb_names.size()
-			break
-
-	var aim_point := camera.global_position + (-camera.global_transform.basis.z).normalized() * 45.0
-	var direction := (aim_point - launch_origin).normalized()
-	var bolt := PsychicLightBoltScene.instantiate() as Area3D
-	get_tree().current_scene.add_child(bolt)
-	bolt.global_position = launch_origin
-	bolt.call("setup", direction, light_orb_damage, light_orb_impulse)
-	return true
+	if illumination.has_method("launch_forward"):
+		return bool(illumination.call("launch_forward"))
+	return false
 
 func _throw_held_prop() -> void:
 	var thrown := held_prop
 	var was_enemy := thrown != null and is_instance_valid(thrown) and thrown.is_in_group("enemy")
 	super._throw_held_prop()
 	if was_enemy and thrown != null and is_instance_valid(thrown):
+		# Once released, the Hallwalker script detects that Arthur stopped freezing it
+		# and lets the RigidBody tumble/impact before recovering its gait.
 		thrown.angular_velocity = Vector3(2.2, -1.4, 2.8)
 
 func launch_psychic_field_at_enemies() -> void:
