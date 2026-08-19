@@ -1,0 +1,1 @@
+Final isolated enemy workstation validation. Head was created directly from current `seperate-workstation-for-enemies` commit 0efd1a37b328ed9606e5d64ee827b96a780e7c60. This marker exists only to trigger the gated Godot/Android PR workflow and must never be merged.
