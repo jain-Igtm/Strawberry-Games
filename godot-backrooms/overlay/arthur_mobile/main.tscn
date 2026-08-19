@@ -1,8 +1,8 @@
 [gd_scene load_steps=13 format=3]
 
-[ext_resource type="Script" path="res://arthur_mobile/world_v14_stable_stairs.gd" id="1_world"]
-[ext_resource type="Script" path="res://arthur_mobile/player_v10_stairs.gd" id="2_player"]
-[ext_resource type="Script" path="res://arthur_mobile/mobile_controls.gd" id="3_controls"]
+[ext_resource type="Script" path="res://arthur_mobile/world_enemy_workstation.gd" id="1_world"]
+[ext_resource type="Script" path="res://arthur_mobile/player_enemy_workstation.gd" id="2_player"]
+[ext_resource type="Script" path="res://arthur_mobile/mobile_controls_enemy_workstation.gd" id="3_controls"]
 [ext_resource type="Material" path="res://procedural/assets/floor.tres" id="4_floor"]
 [ext_resource type="AudioStream" path="res://assets/audio/Neon Lighting Hum.mp3" id="5_hum"]
 [ext_resource type="AudioStream" path="res://assets/audio/Deep Space Travel Background Noise.mp3" id="6_atmosphere"]
@@ -120,7 +120,7 @@ theme_override_constants/separation = 0
 
 [node name="Title" type="Label" parent="UI/Overlay/InfoPanel/VBox"]
 layout_mode = 2
-text = "ARTHUR // GODOT BACKROOMS"
+text = "ARTHUR // ENEMY WORKSTATION"
 label_settings = SubResource("LabelSettings_hud")
 
 [node name="Coords" type="Label" parent="UI/Overlay"]
