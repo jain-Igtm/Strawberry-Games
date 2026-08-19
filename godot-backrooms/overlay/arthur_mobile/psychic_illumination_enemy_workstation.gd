@@ -45,20 +45,20 @@ func launch_forward() -> bool:
 
 	# Ensure the orbit is at its current visual position before detaching nodes.
 	super._process(0.0)
-	var direction := (-camera.global_transform.basis.z).normalized()
+	var direction: Vector3 = (-camera.global_transform.basis.z).normalized()
 	attack_orbs.clear()
 	orb_modes.clear()
 	orb_velocities.clear()
 	orb_distances.clear()
 
-	for orb in [orb_a, orb_b, orb_c]:
+	for orb: Node3D in [orb_a, orb_b, orb_c]:
 		if orb == null or not orb.visible:
 			continue
-		var start := orb.global_position
+		var start: Vector3 = orb.global_position
 		orb.top_level = true
 		orb.global_position = start
 		attack_orbs.append(orb)
-		var id := orb.get_instance_id()
+		var id: int = orb.get_instance_id()
 		orb_modes[id] = ORB_FLYING
 		orb_velocities[id] = direction * attack_speed
 		orb_distances[id] = 0.0
@@ -83,12 +83,12 @@ func _process(delta: float) -> void:
 		camera = anchor.get_node_or_null("CameraPivot/Camera3D") as Camera3D
 
 	_update_attack_anchor(delta)
-	var all_home := true
-	for orb in attack_orbs:
+	var all_home: bool = true
+	for orb: Node3D in attack_orbs:
 		if orb == null or not is_instance_valid(orb):
 			continue
-		var id := orb.get_instance_id()
-		var mode := int(orb_modes.get(id, ORB_HOME))
+		var id: int = orb.get_instance_id()
+		var mode: int = int(orb_modes.get(id, ORB_HOME))
 		if mode == ORB_FLYING:
 			all_home = false
 			_update_flying_orb(orb, delta)
@@ -115,8 +115,8 @@ func _update_attack_anchor(delta: float) -> void:
 			returning_to_default = false
 
 	if scouting and camera != null:
-		var look := (-camera.global_transform.basis.z).normalized()
-		var target_anchor := anchor.global_position + look * SCOUT_DISTANCE
+		var look: Vector3 = (-camera.global_transform.basis.z).normalized()
+		var target_anchor: Vector3 = anchor.global_position + look * SCOUT_DISTANCE
 		visual_anchor = visual_anchor.lerp(target_anchor, clampf(delta * 5.4, 0.0, 1.0))
 		global_position = visual_anchor
 	else:
@@ -124,14 +124,14 @@ func _update_attack_anchor(delta: float) -> void:
 		visual_anchor = anchor.global_position
 
 func _update_flying_orb(orb: Node3D, delta: float) -> void:
-	var id := orb.get_instance_id()
+	var id: int = orb.get_instance_id()
 	var velocity_value: Vector3 = orb_velocities.get(id, Vector3.ZERO) as Vector3
-	var from := orb.global_position
-	var to := from + velocity_value * delta
+	var from: Vector3 = orb.global_position
+	var to: Vector3 = from + velocity_value * delta
 
-	var environment_hit := _ray_attack_collision(from, to)
+	var environment_hit: Dictionary = _ray_attack_collision(from, to)
 	if not environment_hit.is_empty():
-		var collider := environment_hit.get("collider") as Object
+		var collider: Object = environment_hit.get("collider") as Object
 		if collider is Node and (collider as Node).is_in_group("enemy"):
 			_damage_enemy(collider as Node, velocity_value.normalized())
 		orb_modes[id] = ORB_RETURNING
@@ -139,7 +139,7 @@ func _update_flying_orb(orb: Node3D, delta: float) -> void:
 
 	orb.global_position = to
 	orb_distances[id] = float(orb_distances.get(id, 0.0)) + from.distance_to(to)
-	var enemy := _enemy_overlapping_orb(to)
+	var enemy: Node = _enemy_overlapping_orb(to)
 	if enemy != null:
 		_damage_enemy(enemy, velocity_value.normalized())
 		orb_modes[id] = ORB_RETURNING
@@ -148,10 +148,10 @@ func _update_flying_orb(orb: Node3D, delta: float) -> void:
 		orb_modes[id] = ORB_RETURNING
 
 func _update_returning_orb(orb: Node3D, delta: float) -> void:
-	var target := _formation_global_target(orb)
+	var target: Vector3 = _formation_global_target(orb)
 	orb.global_position = orb.global_position.move_toward(target, return_speed * delta)
 	if orb.global_position.distance_to(target) <= 0.09:
-		var id := orb.get_instance_id()
+		var id: int = orb.get_instance_id()
 		orb.top_level = false
 		orb.position = _formation_local_target(orb)
 		orb_modes[id] = ORB_HOME
@@ -174,7 +174,7 @@ func _formation_local_target(orb: Node3D) -> Vector3:
 			)
 		return Vector3.ZERO
 
-	var spread := formation_radius / DEFAULT_RADIUS
+	var spread: float = formation_radius / DEFAULT_RADIUS
 	if orb == orb_a:
 		return Vector3(
 			cos(phase * 0.62) * HOME_A_RADIUS * spread,
@@ -198,13 +198,7 @@ func _ray_attack_collision(from: Vector3, to: Vector3) -> Dictionary:
 	query.collision_mask = 3
 	if anchor is CollisionObject3D:
 		query.exclude = [(anchor as CollisionObject3D).get_rid()]
-	var hit := get_world_3d().direct_space_state.intersect_ray(query)
-	if hit.is_empty():
-		return hit
-	var collider := hit.get("collider") as Object
-	if collider is Node and (collider as Node).is_in_group("enemy"):
-		return hit
-	# Any solid scene geometry or physical prop stops the orb; it then returns.
+	var hit: Dictionary = get_world_3d().direct_space_state.intersect_ray(query)
 	return hit
 
 func _enemy_overlapping_orb(position_value: Vector3) -> Node:
@@ -218,21 +212,22 @@ func _enemy_overlapping_orb(position_value: Vector3) -> Node:
 	query.collide_with_areas = false
 	if anchor is CollisionObject3D:
 		query.exclude = [(anchor as CollisionObject3D).get_rid()]
-	for hit in get_world_3d().direct_space_state.intersect_shape(query, 12):
-		var collider := hit.get("collider") as Object
+	var overlaps: Array[Dictionary] = get_world_3d().direct_space_state.intersect_shape(query, 12)
+	for hit: Dictionary in overlaps:
+		var collider: Object = hit.get("collider") as Object
 		if collider is Node and (collider as Node).is_in_group("enemy"):
 			return collider as Node
 	return null
 
 func _damage_enemy(enemy: Node, direction: Vector3) -> void:
-	var impulse := direction * attack_impulse + Vector3.UP * 0.45
+	var impulse: Vector3 = direction * attack_impulse + Vector3.UP * 0.45
 	if enemy.has_method("take_psychic_damage"):
 		enemy.call("take_psychic_damage", attack_damage, impulse, "light_orb")
 	elif enemy.has_method("take_psychic_hit"):
 		enemy.call("take_psychic_hit", attack_damage, impulse, self)
 
 func _cancel_attack_to_formation() -> void:
-	for orb in attack_orbs:
+	for orb: Node3D in attack_orbs:
 		if orb == null or not is_instance_valid(orb):
 			continue
 		orb.top_level = false
