@@ -5,6 +5,8 @@ const SupplyScript = preload("res://src/supply_cache.gd")
 const BoatScript = preload("res://src/boat.gd")
 const HelmScript = preload("res://src/helm.gd")
 const CabinDoorScript = preload("res://src/cabin_door.gd")
+const DogScript = preload("res://src/dog.gd")
+const EnvironmentCycleScript = preload("res://src/environment_cycle.gd")
 const RiverShader = preload("res://shaders/river.gdshader")
 
 const TERRAIN_HALF_WIDTH := 220.0
@@ -25,6 +27,10 @@ var gangway: StaticBody3D
 var snowfall: GPUParticles3D
 var river_audio: AudioStreamPlayer3D
 var wind_audio: AudioStreamPlayer
+var dog: CharacterBody3D
+var environment_cycle: Node
+var winter_environment: WorldEnvironment
+var winter_sun: DirectionalLight3D
 
 var snow_material: StandardMaterial3D
 var rock_material: StandardMaterial3D
@@ -40,6 +46,7 @@ var glass_material: StandardMaterial3D
 var mattress_material: StandardMaterial3D
 
 func _ready() -> void:
+	add_to_group("world")
 	terrain_noise.seed = 73021
 	terrain_noise.frequency = 0.0065
 	terrain_noise.fractal_octaves = 5
@@ -55,6 +62,8 @@ func _ready() -> void:
 	_build_boat()
 	_build_ambient_audio()
 	_build_snowfall()
+	_build_dog()
+	_build_environment_cycle()
 
 func _process(delta: float) -> void:
 	if snowfall != null and player != null:
@@ -63,6 +72,8 @@ func _process(delta: float) -> void:
 		river_audio.global_position = Vector3(_river_center(player.global_position.z), WATER_LEVEL, player.global_position.z)
 	if wind_audio != null and player != null:
 		var wind_target := -2.0 if bool(player.get("sheltered")) else 8.0
+		if environment_cycle != null and environment_cycle.has_method("get_wind_volume_db"):
+			wind_target = float(environment_cycle.call("get_wind_volume_db", bool(player.get("sheltered"))))
 		wind_audio.volume_db = move_toward(wind_audio.volume_db, wind_target, delta * 7.0)
 
 func _exit_tree() -> void:
@@ -91,13 +102,22 @@ func get_survival_environment(world_position: Vector3) -> Dictionary:
 		heat = float(heater.call("get_heat_strength", world_position))
 		if door_open:
 			heat *= 0.42
+	var outside_air := -18.0
+	var outside_chill := -24.0
+	if environment_cycle != null:
+		if environment_cycle.has_method("get_air_temperature"):
+			outside_air = float(environment_cycle.call("get_air_temperature"))
+		if environment_cycle.has_method("get_wind_chill"):
+			outside_chill = float(environment_cycle.call("get_wind_chill"))
+	var cabin_air := maxf(outside_air + 10.0, -8.0)
+	var cabin_chill := maxf(outside_chill + 11.0, -10.0)
 	return {
 		"in_water": in_river,
 		"inside_cabin": inside_cabin,
 		"sheltered": sheltered,
 		"heat_strength": heat,
-		"air_temperature": (-6.0 if sheltered else (-12.0 if inside_cabin else -18.0)),
-		"wind_chill": (-7.0 if sheltered else (-16.0 if inside_cabin else -24.0)),
+		"air_temperature": (cabin_air + 2.0 if sheltered else (cabin_air if inside_cabin else outside_air)),
+		"wind_chill": (cabin_chill + 3.0 if sheltered else (cabin_chill if inside_cabin else outside_chill)),
 	}
 
 func constrain_boat_position(proposed: Vector3) -> Vector3:
@@ -184,6 +204,7 @@ func _create_environment() -> void:
 	world_environment.name = "WinterEnvironment"
 	world_environment.environment = environment
 	generated.add_child(world_environment)
+	winter_environment = world_environment
 
 	var sun := DirectionalLight3D.new()
 	sun.name = "LowWinterSun"
@@ -193,6 +214,7 @@ func _create_environment() -> void:
 	sun.shadow_enabled = true
 	sun.directional_shadow_max_distance = 170.0
 	generated.add_child(sun)
+	winter_sun = sun
 
 func _terrain_height(x: float, z: float) -> float:
 	var rolling := terrain_noise.get_noise_2d(x, z) * 3.4
@@ -510,13 +532,12 @@ func _build_cabin_shell(boat_body: AnimatableBody3D) -> void:
 	boat_body.add_child(nameplate)
 
 func _build_boat_details(boat_body: AnimatableBody3D) -> void:
-	_add_box(boat_body, "BunkFrame", Vector3(1.25, 0.28, 2.45), Vector3(1.18, 1.63, -1.35), wood_material)
-	_add_box(boat_body, "BunkMattress", Vector3(1.12, 0.20, 2.26), Vector3(1.18, 1.87, -1.35), mattress_material, false)
+	_add_box(boat_body, "BunkFrame", Vector3(1.20, 0.28, 2.10), Vector3(1.22, 1.63, -0.62), wood_material)
+	_add_box(boat_body, "BunkMattress", Vector3(1.08, 0.20, 1.92), Vector3(1.22, 1.87, -0.62), mattress_material, false)
 	_add_box(boat_body, "TableTop", Vector3(1.35, 0.12, 0.82), Vector3(0.76, 2.05, 1.15), wood_material)
 	for x in [0.20, 1.32]:
 		for z in [0.86, 1.44]:
 			_add_box(boat_body, "TableLeg", Vector3(0.10, 0.62, 0.10), Vector3(x, 1.70, z), wood_material)
-	_add_box(boat_body, "HelmConsole", Vector3(1.15, 0.82, 0.62), Vector3(0.74, 1.84, -2.38), metal_material, false)
 
 	_add_box(boat_body, "PortAftRail", Vector3(0.08, 0.08, 5.0), Vector3(-2.18, 2.05, 4.05), metal_material)
 	_add_box(boat_body, "StarboardRailForward", Vector3(0.08, 0.08, 2.0), Vector3(2.18, 2.05, 2.65), metal_material)
@@ -525,7 +546,89 @@ func _build_boat_details(boat_body: AnimatableBody3D) -> void:
 		_add_box(boat_body, "PortRailPost", Vector3(0.08, 0.78, 0.08), Vector3(-2.18, 1.68, z), metal_material)
 	for z in [1.65, 3.25, 6.15]:
 		_add_box(boat_body, "StarboardRailPost", Vector3(0.08, 0.78, 0.08), Vector3(2.18, 1.68, z), metal_material)
-	_add_box(boat_body, "SternRail", Vector3(4.4, 0.08, 0.08), Vector3(0.0, 2.05, 6.22), metal_material)
+	_add_box(boat_body, "SternRailPort", Vector3(1.45, 0.08, 0.08), Vector3(-1.47, 2.05, 6.22), metal_material)
+	_add_box(boat_body, "SternRailStarboard", Vector3(1.45, 0.08, 0.08), Vector3(1.47, 2.05, 6.22), metal_material)
+	_build_reboarding_ramp(boat_body)
+
+func _build_reboarding_ramp(boat_body: AnimatableBody3D) -> void:
+	var ramp_angle := deg_to_rad(24.0)
+	_add_box(boat_body, "SternBoardingPlatform", Vector3(1.62, 0.16, 0.82), Vector3(0.0, 0.22, 8.08), metal_material)
+	_add_box(boat_body, "SternBoardingRamp", Vector3(1.48, 0.14, 2.25), Vector3(0.0, 0.78, 7.02), metal_material, true, Vector3(ramp_angle, 0.0, 0.0))
+	for x in [-0.73, 0.73]:
+		_add_box(boat_body, "BoardingHandrail", Vector3(0.06, 0.06, 2.25), Vector3(x, 1.18, 7.02), metal_material, false, Vector3(ramp_angle, 0.0, 0.0))
+	for step in range(4):
+		var z := 8.20 + float(step) * 0.16
+		var y := 0.30 + float(step) * 0.15
+		_add_box(boat_body, "BoardingLadderStep", Vector3(1.10, 0.06, 0.08), Vector3(0.0, y, z), metal_material, false)
+
+func _build_dog() -> void:
+	if boat == null:
+		return
+	dog = CharacterBody3D.new()
+	dog.name = "Dog"
+	dog.collision_layer = 1
+	dog.collision_mask = 1
+	dog.floor_max_angle = deg_to_rad(52.0)
+	dog.floor_snap_length = 0.28
+	dog.floor_stop_on_slope = true
+	dog.set_script(DogScript)
+
+	var dog_shape := CapsuleShape3D.new()
+	dog_shape.radius = 0.28
+	dog_shape.height = 0.82
+	var dog_collision := CollisionShape3D.new()
+	dog_collision.name = "DogCollision"
+	dog_collision.shape = dog_shape
+	dog.add_child(dog_collision)
+
+	var fur_dark := _material(Color(0.17, 0.19, 0.20), 0.96)
+	var fur_light := _material(Color(0.76, 0.79, 0.78), 0.98)
+	var nose_material := _material(Color(0.035, 0.04, 0.04), 0.92)
+
+	var visual := Node3D.new()
+	visual.name = "Visual"
+	dog.add_child(visual)
+	_add_box(visual, "Body", Vector3(0.56, 0.44, 0.92), Vector3(0.0, 0.02, 0.0), fur_dark, false)
+	_add_box(visual, "Chest", Vector3(0.46, 0.40, 0.42), Vector3(0.0, 0.02, -0.38), fur_light, false)
+
+	var head := SphereMesh.new()
+	head.radius = 0.29
+	head.height = 0.56
+	head.radial_segments = 10
+	head.rings = 6
+	head.material = fur_dark
+	var head_mesh := MeshInstance3D.new()
+	head_mesh.name = "Head"
+	head_mesh.mesh = head
+	head_mesh.position = Vector3(0.0, 0.22, -0.60)
+	visual.add_child(head_mesh)
+	_add_box(visual, "Muzzle", Vector3(0.28, 0.20, 0.26), Vector3(0.0, 0.14, -0.87), fur_light, false)
+	_add_box(visual, "Nose", Vector3(0.15, 0.11, 0.10), Vector3(0.0, 0.18, -1.02), nose_material, false)
+
+	for x in [-0.20, 0.20]:
+		for z in [-0.30, 0.30]:
+			_add_cylinder(visual, "Leg", 0.065, 0.48, Vector3(x, -0.40, z), fur_light, false)
+
+	for x in [-0.16, 0.16]:
+		var ear := _add_box(visual, "Ear", Vector3(0.12, 0.28, 0.10), Vector3(x, 0.54, -0.64), fur_dark, false)
+		ear.rotation.z = deg_to_rad(-12.0 if x < 0.0 else 12.0)
+
+	var tail_pivot := Node3D.new()
+	tail_pivot.name = "TailPivot"
+	tail_pivot.position = Vector3(0.0, 0.12, 0.47)
+	visual.add_child(tail_pivot)
+	_add_cylinder(tail_pivot, "Tail", 0.075, 0.62, Vector3(0.0, 0.19, 0.20), fur_dark, false, Vector3(deg_to_rad(54.0), 0.0, 0.0))
+
+	generated.add_child(dog)
+	dog.global_position = boat.to_global(Vector3(-1.20, 1.78, 4.25))
+
+func _build_environment_cycle() -> void:
+	environment_cycle = Node.new()
+	environment_cycle.name = "EnvironmentCycle"
+	environment_cycle.set_script(EnvironmentCycleScript)
+	generated.add_child(environment_cycle)
+	if environment_cycle.has_method("configure"):
+		environment_cycle.call("configure", winter_environment, winter_sun, snowfall)
 
 func _build_cabin_door(boat_body: AnimatableBody3D) -> void:
 	cabin_door = AnimatableBody3D.new()
@@ -542,7 +645,7 @@ func _build_cabin_door(boat_body: AnimatableBody3D) -> void:
 func _build_helm(boat_body: AnimatableBody3D) -> void:
 	var helm := StaticBody3D.new()
 	helm.name = "Helm"
-	helm.position = Vector3(0.74, 1.84, -2.38)
+	helm.position = Vector3(0.90, 1.84, -2.42)
 	helm.collision_layer = 1
 	helm.collision_mask = 2
 	helm.set_script(HelmScript)
@@ -552,7 +655,7 @@ func _build_helm(boat_body: AnimatableBody3D) -> void:
 
 	var helm_seat := Marker3D.new()
 	helm_seat.name = "HelmSeat"
-	helm_seat.position = Vector3(0.74, 2.24, -1.52)
+	helm_seat.position = Vector3(0.90, 2.24, -1.48)
 	boat_body.add_child(helm_seat)
 
 	var helm_exit := Marker3D.new()
