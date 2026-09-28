@@ -27,6 +27,8 @@ func _run() -> void:
 	var gangway := game.get_node_or_null("GeneratedWorld/ShoreGangway")
 	var river_audio := game.get_node_or_null("GeneratedWorld/RiverAmbience")
 	var wind_audio := game.get_node_or_null("GeneratedWorld/WinterWindAmbience")
+	var dog := game.get_node_or_null("GeneratedWorld/Dog")
+	var environment_cycle := game.get_node_or_null("GeneratedWorld/EnvironmentCycle")
 	_expect(player != null, "player exists")
 	_expect(heater != null, "diesel heater exists")
 	_expect(food != null and fuel != null, "finite cabin supplies exist")
@@ -34,6 +36,12 @@ func _run() -> void:
 	_expect(game.get_node_or_null("GeneratedWorld/WinterRiver") != null, "river generated")
 	_expect(boat != null and helm != null, "controllable cabin boat and helm generated")
 	_expect(cabin_door != null, "hinged cabin door generated")
+	_expect(dog != null and str(dog.call("get_interaction_prompt")) == "Pet dog", "pet dog companion generated and interactable")
+	_expect(environment_cycle != null, "day night and weather controller generated")
+	_expect(boat != null and boat.get_node_or_null("SternBoardingRamp") != null and boat.get_node_or_null("SternBoardingPlatform") != null, "stern reboarding route generated")
+	if boat != null and helm != null:
+		var bunk := boat.get_node_or_null("BunkFrame")
+		_expect(bunk != null and absf(bunk.position.z - helm.position.z) > 1.1, "helm is physically separated from the bunk")
 	_expect(river_audio != null and river_audio.stream != null and bool(river_audio.stream.get("loop")) and river_audio.playing, "river ambience loops in the world")
 	_expect(wind_audio != null and wind_audio.stream != null and bool(wind_audio.stream.get("loop")) and wind_audio.playing, "winter wind ambience loops in the world")
 	var ground_query := PhysicsRayQueryParameters3D.create(Vector3(30.0, 20.0, 4.85), Vector3(30.0, -20.0, 4.85), 1)
@@ -89,6 +97,29 @@ func _run() -> void:
 		print("[SMOKE INFO] shore walk ", player.global_position, " terrain_y=", terrain_y, " floor=", player.is_on_floor())
 		_expect(player.global_position.x > shore_start_x + 2.0, "player can walk across the snow terrain")
 		_expect(player.is_on_floor() and absf(player.global_position.y - (terrain_y + 0.9)) < 1.1, "terrain mesh has dependable walkable collision")
+
+	if environment_cycle != null:
+		var time_before := str(environment_cycle.call("get_time_string"))
+		environment_cycle.call("_process", 10.0)
+		var time_after := str(environment_cycle.call("get_time_string"))
+		_expect(time_before != time_after, "day night clock advances")
+		var weather_before := str(environment_cycle.call("get_weather_name"))
+		environment_cycle.set("weather_elapsed", 999.0)
+		environment_cycle.call("_process", 0.1)
+		var weather_after := str(environment_cycle.call("get_weather_name"))
+		_expect(weather_before != weather_after, "weather cycle changes conditions")
+
+	if player != null and boat != null:
+		player.global_position = boat.to_global(Vector3(0.0, 1.22, 8.30))
+		player.velocity = Vector3.ZERO
+		player.rotation.y = boat.rotation.y
+		player.call("set_mobile_move", Vector2(0.0, -1.0))
+		for _frame in range(95):
+			await physics_frame
+		player.call("set_mobile_move", Vector2.ZERO)
+		var boarded_local := boat.to_local(player.global_position)
+		print("[SMOKE INFO] reboard local ", boarded_local, " floor=", player.is_on_floor())
+		_expect(boarded_local.z < 6.65 and boarded_local.y > 1.85, "stern ramp lets the player climb back onto the boat")
 
 	var cabin_sample: Dictionary = game.call("get_survival_environment", Vector3(8.0, 2.3, 0.0))
 	_expect(bool(cabin_sample.get("sheltered", false)), "cabin blocks the wind")
