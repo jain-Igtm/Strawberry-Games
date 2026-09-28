@@ -2,6 +2,7 @@ extends Control
 
 var player: CharacterBody3D
 var heater: Node
+var boat: Node
 
 const ICE := Color(0.86, 0.94, 0.98, 0.96)
 const MUTED := Color(0.68, 0.79, 0.84, 0.88)
@@ -14,19 +15,22 @@ func _ready() -> void:
 func _find_nodes() -> void:
 	player = get_tree().get_first_node_in_group("player") as CharacterBody3D
 	heater = get_tree().get_first_node_in_group("heater")
+	boat = get_tree().get_first_node_in_group("boat")
 
 func _process(_delta: float) -> void:
 	if player == null:
 		_find_nodes()
 	if heater == null:
 		heater = get_tree().get_first_node_in_group("heater")
+	if boat == null:
+		boat = get_tree().get_first_node_in_group("boat")
 	queue_redraw()
 
 func _draw() -> void:
 	if player == null:
 		return
 
-	draw_rect(Rect2(20.0, 18.0, 292.0, 218.0), PANEL, true)
+	draw_rect(Rect2(20.0, 18.0, 292.0, 242.0), PANEL, true)
 	draw_rect(Rect2(20.0, 18.0, 292.0, 3.0), Color(0.55, 0.75, 0.83, 0.8), true)
 	_draw_text("ALASKA EXPLORER", Vector2(34.0, 48.0), 20, ICE)
 	_draw_text("EARLY WINTER  //  -18°C", Vector2(34.0, 70.0), 13, MUTED)
@@ -47,13 +51,25 @@ func _draw() -> void:
 		heater_text = "DIESEL HEAT  %d%%  %s" % [roundi(fuel), "BURNING" if burning else "OFF"]
 		heater_color = Color(1.0, 0.67, 0.38, 0.98) if burning else MUTED
 	_draw_text(heater_text, Vector2(34.0, 226.0), 13, heater_color)
+	var piloting := player.get("piloting_boat") != null
+	var boat_text := "NORTHSTAR  MOORED"
+	var boat_color := MUTED
+	if boat != null:
+		if bool(boat.get("moored")):
+			boat_text = "NORTHSTAR  MOORED"
+		else:
+			boat_text = "NORTHSTAR  %.1f KT" % float(boat.call("get_speed_knots"))
+			boat_color = Color(0.68, 0.88, 0.91, 0.98) if piloting else MUTED
+	_draw_text(boat_text, Vector2(34.0, 249.0), 13, boat_color)
 
 	var center_width := minf(620.0, size.x - 360.0)
 	var center_x := (size.x - center_width) * 0.5
-	_draw_text("KEEP WARM  ·  STAY DRY  ·  FOLLOW THE RIVER", Vector2(center_x, 38.0), 14, Color(0.86, 0.94, 0.98, 0.72), center_width, HORIZONTAL_ALIGNMENT_CENTER)
+	var objective := "THROTTLE  ·  STEER  ·  STAY IN THE CHANNEL" if piloting else "KEEP WARM  ·  STAY DRY  ·  FOLLOW THE RIVER"
+	_draw_text(objective, Vector2(center_x, 38.0), 14, Color(0.86, 0.94, 0.98, 0.72), center_width, HORIZONTAL_ALIGNMENT_CENTER)
 
 	if not OS.has_feature("mobile"):
-		_draw_text("WASD MOVE   SHIFT RUN   E USE   F LAMP", Vector2(size.x - 430.0, 38.0), 13, MUTED, 402.0, HORIZONTAL_ALIGNMENT_RIGHT)
+		var controls := "W/S THROTTLE   A/D STEER   E LEAVE   F LAMP" if piloting else "WASD MOVE   SHIFT RUN   E USE   F LAMP"
+		_draw_text(controls, Vector2(size.x - 475.0, 38.0), 13, MUTED, 447.0, HORIZONTAL_ALIGNMENT_RIGHT)
 
 	var prompt := str(player.get("interaction_prompt"))
 	if prompt != "":

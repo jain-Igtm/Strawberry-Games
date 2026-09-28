@@ -21,22 +21,51 @@ func _run() -> void:
 	var heater := game.get_node_or_null("GeneratedWorld/CabinBoat/DieselHeater")
 	var food := game.get_node_or_null("GeneratedWorld/CabinBoat/FoodRations")
 	var fuel := game.get_node_or_null("GeneratedWorld/CabinBoat/DieselCans")
+	var boat := game.get_node_or_null("GeneratedWorld/CabinBoat")
+	var helm := game.get_node_or_null("GeneratedWorld/CabinBoat/Helm")
+	var cabin_door := game.get_node_or_null("GeneratedWorld/CabinBoat/CabinDoor")
+	var gangway := game.get_node_or_null("GeneratedWorld/ShoreGangway")
+	var river_audio := game.get_node_or_null("GeneratedWorld/RiverAmbience")
+	var wind_audio := game.get_node_or_null("GeneratedWorld/WinterWindAmbience")
 	_expect(player != null, "player exists")
 	_expect(heater != null, "diesel heater exists")
 	_expect(food != null and fuel != null, "finite cabin supplies exist")
 	_expect(game.get_node_or_null("GeneratedWorld/SnowValley") != null, "snow terrain generated")
 	_expect(game.get_node_or_null("GeneratedWorld/WinterRiver") != null, "river generated")
-	_expect(game.get_node_or_null("GeneratedWorld/CabinBoat") != null, "cabin boat generated")
+	_expect(boat != null and helm != null, "controllable cabin boat and helm generated")
+	_expect(cabin_door != null, "hinged cabin door generated")
+	_expect(river_audio != null and river_audio.stream != null and bool(river_audio.stream.get("loop")) and river_audio.playing, "river ambience loops in the world")
+	_expect(wind_audio != null and wind_audio.stream != null and bool(wind_audio.stream.get("loop")) and wind_audio.playing, "winter wind ambience loops in the world")
+	var ground_query := PhysicsRayQueryParameters3D.create(Vector3(30.0, 20.0, 4.85), Vector3(30.0, -20.0, 4.85), 1)
+	var ground_hit: Dictionary = game.get_world_3d().direct_space_state.intersect_ray(ground_query)
+	var ground_normal: Vector3 = ground_hit.get("normal", Vector3.ZERO)
+	_expect(not ground_hit.is_empty() and ground_normal.y > 0.8, "snow terrain collision faces upward")
 	if player != null:
 		for _frame in range(18):
 			await physics_frame
 		_expect(player.global_position.y > 1.9 and player.global_position.y < 2.6, "player settles safely on the boat deck")
+		player.call("_update_interaction")
+		_expect(str(player.get("interaction_prompt")) == "Open cabin door", "cabin door is reachable with the use control")
+		if cabin_door != null:
+			_expect(not bool(cabin_door.get("is_open")), "cabin door starts secured")
+			cabin_door.call("interact", player)
+			for _frame in range(32):
+				await physics_frame
+			_expect(bool(cabin_door.get("is_open")) and absf(cabin_door.rotation.y) > 1.5, "cabin door opens on its hinge")
 		player.call("set_mobile_move", Vector2(0.0, -1.0))
 		for _frame in range(46):
 			await physics_frame
 		player.call("set_mobile_move", Vector2.ZERO)
 		player.call("_update_environment")
-		_expect(bool(player.get("sheltered")), "open cabin doorway is traversable")
+		var doorway_sample: Dictionary = game.call("get_survival_environment", player.global_position)
+		_expect(bool(doorway_sample.get("inside_cabin", false)), "opened cabin doorway is traversable")
+		_expect(not bool(player.get("sheltered")), "open cabin door admits the winter wind")
+		if cabin_door != null:
+			cabin_door.call("interact", player)
+			for _frame in range(32):
+				await physics_frame
+			player.call("_update_environment")
+			_expect(not bool(cabin_door.get("is_open")) and bool(player.get("sheltered")), "closed cabin door restores shelter")
 		player.global_position = Vector3(8.0, 2.24, 4.85)
 		player.velocity = Vector3.ZERO
 		player.rotation = Vector3.ZERO
@@ -49,6 +78,17 @@ func _run() -> void:
 		player.call("_update_environment")
 		print("[SMOKE INFO] gangway endpoint ", player.global_position, " in_water=", player.get("in_water"))
 		_expect(player.global_position.x > 18.0 and not bool(player.get("in_water")), "gangway provides a dry route to shore")
+		var shore_start_x: float = player.global_position.x
+		player.call("set_mobile_move", Vector2(1.0, 0.0))
+		for _frame in range(80):
+			await physics_frame
+		player.call("set_mobile_move", Vector2.ZERO)
+		for _frame in range(8):
+			await physics_frame
+		var terrain_y := float(game.call("_terrain_height", player.global_position.x, player.global_position.z))
+		print("[SMOKE INFO] shore walk ", player.global_position, " terrain_y=", terrain_y, " floor=", player.is_on_floor())
+		_expect(player.global_position.x > shore_start_x + 2.0, "player can walk across the snow terrain")
+		_expect(player.is_on_floor() and absf(player.global_position.y - (terrain_y + 0.9)) < 1.1, "terrain mesh has dependable walkable collision")
 
 	var cabin_sample: Dictionary = game.call("get_survival_environment", Vector3(8.0, 2.3, 0.0))
 	_expect(bool(cabin_sample.get("sheltered", false)), "cabin blocks the wind")
@@ -86,6 +126,36 @@ func _run() -> void:
 			fuel.call("interact", player)
 		_expect(float(heater.get("fuel")) > fuel_before, "diesel can refuels heater")
 		_expect(fuel == null or int(fuel.get("remaining")) == cans_before - 1, "diesel supply is finite")
+
+	if player != null and boat != null and helm != null:
+		var boat_start: Vector3 = boat.global_position
+		var door_start: Vector3 = cabin_door.global_position if cabin_door != null else Vector3.ZERO
+		helm.call("interact", player)
+		await physics_frame
+		_expect(player.get("piloting_boat") == boat, "helm puts the player in control of the boat")
+		_expect(gangway != null and not gangway.visible, "casting off retracts the shore gangway")
+		player.call("set_mobile_move", Vector2(0.42, -1.0))
+		for _frame in range(180):
+			await physics_frame
+		player.call("set_mobile_move", Vector2.ZERO)
+		var travelled: float = boat.global_position.distance_to(boat_start)
+		var channel_offset := absf(boat.global_position.x - float(game.call("_river_center", boat.global_position.z)))
+		var channel_limit := float(game.call("_river_half_width", boat.global_position.z)) - 7.1
+		print("[SMOKE INFO] boat travelled=", travelled, " yaw=", boat.rotation.y, " speed=", boat.call("get_speed_mps"), " helm_gap=", player.global_position.distance_to(boat.get_node("HelmSeat").global_position))
+		_expect(travelled > 3.0 and absf(boat.rotation.y) > 0.08, "boat responds to throttle and steering")
+		_expect(channel_offset <= channel_limit, "boat remains inside the navigable river channel")
+		var helm_seat := boat.get_node_or_null("HelmSeat")
+		_expect(helm_seat != null and player.global_position.distance_to(helm_seat.global_position) < 0.08, "player remains securely at the moving helm")
+		_expect(cabin_door == null or cabin_door.global_position.distance_to(door_start) > 3.0, "cabin door travels with the boat")
+		var moving_cabin_sample: Dictionary = game.call("get_survival_environment", boat.to_global(Vector3(0.0, 2.3, 0.0)))
+		_expect(bool(moving_cabin_sample.get("sheltered", false)), "cabin shelter follows the moving boat")
+		player.call("request_interact")
+		await physics_frame
+		_expect(player.get("piloting_boat") == null and player.collision_layer == 2, "player can leave the helm safely")
+		for _frame in range(90):
+			await physics_frame
+		var exit_local: Vector3 = boat.to_local(player.global_position)
+		_expect(absf(exit_local.x) < 1.85 and absf(exit_local.z) < 2.85 and player.is_on_floor(), "moving deck carries the player after leaving the helm")
 
 	game.queue_free()
 	await process_frame

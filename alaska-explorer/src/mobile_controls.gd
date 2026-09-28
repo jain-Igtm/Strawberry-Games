@@ -32,11 +32,12 @@ func _input(event: InputEvent) -> void:
 		if event.pressed:
 			if _inside(event.position, _use_center(), BUTTON_RADIUS + 12.0):
 				player.call("request_interact")
+				queue_redraw()
 				return
 			if _inside(event.position, _lamp_center(), BUTTON_RADIUS + 10.0):
 				player.call("toggle_headlamp")
 				return
-			if _inside(event.position, _sprint_center(), BUTTON_RADIUS + 14.0) and sprint_touch == -1:
+			if _inside(event.position, _sprint_center(), BUTTON_RADIUS + 14.0) and sprint_touch == -1 and player.get("piloting_boat") == null:
 				sprint_touch = event.index
 				player.call("set_mobile_sprint", true)
 				queue_redraw()
@@ -106,8 +107,10 @@ func _draw() -> void:
 	draw_circle(stick_knob, KNOB_RADIUS, Color(0.78, 0.88, 0.94, 0.18))
 	draw_arc(stick_knob, KNOB_RADIUS, 0.0, TAU, 44, Color(0.88, 0.95, 1.0, 0.52), 3.0)
 
-	_draw_button(_use_center(), "USE", false)
-	_draw_button(_sprint_center(), "RUN", sprint_touch != -1)
+	var piloting := player != null and player.get("piloting_boat") != null
+	_draw_button(_use_center(), "LEAVE" if piloting else "USE", false)
+	if not piloting:
+		_draw_button(_sprint_center(), "RUN", sprint_touch != -1)
 	_draw_button(_lamp_center(), "LAMP", player != null and bool(player.get("lamp_on")))
 
 func _draw_button(center: Vector2, label: String, active: bool) -> void:

@@ -2,6 +2,9 @@ extends Node3D
 
 const HeaterScript = preload("res://src/heater.gd")
 const SupplyScript = preload("res://src/supply_cache.gd")
+const BoatScript = preload("res://src/boat.gd")
+const HelmScript = preload("res://src/helm.gd")
+const CabinDoorScript = preload("res://src/cabin_door.gd")
 const RiverShader = preload("res://shaders/river.gdshader")
 
 const TERRAIN_HALF_WIDTH := 220.0
@@ -16,7 +19,12 @@ const BOAT_POSITION := Vector3(8.0, 0.0, 0.0)
 var terrain_noise := FastNoiseLite.new()
 var detail_noise := FastNoiseLite.new()
 var heater: Node3D
+var boat: AnimatableBody3D
+var cabin_door: AnimatableBody3D
+var gangway: StaticBody3D
 var snowfall: GPUParticles3D
+var river_audio: AudioStreamPlayer3D
+var wind_audio: AudioStreamPlayer
 
 var snow_material: StandardMaterial3D
 var rock_material: StandardMaterial3D
@@ -45,14 +53,28 @@ func _ready() -> void:
 	_build_ice_floes()
 	_build_forest()
 	_build_boat()
+	_build_ambient_audio()
 	_build_snowfall()
 
-func _process(_delta: float) -> void:
+func _process(delta: float) -> void:
 	if snowfall != null and player != null:
 		snowfall.global_position = Vector3(player.global_position.x, player.global_position.y + 19.0, player.global_position.z)
+	if river_audio != null and player != null:
+		river_audio.global_position = Vector3(_river_center(player.global_position.z), WATER_LEVEL, player.global_position.z)
+	if wind_audio != null and player != null:
+		var wind_target := -2.0 if bool(player.get("sheltered")) else 8.0
+		wind_audio.volume_db = move_toward(wind_audio.volume_db, wind_target, delta * 7.0)
+
+func _exit_tree() -> void:
+	if river_audio != null:
+		river_audio.stop()
+		river_audio.stream = null
+	if wind_audio != null:
+		wind_audio.stop()
+		wind_audio.stream = null
 
 func get_survival_environment(world_position: Vector3) -> Dictionary:
-	var local := world_position - BOAT_POSITION
+	var local := boat.to_local(world_position) if boat != null else world_position - BOAT_POSITION
 	var inside_cabin := (
 		absf(local.x) < 1.86
 		and local.z > -2.95
@@ -60,18 +82,46 @@ func get_survival_environment(world_position: Vector3) -> Dictionary:
 		and world_position.y > 1.20
 		and world_position.y < 3.72
 	)
+	var door_open := cabin_door != null and bool(cabin_door.get("is_open"))
+	var sheltered := inside_cabin and not door_open
 	var river_distance := absf(world_position.x - _river_center(world_position.z))
 	var in_river := river_distance < _river_half_width(world_position.z) - 0.25 and world_position.y < 0.84
 	var heat := 0.0
 	if inside_cabin and heater != null and heater.has_method("get_heat_strength"):
 		heat = float(heater.call("get_heat_strength", world_position))
+		if door_open:
+			heat *= 0.42
 	return {
 		"in_water": in_river,
-		"sheltered": inside_cabin,
+		"inside_cabin": inside_cabin,
+		"sheltered": sheltered,
 		"heat_strength": heat,
-		"air_temperature": -6.0 if inside_cabin else -18.0,
-		"wind_chill": -7.0 if inside_cabin else -24.0,
+		"air_temperature": (-6.0 if sheltered else (-12.0 if inside_cabin else -18.0)),
+		"wind_chill": (-7.0 if sheltered else (-16.0 if inside_cabin else -24.0)),
 	}
+
+func constrain_boat_position(proposed: Vector3) -> Vector3:
+	var result := proposed
+	result.z = clampf(result.z, -TERRAIN_HALF_LENGTH + 30.0, TERRAIN_HALF_LENGTH - 30.0)
+	var channel_center := _river_center(result.z)
+	var safe_half_width := maxf(5.0, _river_half_width(result.z) - 7.2)
+	result.x = clampf(result.x, channel_center - safe_half_width, channel_center + safe_half_width)
+	result.y = BOAT_POSITION.y
+	return result
+
+func cast_off_boat() -> void:
+	if gangway == null:
+		return
+	gangway.visible = false
+	gangway.process_mode = Node.PROCESS_MODE_DISABLED
+	for child in gangway.get_children():
+		if child is CollisionShape3D:
+			child.set_deferred("disabled", true)
+
+func get_rescue_position() -> Vector3:
+	if boat != null:
+		return boat.to_global(Vector3(0.0, 2.24, 5.15))
+	return BOAT_POSITION + Vector3(0.0, 2.24, 5.15)
 
 func _create_materials() -> void:
 	snow_material = _material(Color(0.88, 0.92, 0.94), 0.92)
@@ -182,11 +232,11 @@ func _build_terrain() -> void:
 			var c := Vector3(x0, _terrain_height(x0, z1), z1)
 			var d := Vector3(x1, _terrain_height(x1, z1), z1)
 			_add_terrain_vertex(surface, a)
-			_add_terrain_vertex(surface, c)
-			_add_terrain_vertex(surface, b)
 			_add_terrain_vertex(surface, b)
 			_add_terrain_vertex(surface, c)
+			_add_terrain_vertex(surface, b)
 			_add_terrain_vertex(surface, d)
+			_add_terrain_vertex(surface, c)
 	surface.generate_normals()
 	var mesh := surface.commit()
 	var terrain_mesh := MeshInstance3D.new()
@@ -232,11 +282,11 @@ func _build_river() -> void:
 		var c := Vector3(center1 - half1, WATER_LEVEL, z1)
 		var d := Vector3(center1 + half1, WATER_LEVEL, z1)
 		_add_water_vertex(surface, a, Vector2(0.0, float(index) * 0.12))
-		_add_water_vertex(surface, c, Vector2(0.0, float(index + 1) * 0.12))
-		_add_water_vertex(surface, b, Vector2(1.0, float(index) * 0.12))
 		_add_water_vertex(surface, b, Vector2(1.0, float(index) * 0.12))
 		_add_water_vertex(surface, c, Vector2(0.0, float(index + 1) * 0.12))
+		_add_water_vertex(surface, b, Vector2(1.0, float(index) * 0.12))
 		_add_water_vertex(surface, d, Vector2(1.0, float(index + 1) * 0.12))
+		_add_water_vertex(surface, c, Vector2(0.0, float(index + 1) * 0.12))
 	var water_mesh := MeshInstance3D.new()
 	water_mesh.name = "WinterRiver"
 	water_mesh.mesh = surface.commit()
@@ -397,12 +447,12 @@ func _build_rocks(rng: RandomNumberGenerator) -> void:
 	generated.add_child(rocks)
 
 func _build_boat() -> void:
-	var boat := StaticBody3D.new()
+	boat = AnimatableBody3D.new()
 	boat.name = "CabinBoat"
 	boat.position = BOAT_POSITION
 	boat.collision_layer = 1
 	boat.collision_mask = 2
-	generated.add_child(boat)
+	boat.set_script(BoatScript)
 
 	_add_box(boat, "Hull", Vector3(4.8, 1.45, 12.5), Vector3(0.0, 0.35, 0.0), hull_material)
 	_add_box(boat, "Bow", Vector3(3.4, 1.25, 2.5), Vector3(0.0, 0.38, -6.25), hull_material, true, Vector3(0.0, deg_to_rad(45.0), 0.0))
@@ -410,31 +460,34 @@ func _build_boat() -> void:
 	_add_box(boat, "CabinFloor", Vector3(3.82, 0.04, 6.0), Vector3(0.0, 1.33, 0.0), wood_material, false)
 	_build_cabin_shell(boat)
 	_build_boat_details(boat)
+	_build_cabin_door(boat)
+	_build_helm(boat)
 	_build_heater(boat)
 	_build_supplies(boat)
+	generated.add_child(boat)
 	_build_gangway()
 
-func _build_cabin_shell(boat: StaticBody3D) -> void:
+func _build_cabin_shell(boat_body: AnimatableBody3D) -> void:
 	for side in [-1.0, 1.0]:
 		var x: float = float(side) * 1.96
-		_add_box(boat, "CabinSideSill", Vector3(0.15, 0.72, 6.0), Vector3(x, 1.73, 0.0), cabin_material)
-		_add_box(boat, "CabinSideHeader", Vector3(0.15, 0.48, 6.0), Vector3(x, 3.38, 0.0), cabin_material)
+		_add_box(boat_body, "CabinSideSill", Vector3(0.15, 0.72, 6.0), Vector3(x, 1.73, 0.0), cabin_material)
+		_add_box(boat_body, "CabinSideHeader", Vector3(0.15, 0.48, 6.0), Vector3(x, 3.38, 0.0), cabin_material)
 		for z in [-2.72, 0.0, 2.72]:
-			_add_box(boat, "CabinSidePost", Vector3(0.18, 1.32, 0.24), Vector3(x, 2.52, z), cabin_material)
-		_add_box(boat, "CabinSideGlassA", Vector3(0.08, 1.22, 2.45), Vector3(x, 2.53, -1.36), glass_material)
-		_add_box(boat, "CabinSideGlassB", Vector3(0.08, 1.22, 2.45), Vector3(x, 2.53, 1.36), glass_material)
+			_add_box(boat_body, "CabinSidePost", Vector3(0.18, 1.32, 0.24), Vector3(x, 2.52, z), cabin_material)
+		_add_box(boat_body, "CabinSideGlassA", Vector3(0.08, 1.22, 2.45), Vector3(x, 2.53, -1.36), glass_material)
+		_add_box(boat_body, "CabinSideGlassB", Vector3(0.08, 1.22, 2.45), Vector3(x, 2.53, 1.36), glass_material)
 
-	_add_box(boat, "CabinFrontLower", Vector3(3.92, 0.75, 0.16), Vector3(0.0, 1.74, -3.0), cabin_material)
-	_add_box(boat, "CabinFrontUpper", Vector3(3.92, 0.48, 0.16), Vector3(0.0, 3.38, -3.0), cabin_material)
+	_add_box(boat_body, "CabinFrontLower", Vector3(3.92, 0.75, 0.16), Vector3(0.0, 1.74, -3.0), cabin_material)
+	_add_box(boat_body, "CabinFrontUpper", Vector3(3.92, 0.48, 0.16), Vector3(0.0, 3.38, -3.0), cabin_material)
 	for x in [-1.72, 0.0, 1.72]:
-		_add_box(boat, "CabinFrontPost", Vector3(0.22, 1.28, 0.18), Vector3(x, 2.52, -3.0), cabin_material)
-	_add_box(boat, "FrontGlassLeft", Vector3(1.48, 1.18, 0.08), Vector3(-0.86, 2.53, -3.02), glass_material)
-	_add_box(boat, "FrontGlassRight", Vector3(1.48, 1.18, 0.08), Vector3(0.86, 2.53, -3.02), glass_material)
+		_add_box(boat_body, "CabinFrontPost", Vector3(0.22, 1.28, 0.18), Vector3(x, 2.52, -3.0), cabin_material)
+	_add_box(boat_body, "FrontGlassLeft", Vector3(1.48, 1.18, 0.08), Vector3(-0.86, 2.53, -3.02), glass_material)
+	_add_box(boat_body, "FrontGlassRight", Vector3(1.48, 1.18, 0.08), Vector3(0.86, 2.53, -3.02), glass_material)
 
-	_add_box(boat, "RearWallLeft", Vector3(1.30, 2.1, 0.16), Vector3(-1.31, 2.35, 3.0), cabin_material)
-	_add_box(boat, "RearWallRight", Vector3(1.30, 2.1, 0.16), Vector3(1.31, 2.35, 3.0), cabin_material)
-	_add_box(boat, "RearDoorHeader", Vector3(1.32, 0.45, 0.16), Vector3(0.0, 3.38, 3.0), cabin_material)
-	_add_box(boat, "CabinRoof", Vector3(4.25, 0.22, 6.5), Vector3(0.0, 3.70, 0.0), roof_material)
+	_add_box(boat_body, "RearWallLeft", Vector3(1.30, 2.1, 0.16), Vector3(-1.31, 2.35, 3.0), cabin_material)
+	_add_box(boat_body, "RearWallRight", Vector3(1.30, 2.1, 0.16), Vector3(1.31, 2.35, 3.0), cabin_material)
+	_add_box(boat_body, "RearDoorHeader", Vector3(1.32, 0.45, 0.16), Vector3(0.0, 3.38, 3.0), cabin_material)
+	_add_box(boat_body, "CabinRoof", Vector3(4.25, 0.22, 6.5), Vector3(0.0, 3.70, 0.0), roof_material)
 
 	var cabin_light := OmniLight3D.new()
 	cabin_light.name = "CabinLight"
@@ -443,7 +496,7 @@ func _build_cabin_shell(boat: StaticBody3D) -> void:
 	cabin_light.light_energy = 1.65
 	cabin_light.omni_range = 5.6
 	cabin_light.shadow_enabled = false
-	boat.add_child(cabin_light)
+	boat_body.add_child(cabin_light)
 
 	var nameplate := Label3D.new()
 	nameplate.name = "BoatName"
@@ -454,27 +507,60 @@ func _build_cabin_shell(boat: StaticBody3D) -> void:
 	nameplate.outline_size = 8
 	nameplate.outline_modulate = Color(0.06, 0.09, 0.10)
 	nameplate.pixel_size = 0.006
-	boat.add_child(nameplate)
+	boat_body.add_child(nameplate)
 
-func _build_boat_details(boat: StaticBody3D) -> void:
-	_add_box(boat, "BunkFrame", Vector3(1.25, 0.28, 2.45), Vector3(1.18, 1.63, -1.35), wood_material)
-	_add_box(boat, "BunkMattress", Vector3(1.12, 0.20, 2.26), Vector3(1.18, 1.87, -1.35), mattress_material, false)
-	_add_box(boat, "TableTop", Vector3(1.35, 0.12, 0.82), Vector3(0.76, 2.05, 1.15), wood_material)
+func _build_boat_details(boat_body: AnimatableBody3D) -> void:
+	_add_box(boat_body, "BunkFrame", Vector3(1.25, 0.28, 2.45), Vector3(1.18, 1.63, -1.35), wood_material)
+	_add_box(boat_body, "BunkMattress", Vector3(1.12, 0.20, 2.26), Vector3(1.18, 1.87, -1.35), mattress_material, false)
+	_add_box(boat_body, "TableTop", Vector3(1.35, 0.12, 0.82), Vector3(0.76, 2.05, 1.15), wood_material)
 	for x in [0.20, 1.32]:
 		for z in [0.86, 1.44]:
-			_add_box(boat, "TableLeg", Vector3(0.10, 0.62, 0.10), Vector3(x, 1.70, z), wood_material)
-	_add_box(boat, "HelmConsole", Vector3(1.15, 0.82, 0.62), Vector3(0.74, 1.84, -2.38), metal_material)
+			_add_box(boat_body, "TableLeg", Vector3(0.10, 0.62, 0.10), Vector3(x, 1.70, z), wood_material)
+	_add_box(boat_body, "HelmConsole", Vector3(1.15, 0.82, 0.62), Vector3(0.74, 1.84, -2.38), metal_material, false)
 
-	_add_box(boat, "PortAftRail", Vector3(0.08, 0.08, 5.0), Vector3(-2.18, 2.05, 4.05), metal_material)
-	_add_box(boat, "StarboardRailForward", Vector3(0.08, 0.08, 2.0), Vector3(2.18, 2.05, 2.65), metal_material)
-	_add_box(boat, "StarboardRailAft", Vector3(0.08, 0.08, 0.55), Vector3(2.18, 2.05, 5.95), metal_material)
+	_add_box(boat_body, "PortAftRail", Vector3(0.08, 0.08, 5.0), Vector3(-2.18, 2.05, 4.05), metal_material)
+	_add_box(boat_body, "StarboardRailForward", Vector3(0.08, 0.08, 2.0), Vector3(2.18, 2.05, 2.65), metal_material)
+	_add_box(boat_body, "StarboardRailAft", Vector3(0.08, 0.08, 0.55), Vector3(2.18, 2.05, 5.95), metal_material)
 	for z in [1.65, 3.25, 5.0, 6.15]:
-		_add_box(boat, "PortRailPost", Vector3(0.08, 0.78, 0.08), Vector3(-2.18, 1.68, z), metal_material)
+		_add_box(boat_body, "PortRailPost", Vector3(0.08, 0.78, 0.08), Vector3(-2.18, 1.68, z), metal_material)
 	for z in [1.65, 3.25, 6.15]:
-		_add_box(boat, "StarboardRailPost", Vector3(0.08, 0.78, 0.08), Vector3(2.18, 1.68, z), metal_material)
-	_add_box(boat, "SternRail", Vector3(4.4, 0.08, 0.08), Vector3(0.0, 2.05, 6.22), metal_material)
+		_add_box(boat_body, "StarboardRailPost", Vector3(0.08, 0.78, 0.08), Vector3(2.18, 1.68, z), metal_material)
+	_add_box(boat_body, "SternRail", Vector3(4.4, 0.08, 0.08), Vector3(0.0, 2.05, 6.22), metal_material)
 
-func _build_heater(boat: StaticBody3D) -> void:
+func _build_cabin_door(boat_body: AnimatableBody3D) -> void:
+	cabin_door = AnimatableBody3D.new()
+	cabin_door.name = "CabinDoor"
+	cabin_door.position = Vector3(-0.64, 1.36, 2.91)
+	cabin_door.collision_layer = 1
+	cabin_door.collision_mask = 2
+	cabin_door.set_script(CabinDoorScript)
+	_add_box(cabin_door, "DoorPanel", Vector3(1.22, 1.74, 0.10), Vector3(0.61, 0.87, 0.0), cabin_material)
+	_add_box(cabin_door, "DoorWindow", Vector3(0.62, 0.52, 0.04), Vector3(0.61, 1.18, -0.07), glass_material, false)
+	_add_box(cabin_door, "DoorHandle", Vector3(0.08, 0.08, 0.16), Vector3(1.08, 0.82, -0.13), metal_material, false)
+	boat_body.add_child(cabin_door)
+
+func _build_helm(boat_body: AnimatableBody3D) -> void:
+	var helm := StaticBody3D.new()
+	helm.name = "Helm"
+	helm.position = Vector3(0.74, 1.84, -2.38)
+	helm.collision_layer = 1
+	helm.collision_mask = 2
+	helm.set_script(HelmScript)
+	_add_box(helm, "HelmInteraction", Vector3(1.15, 0.82, 0.62), Vector3.ZERO, metal_material)
+	_add_cylinder(helm, "Wheel", 0.34, 0.06, Vector3(0.0, 0.24, 0.36), wood_material, false, Vector3(deg_to_rad(90.0), 0.0, 0.0))
+	boat_body.add_child(helm)
+
+	var helm_seat := Marker3D.new()
+	helm_seat.name = "HelmSeat"
+	helm_seat.position = Vector3(0.74, 2.24, -1.52)
+	boat_body.add_child(helm_seat)
+
+	var helm_exit := Marker3D.new()
+	helm_exit.name = "HelmExit"
+	helm_exit.position = Vector3(0.0, 2.24, 2.18)
+	boat_body.add_child(helm_exit)
+
+func _build_heater(boat_body: AnimatableBody3D) -> void:
 	var heater_body := StaticBody3D.new()
 	heater_body.name = "DieselHeater"
 	heater_body.position = Vector3(-1.18, 1.42, -1.24)
@@ -495,10 +581,10 @@ func _build_heater(boat: StaticBody3D) -> void:
 	glow.omni_range = 5.0
 	glow.shadow_enabled = false
 	heater_body.add_child(glow)
-	boat.add_child(heater_body)
+	boat_body.add_child(heater_body)
 	heater = heater_body
 
-func _build_supplies(boat: StaticBody3D) -> void:
+func _build_supplies(boat_body: AnimatableBody3D) -> void:
 	var food := StaticBody3D.new()
 	food.name = "FoodRations"
 	food.position = Vector3(1.22, 1.62, 1.92)
@@ -508,7 +594,7 @@ func _build_supplies(boat: StaticBody3D) -> void:
 	food.set("supply_kind", "food")
 	food.set("remaining", 4)
 	_add_box(food, "RationBox", Vector3(0.74, 0.46, 0.62), Vector3.ZERO, _material(Color(0.31, 0.28, 0.16), 0.94))
-	boat.add_child(food)
+	boat_body.add_child(food)
 
 	var fuel := StaticBody3D.new()
 	fuel.name = "DieselCans"
@@ -519,7 +605,7 @@ func _build_supplies(boat: StaticBody3D) -> void:
 	fuel.set("supply_kind", "fuel")
 	fuel.set("remaining", 3)
 	_add_box(fuel, "FuelCan", Vector3(0.62, 0.78, 0.42), Vector3.ZERO, _material(Color(0.46, 0.13, 0.08), 0.62, 0.18))
-	boat.add_child(fuel)
+	boat_body.add_child(fuel)
 
 func _build_gangway() -> void:
 	var start := BOAT_POSITION + Vector3(2.30, 1.23, 4.85)
@@ -528,7 +614,7 @@ func _build_gangway() -> void:
 	var midpoint := (start + end) * 0.5
 	var length := start.distance_to(end)
 	var angle := atan2(end.y - start.y, end.x - start.x)
-	var gangway := StaticBody3D.new()
+	gangway = StaticBody3D.new()
 	gangway.name = "ShoreGangway"
 	gangway.collision_layer = 1
 	gangway.collision_mask = 2
@@ -558,7 +644,7 @@ func _add_box(body: Node3D, node_name: String, size: Vector3, position: Vector3,
 		body.add_child(collision_shape)
 	return mesh_instance
 
-func _add_cylinder(body: Node3D, node_name: String, radius: float, height: float, position: Vector3, material: Material, collision: bool = true) -> MeshInstance3D:
+func _add_cylinder(body: Node3D, node_name: String, radius: float, height: float, position: Vector3, material: Material, collision: bool = true, rotation: Vector3 = Vector3.ZERO) -> MeshInstance3D:
 	var cylinder := CylinderMesh.new()
 	cylinder.top_radius = radius
 	cylinder.bottom_radius = radius
@@ -569,6 +655,7 @@ func _add_cylinder(body: Node3D, node_name: String, radius: float, height: float
 	mesh_instance.name = node_name
 	mesh_instance.mesh = cylinder
 	mesh_instance.position = position
+	mesh_instance.rotation = rotation
 	body.add_child(mesh_instance)
 	if collision and body is CollisionObject3D:
 		var shape := CylinderShape3D.new()
@@ -577,8 +664,31 @@ func _add_cylinder(body: Node3D, node_name: String, radius: float, height: float
 		var collision_shape := CollisionShape3D.new()
 		collision_shape.shape = shape
 		collision_shape.position = position
+		collision_shape.rotation = rotation
 		body.add_child(collision_shape)
 	return mesh_instance
+
+func _build_ambient_audio() -> void:
+	var river_stream := load("res://audio/river_loop.ogg") as AudioStream
+	var wind_stream := load("res://audio/winter_wind.ogg") as AudioStream
+
+	wind_audio = AudioStreamPlayer.new()
+	wind_audio.name = "WinterWindAmbience"
+	wind_audio.stream = wind_stream
+	wind_audio.volume_db = 8.0
+	wind_audio.autoplay = true
+	generated.add_child(wind_audio)
+
+	river_audio = AudioStreamPlayer3D.new()
+	river_audio.name = "RiverAmbience"
+	river_audio.stream = river_stream
+	river_audio.volume_db = 5.0
+	river_audio.unit_size = 11.0
+	river_audio.max_distance = 100.0
+	river_audio.attenuation_filter_cutoff_hz = 7200.0
+	river_audio.autoplay = true
+	river_audio.position = Vector3(_river_center(0.0), WATER_LEVEL, 0.0)
+	generated.add_child(river_audio)
 
 func _build_snowfall() -> void:
 	var snow_process := ParticleProcessMaterial.new()

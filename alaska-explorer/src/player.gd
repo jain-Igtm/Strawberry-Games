@@ -30,6 +30,10 @@ var wind_chill := -24.0
 var is_sprinting := false
 var is_dead := false
 var lamp_on := true
+var piloting_boat: Node3D
+var pilot_seat: Marker3D
+var pilot_exit: Marker3D
+var world_controller: Node3D
 
 var interaction_prompt := ""
 var status_message := ""
@@ -39,13 +43,23 @@ const CAMERA_BASE := Vector3(0.0, 0.64, 0.0)
 const FALLBACK_SPAWN := Vector3(8.0, 2.24, 5.15)
 
 func _ready() -> void:
+	world_controller = get_parent() as Node3D
 	motion_mode = CharacterBody3D.MOTION_MODE_GROUNDED
+	floor_max_angle = deg_to_rad(50.0)
+	floor_snap_length = 0.42
+	floor_constant_speed = true
+	floor_stop_on_slope = true
+	floor_block_on_wall = true
+	max_slides = 8
 	if not OS.has_feature("mobile"):
 		Input.mouse_mode = Input.MOUSE_MODE_CAPTURED
 	headlamp.visible = lamp_on
 
 func _physics_process(delta: float) -> void:
 	_update_environment()
+	if piloting_boat != null:
+		_update_piloting(delta)
+		return
 	if is_dead:
 		velocity.x = move_toward(velocity.x, 0.0, delta * 5.0)
 		velocity.z = move_toward(velocity.z, 0.0, delta * 5.0)
@@ -57,9 +71,7 @@ func _physics_process(delta: float) -> void:
 			request_interact()
 		return
 
-	var keyboard_move := Input.get_vector("move_left", "move_right", "move_forward", "move_back")
-	var move_input := mobile_move if mobile_move.length_squared() > 0.001 else keyboard_move
-	move_input = move_input.limit_length(1.0)
+	var move_input := get_piloting_input()
 
 	var requested_sprint := (Input.is_action_pressed("sprint") or mobile_sprint)
 	var can_sprint := not in_water and stamina > 0.5 and move_input.length_squared() > 0.08
@@ -96,16 +108,34 @@ func _physics_process(delta: float) -> void:
 		toggle_headlamp()
 
 	if global_position.y < -12.0:
-		global_position = FALLBACK_SPAWN
+		global_position = world_controller.call("get_rescue_position") if world_controller != null and world_controller.has_method("get_rescue_position") else FALLBACK_SPAWN
 		velocity = Vector3.ZERO
 		health = maxf(1.0, health - 12.0)
 		show_status_message("You drag yourself back onto the boat.")
 
-func _update_environment() -> void:
-	var world := get_parent()
-	if world == null or not world.has_method("get_survival_environment"):
+func _update_piloting(delta: float) -> void:
+	if not is_instance_valid(piloting_boat) or not is_instance_valid(pilot_seat):
+		end_boat_piloting()
 		return
-	var sample: Dictionary = world.call("get_survival_environment", global_position)
+	global_position = pilot_seat.global_position
+	velocity = Vector3.ZERO
+	is_sprinting = false
+	_update_environment()
+	_update_camera_bob(delta, Vector2.ZERO)
+	_update_survival(delta)
+	interaction_prompt = "Leave the helm"
+
+	if Input.is_action_just_pressed("interact"):
+		request_interact()
+	if Input.is_action_just_pressed("toggle_lamp"):
+		toggle_headlamp()
+	if is_dead and piloting_boat != null and piloting_boat.has_method("end_piloting"):
+		piloting_boat.call("end_piloting")
+
+func _update_environment() -> void:
+	if world_controller == null or not world_controller.has_method("get_survival_environment"):
+		return
+	var sample: Dictionary = world_controller.call("get_survival_environment", global_position)
 	in_water = bool(sample.get("in_water", false))
 	sheltered = bool(sample.get("sheltered", false))
 	heat_strength = float(sample.get("heat_strength", 0.0))
@@ -187,6 +217,10 @@ func request_interact() -> void:
 	if is_dead:
 		get_tree().reload_current_scene()
 		return
+	if piloting_boat != null:
+		if piloting_boat.has_method("end_piloting"):
+			piloting_boat.call("end_piloting")
+		return
 	interaction_ray.force_raycast_update()
 	if not interaction_ray.is_colliding():
 		show_status_message("Nothing within reach.", 1.4)
@@ -228,6 +262,43 @@ func get_thermal_state() -> String:
 	if wetness >= 15.0:
 		return "WET / COOLING"
 	return "EXPOSED"
+
+func get_piloting_input() -> Vector2:
+	var keyboard_move := Input.get_vector("move_left", "move_right", "move_forward", "move_back")
+	var move_input := mobile_move if mobile_move.length_squared() > 0.001 else keyboard_move
+	return move_input.limit_length(1.0)
+
+func begin_boat_piloting(next_boat: Node3D, next_seat: Marker3D, next_exit: Marker3D) -> void:
+	if is_dead or next_boat == null or next_seat == null:
+		return
+	piloting_boat = next_boat
+	pilot_seat = next_seat
+	pilot_exit = next_exit
+	if get_parent() != piloting_boat:
+		reparent(piloting_boat, true)
+	global_position = pilot_seat.global_position
+	velocity = Vector3.ZERO
+	collision_layer = 0
+	collision_mask = 0
+	is_sprinting = false
+	mobile_sprint = false
+	show_status_message("Lines in. The Northstar is underway.", 2.6)
+
+func end_boat_piloting() -> void:
+	var exit_position := global_position
+	if pilot_exit != null and is_instance_valid(pilot_exit):
+		exit_position = pilot_exit.global_position
+	if world_controller != null and get_parent() != world_controller:
+		reparent(world_controller, true)
+	global_position = exit_position
+	piloting_boat = null
+	pilot_seat = null
+	pilot_exit = null
+	velocity = Vector3.ZERO
+	collision_layer = 2
+	collision_mask = 1
+	interaction_prompt = ""
+	show_status_message("You leave the helm.", 1.5)
 
 func set_mobile_move(value: Vector2) -> void:
 	mobile_move = value.limit_length(1.0)
