@@ -88,6 +88,21 @@ func _run() -> void:
 			for _frame in range(30):
 				await physics_frame
 			_expect(not bool(cabin_door.get("is_open")) and not bool(cabin_door.get("moving")), "cabin door reverses cleanly and remains responsive")
+			cabin_door.call("interact", player)
+			for _frame in range(32):
+				await physics_frame
+			player.global_position = boat.to_global(Vector3(0.0, 2.24, 2.30))
+			player.velocity = Vector3.ZERO
+			player.rotation.y = boat.rotation.y
+			player.call("set_mobile_move", Vector2(0.0, -1.0))
+			for _frame in range(60):
+				await physics_frame
+			player.call("set_mobile_move", Vector2.ZERO)
+			var cabin_walk_local: Vector3 = boat.to_local(player.global_position)
+			_expect(cabin_walk_local.z < -1.35 and absf(cabin_walk_local.x) < 0.45, "the cabin center aisle is fully walkable past the table")
+			cabin_door.call("interact", player)
+			for _frame in range(32):
+				await physics_frame
 		player.global_position = Vector3(8.0, 2.24, 4.85)
 		player.velocity = Vector3.ZERO
 		player.rotation = Vector3.ZERO

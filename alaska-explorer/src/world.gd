@@ -549,10 +549,11 @@ func _build_cabin_shell(boat_body: AnimatableBody3D) -> void:
 func _build_boat_details(boat_body: AnimatableBody3D) -> void:
 	_add_box(boat_body, "BunkFrame", Vector3(1.20, 0.28, 2.10), Vector3(1.20, 1.63, 0.35), wood_material)
 	_add_box(boat_body, "BunkMattress", Vector3(1.08, 0.20, 1.92), Vector3(1.20, 1.87, 0.35), mattress_material, false)
-	_add_box(boat_body, "TableTop", Vector3(1.35, 0.12, 0.82), Vector3(-0.76, 2.05, 1.15), wood_material)
-	for x in [-1.32, -0.20]:
-		for z in [0.86, 1.44]:
-			_add_box(boat_body, "TableLeg", Vector3(0.10, 0.62, 0.10), Vector3(x, 1.70, z), wood_material)
+	# Keep the compact table tight against the port wall. The center aisle must
+	# accommodate the player's 0.72 m capsule without catching either side.
+	_add_box(boat_body, "TableTop", Vector3(0.58, 0.12, 1.16), Vector3(-1.58, 2.05, 1.10), wood_material)
+	for z in [0.64, 1.56]:
+		_add_box(boat_body, "TableLeg", Vector3(0.08, 0.62, 0.08), Vector3(-1.58, 1.70, z), wood_material)
 
 	_add_box(boat_body, "PortAftRail", Vector3(0.08, 0.08, 5.0), Vector3(-2.18, 2.05, 4.05), metal_material)
 	_add_box(boat_body, "StarboardRailForward", Vector3(0.08, 0.08, 2.0), Vector3(2.18, 2.05, 2.65), metal_material)

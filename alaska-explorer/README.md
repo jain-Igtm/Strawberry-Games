@@ -6,7 +6,7 @@ A survival-first Godot prototype for Strawberry Games. The first playable build 
 
 - Large walkable Alaskan winter valley with upward-facing terrain collision and stable slope traversal
 - Curving open river with current, animated water, new ice, snowbanks, rocks, spruce forest, and positional river ambience
-- Boardable and drivable river boat with throttle, steering, channel limits, a cast-off gangway, a stern ramp plus forgiving waterline ladder, bunk, working helm, food, fuel, and diesel heater
+- Boardable and drivable river boat with throttle, steering, channel limits, a cast-off gangway, a stern ramp plus forgiving waterline ladder, an unobstructed cabin aisle, bunk, working helm, food, fuel, and diesel heater
 - Hinged cabin door with nearby-use assistance, instant reversal, and shelter that returns only when the door is fully secured
 - Grounded survival simulation: core temperature, exposure, wetness, hunger, stamina, health, shelter, water immersion, drying, and heater fuel
 - Full day/night cycle with short early-winter daylight, moonlight, changing fog and sky light
