@@ -551,15 +551,25 @@ func _build_boat_details(boat_body: AnimatableBody3D) -> void:
 	_build_reboarding_ramp(boat_body)
 
 func _build_reboarding_ramp(boat_body: AnimatableBody3D) -> void:
-	var ramp_angle := deg_to_rad(24.0)
-	_add_box(boat_body, "SternBoardingPlatform", Vector3(1.62, 0.16, 0.82), Vector3(0.0, 0.22, 8.08), metal_material)
-	_add_box(boat_body, "SternBoardingRamp", Vector3(1.48, 0.14, 2.25), Vector3(0.0, 0.78, 7.02), metal_material, true, Vector3(ramp_angle, 0.0, 0.0))
-	for x in [-0.73, 0.73]:
-		_add_box(boat_body, "BoardingHandrail", Vector3(0.06, 0.06, 2.25), Vector3(x, 1.18, 7.02), metal_material, false, Vector3(ramp_angle, 0.0, 0.0))
-	for step in range(4):
-		var z := 8.20 + float(step) * 0.16
-		var y := 0.30 + float(step) * 0.15
-		_add_box(boat_body, "BoardingLadderStep", Vector3(1.10, 0.06, 0.08), Vector3(0.0, y, z), metal_material, false)
+	# Broad, shallow stern steps are intentionally forgiving on touch controls.
+	_add_box(boat_body, "SternBoardingPlatform", Vector3(1.75, 0.16, 0.90), Vector3(0.0, 0.18, 8.00), metal_material)
+	var step_data := [
+		{"name": "SternBoardingRamp", "z": 7.55, "y": 0.34},
+		{"name": "BoardingStep2", "z": 7.15, "y": 0.52},
+		{"name": "BoardingStep3", "z": 6.75, "y": 0.70},
+		{"name": "BoardingStep4", "z": 6.35, "y": 0.88},
+		{"name": "BoardingStep5", "z": 5.98, "y": 1.06},
+	]
+	for data in step_data:
+		_add_box(
+			boat_body,
+			str(data["name"]),
+			Vector3(1.62, 0.18, 0.58),
+			Vector3(0.0, float(data["y"]), float(data["z"])),
+			metal_material
+		)
+	for x in [-0.82, 0.82]:
+		_add_box(boat_body, "BoardingHandrail", Vector3(0.06, 0.06, 2.55), Vector3(x, 1.42, 6.90), metal_material, false)
 
 func _build_dog() -> void:
 	if boat == null:
