@@ -3,6 +3,7 @@ extends Control
 var player: CharacterBody3D
 var heater: Node
 var boat: Node
+var world_controller: Node
 
 const ICE := Color(0.86, 0.94, 0.98, 0.96)
 const MUTED := Color(0.68, 0.79, 0.84, 0.88)
@@ -16,6 +17,7 @@ func _find_nodes() -> void:
 	player = get_tree().get_first_node_in_group("player") as CharacterBody3D
 	heater = get_tree().get_first_node_in_group("heater")
 	boat = get_tree().get_first_node_in_group("boat")
+	world_controller = get_tree().get_first_node_in_group("world")
 
 func _process(_delta: float) -> void:
 	if player == null:
@@ -24,6 +26,8 @@ func _process(_delta: float) -> void:
 		heater = get_tree().get_first_node_in_group("heater")
 	if boat == null:
 		boat = get_tree().get_first_node_in_group("boat")
+	if world_controller == null:
+		world_controller = get_tree().get_first_node_in_group("world")
 	queue_redraw()
 
 func _draw() -> void:
@@ -33,7 +37,16 @@ func _draw() -> void:
 	draw_rect(Rect2(20.0, 18.0, 292.0, 242.0), PANEL, true)
 	draw_rect(Rect2(20.0, 18.0, 292.0, 3.0), Color(0.55, 0.75, 0.83, 0.8), true)
 	_draw_text("ALASKA EXPLORER", Vector2(34.0, 48.0), 20, ICE)
-	_draw_text("EARLY WINTER  //  -18°C", Vector2(34.0, 70.0), 13, MUTED)
+	var time_text := "--:--"
+	var weather_text := "WINTER"
+	if world_controller != null:
+		var cycle = world_controller.get("environment_cycle")
+		if cycle != null:
+			if cycle.has_method("get_time_string"):
+				time_text = str(cycle.call("get_time_string"))
+			if cycle.has_method("get_weather_name"):
+				weather_text = str(cycle.call("get_weather_name"))
+	_draw_text("%s  %s  %.0f°C" % [time_text, weather_text, float(player.get("air_temperature"))], Vector2(34.0, 70.0), 12, MUTED)
 
 	var core := float(player.get("core_temperature"))
 	var thermal_state := str(player.call("get_thermal_state"))
