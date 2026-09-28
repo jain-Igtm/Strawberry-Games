@@ -80,7 +80,7 @@ func _run() -> void:
 				await physics_frame
 			player.call("_update_environment")
 			_expect(not bool(cabin_door.get("is_open")) and bool(player.get("sheltered")), "closed cabin door restores shelter")
-			var nearby_door := game.call("get_nearby_interactable", player.global_position)
+			var nearby_door: Node = game.call("get_nearby_interactable", player.global_position) as Node
 			_expect(nearby_door == cabin_door, "cabin door works nearby without exact aiming")
 			cabin_door.call("interact", player)
 			await physics_frame
@@ -256,7 +256,7 @@ func _run() -> void:
 		player.global_position = boat.to_global(Vector3(3.15, 0.65, 4.55))
 		player.velocity = Vector3.ZERO
 		await physics_frame
-		var nearby_ladder := game.call("get_nearby_interactable", player.global_position)
+		var nearby_ladder: Node = game.call("get_nearby_interactable", player.global_position) as Node
 		_expect(nearby_ladder == boarding_ladder, "boarding is available from the water without exact aiming")
 		player.call("request_interact")
 		await physics_frame
