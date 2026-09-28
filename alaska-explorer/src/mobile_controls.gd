@@ -108,6 +108,10 @@ func _draw() -> void:
 	draw_arc(stick_knob, KNOB_RADIUS, 0.0, TAU, 44, Color(0.88, 0.95, 1.0, 0.52), 3.0)
 
 	var piloting := player != null and player.get("piloting_boat") != null
+	if piloting:
+		var hint := "THROTTLE / STEER"
+		var hint_size := ThemeDB.fallback_font.get_string_size(hint, HORIZONTAL_ALIGNMENT_LEFT, -1, 15)
+		draw_string(ThemeDB.fallback_font, Vector2(stick_center.x - hint_size.x * 0.5, stick_center.y - JOYSTICK_RADIUS - 18.0), hint, HORIZONTAL_ALIGNMENT_LEFT, -1, 15, Color(0.90, 0.96, 1.0, 0.78))
 	_draw_button(_use_center(), "LEAVE" if piloting else "USE", false)
 	if not piloting:
 		_draw_button(_sprint_center(), "RUN", sprint_touch != -1)
