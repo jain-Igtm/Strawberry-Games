@@ -1,12 +1,16 @@
 # Alaska Explorer
 
-A survival-first Godot prototype for Strawberry Games. The first playable build deliberately has no hostile creatures, combat, or supernatural systems. It establishes the place and the survival rules first, with one friendly dog companion.
+A survival-first Godot prototype for Strawberry Games. The current build still has no hostile creatures or supernatural encounters. It establishes the place, exploration loop, and survival rules first, with one friendly dog companion.
 
 ## First playable slice
 
 - Large walkable Alaskan winter valley with upward-facing terrain collision and stable slope traversal
 - Curving open river with current, animated water, new ice, snowbanks, rocks, spruce forest, and positional river ambience
-- Boardable and drivable river boat with throttle, steering, channel limits, a cast-off gangway, a stern ramp plus forgiving waterline ladder, an unobstructed cabin aisle, bunk, working helm, food, fuel, and diesel heater
+- Boardable and drivable river boat with throttle, steering, consumable vessel fuel, channel limits, a cast-off gangway, a stern ramp plus forgiving waterline ladder, an unobstructed cabin aisle, bunk, working helm, food, and diesel heater
+- Four illuminated river fuel docks spaced in both exploration directions, each with a working pump and a recoverable flag
+- Five-flag collection with a fluttering mast flag and cabin locker used to hoist any recovered design
+- Visible first-person sword with responsive swing animation, sound, desktop input, and a dedicated Android control
+- Tunable cabin radio with an OFF position, original old-time waltz, open-carrier static, and three voiced unsettling river transmissions
 - Hinged cabin door with nearby-use assistance, instant reversal, and shelter that returns only when the door is fully secured
 - Grounded survival simulation: core temperature, exposure, wetness, hunger, stamina, health, shelter, water immersion, drying, and heater fuel
 - Full day/night cycle with short early-winter daylight, moonlight, changing fog and sky light
@@ -26,11 +30,13 @@ A survival-first Godot prototype for Strawberry Games. The first playable build 
 | Run | Shift | Hold RUN |
 | Use / command Scout / board / leave helm | E | Tap USE / LEAVE |
 | Headlamp | F | Tap LAMP |
+| Swing sword | Left mouse / X | Tap SWORD |
+| Tune radio / refuel / collect or hoist flag | E | Tap USE |
 | Swim upward | Space | Move and let buoyancy lift you |
 
 ## Survival model
 
-The boat begins moored with the diesel heater running. Open the cabin door to enter, close it to block the wind, and stand near the heater to raise core temperature and dry wet clothing. Taking the helm leaves the gangway in place until throttle is applied; then the player can steer the Northstar along the river. The stern ramp remains walkable, while USE near the hull provides a dependable ladder climb back to deck. Falling into the river saturates clothing and cools the player quickly, with colder weather and wind chill increasing exposure. Food and diesel are finite in this prototype, making the boat a real refuge without pretending that the first map already contains a complete gathering/crafting economy.
+The boat begins moored with the diesel heater running and 68% vessel fuel. Open the cabin door to enter, close it to block the wind, and stand near the heater to raise core temperature and dry wet clothing. Taking the helm leaves the gangway in place until throttle is applied; then the player can steer the Northstar along the river. Pull alongside a lit fuel dock, nearly stop the boat, step onto the dock, and USE the pump to refill. Each stop also holds a distinct flag; recover it, then USE the cabin flag locker to hoist the next collected design. The stern ramp remains walkable, while USE near the hull provides a dependable ladder climb back to deck. Falling into the river saturates clothing and cools the player quickly, with colder weather and wind chill increasing exposure.
 
 ## Technical target
 

@@ -38,9 +38,16 @@ var world_controller: Node3D
 var interaction_prompt := ""
 var status_message := ""
 var status_message_until := 0
+var sword_pivot: Node3D
+var sword_audio: AudioStreamPlayer
+var sword_swing_elapsed := -1.0
+var sword_swing_count := 0
 
 const CAMERA_BASE := Vector3(0.0, 0.64, 0.0)
 const FALLBACK_SPAWN := Vector3(8.0, 2.24, 5.15)
+const SWORD_REST_POSITION := Vector3(0.54, -0.48, -0.86)
+const SWORD_REST_ROTATION := Vector3(-0.16, -0.12, -0.22)
+const SWORD_SWING_DURATION := 0.46
 
 func _ready() -> void:
 	world_controller = get_parent() as Node3D
@@ -54,6 +61,10 @@ func _ready() -> void:
 	if not OS.has_feature("mobile"):
 		Input.mouse_mode = Input.MOUSE_MODE_CAPTURED
 	headlamp.visible = lamp_on
+	_build_sword()
+
+func _process(delta: float) -> void:
+	_update_sword_animation(delta)
 
 func _physics_process(delta: float) -> void:
 	_update_environment()
@@ -106,6 +117,8 @@ func _physics_process(delta: float) -> void:
 		request_interact()
 	if Input.is_action_just_pressed("toggle_lamp"):
 		toggle_headlamp()
+	if Input.is_action_just_pressed("attack"):
+		request_attack()
 
 	if global_position.y < -12.0:
 		global_position = world_controller.call("get_rescue_position") if world_controller != null and world_controller.has_method("get_rescue_position") else FALLBACK_SPAWN
@@ -289,6 +302,8 @@ func begin_boat_piloting(next_boat: Node3D, next_seat: Marker3D, next_exit: Mark
 	collision_mask = 0
 	is_sprinting = false
 	mobile_sprint = false
+	if sword_pivot != null:
+		sword_pivot.visible = false
 	show_status_message("Helm engaged. Apply throttle to cast off.", 2.6)
 
 func end_boat_piloting() -> void:
@@ -305,6 +320,8 @@ func end_boat_piloting() -> void:
 	collision_layer = 2
 	collision_mask = 1
 	interaction_prompt = ""
+	if sword_pivot != null:
+		sword_pivot.visible = true
 	show_status_message("You leave the helm.", 1.5)
 
 func board_boat(boarding_point: Marker3D) -> void:
@@ -332,6 +349,82 @@ func toggle_headlamp() -> void:
 	headlamp.visible = lamp_on
 	show_status_message("Headlamp on." if lamp_on else "Headlamp off.", 1.3)
 
+func request_attack() -> void:
+	if is_dead or piloting_boat != null or sword_swing_elapsed >= 0.0:
+		return
+	sword_swing_elapsed = 0.0
+	sword_swing_count += 1
+	if sword_audio != null:
+		sword_audio.play()
+	var from := camera.global_position
+	var to := from + -camera.global_transform.basis.z * 2.35
+	var query := PhysicsRayQueryParameters3D.create(from, to, 5)
+	query.exclude = [get_rid()]
+	var hit := get_world_3d().direct_space_state.intersect_ray(query)
+	var target := hit.get("collider") as Node
+	if target != null and target.has_method("on_sword_hit"):
+		target.call("on_sword_hit", self)
+
+func get_sword_swing_count() -> int:
+	return sword_swing_count
+
+func _build_sword() -> void:
+	sword_pivot = Node3D.new()
+	sword_pivot.name = "Sword"
+	sword_pivot.position = SWORD_REST_POSITION
+	sword_pivot.rotation = SWORD_REST_ROTATION
+	camera.add_child(sword_pivot)
+
+	var blade_material := StandardMaterial3D.new()
+	blade_material.albedo_color = Color(0.72, 0.78, 0.80)
+	blade_material.metallic = 0.82
+	blade_material.roughness = 0.28
+	var edge_material := StandardMaterial3D.new()
+	edge_material.albedo_color = Color(0.92, 0.96, 0.96)
+	edge_material.metallic = 0.92
+	edge_material.roughness = 0.18
+	var grip_material := StandardMaterial3D.new()
+	grip_material.albedo_color = Color(0.16, 0.09, 0.055)
+	grip_material.roughness = 0.92
+
+	_add_sword_box("Blade", Vector3(0.082, 0.88, 0.040), Vector3(0.0, 0.37, 0.0), blade_material)
+	_add_sword_box("BladeEdge", Vector3(0.018, 0.91, 0.045), Vector3(-0.047, 0.385, 0.0), edge_material)
+	_add_sword_box("Guard", Vector3(0.42, 0.065, 0.09), Vector3(0.0, -0.10, 0.0), blade_material)
+	_add_sword_box("Grip", Vector3(0.105, 0.34, 0.105), Vector3(0.0, -0.30, 0.0), grip_material)
+	_add_sword_box("Pommel", Vector3(0.17, 0.10, 0.13), Vector3(0.0, -0.50, 0.0), blade_material)
+
+	sword_audio = AudioStreamPlayer.new()
+	sword_audio.name = "SwordSwingAudio"
+	sword_audio.stream = load("res://audio/sword_swing.ogg") as AudioStream
+	sword_audio.volume_db = -2.0
+	camera.add_child(sword_audio)
+
+func _add_sword_box(node_name: String, size: Vector3, position: Vector3, material: Material) -> void:
+	var mesh := BoxMesh.new()
+	mesh.size = size
+	mesh.material = material
+	var instance := MeshInstance3D.new()
+	instance.name = node_name
+	instance.mesh = mesh
+	instance.position = position
+	instance.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	sword_pivot.add_child(instance)
+
+func _update_sword_animation(delta: float) -> void:
+	if sword_pivot == null:
+		return
+	if sword_swing_elapsed < 0.0:
+		sword_pivot.position = SWORD_REST_POSITION
+		sword_pivot.rotation = SWORD_REST_ROTATION
+		return
+	sword_swing_elapsed += delta
+	var phase := clampf(sword_swing_elapsed / SWORD_SWING_DURATION, 0.0, 1.0)
+	var arc := sin(phase * PI)
+	sword_pivot.rotation = SWORD_REST_ROTATION + Vector3(-arc * 0.46, arc * 0.18, -arc * 1.28)
+	sword_pivot.position = SWORD_REST_POSITION + Vector3(-arc * 0.28, arc * 0.10, -arc * 0.14)
+	if phase >= 1.0:
+		sword_swing_elapsed = -1.0
+
 func _apply_look(delta_look: Vector2) -> void:
 	rotate_y(-delta_look.x)
 	pitch = clampf(pitch - delta_look.y, deg_to_rad(-85.0), deg_to_rad(85.0))
@@ -343,6 +436,9 @@ func _unhandled_input(event: InputEvent) -> void:
 	if event is InputEventMouseMotion and Input.mouse_mode == Input.MOUSE_MODE_CAPTURED:
 		_apply_look(event.relative * mouse_sensitivity)
 	elif event is InputEventMouseButton and event.pressed:
-		Input.mouse_mode = Input.MOUSE_MODE_CAPTURED
+		if event.button_index == MOUSE_BUTTON_LEFT and Input.mouse_mode == Input.MOUSE_MODE_CAPTURED:
+			request_attack()
+		else:
+			Input.mouse_mode = Input.MOUSE_MODE_CAPTURED
 	elif event is InputEventKey and event.pressed and event.keycode == KEY_ESCAPE:
 		Input.mouse_mode = Input.MOUSE_MODE_VISIBLE

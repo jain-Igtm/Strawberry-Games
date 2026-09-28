@@ -5,6 +5,8 @@ extends AnimatableBody3D
 @export var acceleration := 2.2
 @export var deceleration := 3.0
 @export var turn_rate_degrees := 24.0
+@export var fuel_capacity := 100.0
+@export var fuel_burn_per_second := 0.72
 
 var pilot: CharacterBody3D
 var world_controller: Node
@@ -14,6 +16,9 @@ var current_speed := 0.0
 var moored := true
 var throttle_input := 0.0
 var steering_input := 0.0
+var fuel := 68.0
+var low_fuel_warning_given := false
+var empty_warning_given := false
 
 func _ready() -> void:
 	add_to_group("boat")
@@ -37,6 +42,11 @@ func _physics_process(delta: float) -> void:
 		throttle_input = 0.0
 	if absf(steering_input) < 0.08:
 		steering_input = 0.0
+	if fuel <= 0.01 and absf(throttle_input) > 0.08:
+		throttle_input = 0.0
+		if not empty_warning_given and pilot != null and pilot.has_method("show_status_message"):
+			pilot.call("show_status_message", "The Northstar's engine coughs dry. Find a river fuel dock.", 4.0)
+		empty_warning_given = true
 
 	if moored and absf(throttle_input) > 0.08:
 		_cast_off()
@@ -59,6 +69,7 @@ func _physics_process(delta: float) -> void:
 			proposed = world_controller.call("constrain_boat_position", proposed)
 		next_transform.origin = proposed
 		global_transform = next_transform
+		_consume_fuel(delta)
 
 func begin_piloting(next_pilot: CharacterBody3D) -> void:
 	if pilot != null or next_pilot == null or helm_seat == null:
@@ -96,3 +107,25 @@ func get_speed_knots() -> float:
 
 func get_throttle_percent() -> int:
 	return roundi(throttle_input * 100.0)
+
+func get_fuel_percent() -> float:
+	return clampf(fuel / fuel_capacity * 100.0, 0.0, 100.0)
+
+func refuel(amount: float = -1.0) -> float:
+	var before := fuel
+	fuel = fuel_capacity if amount < 0.0 else minf(fuel_capacity, fuel + amount)
+	if fuel > 0.01:
+		empty_warning_given = false
+	if get_fuel_percent() > 25.0:
+		low_fuel_warning_given = false
+	return fuel - before
+
+func _consume_fuel(delta: float) -> void:
+	if absf(current_speed) <= 0.08 or fuel <= 0.0:
+		return
+	var load_factor := clampf(absf(current_speed) / forward_speed, 0.16, 1.0)
+	fuel = maxf(0.0, fuel - fuel_burn_per_second * load_factor * delta)
+	if get_fuel_percent() <= 18.0 and not low_fuel_warning_given:
+		low_fuel_warning_given = true
+		if pilot != null and pilot.has_method("show_status_message"):
+			pilot.call("show_status_message", "Northstar fuel below 18%. Watch for a lit river pump.", 4.0)

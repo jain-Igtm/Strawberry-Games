@@ -5,6 +5,7 @@ var heater: Node
 var boat: Node
 var world_controller: Node
 var dog: Node
+var radio: Node
 
 const ICE := Color(0.86, 0.94, 0.98, 0.96)
 const MUTED := Color(0.68, 0.79, 0.84, 0.88)
@@ -20,6 +21,7 @@ func _find_nodes() -> void:
 	boat = get_tree().get_first_node_in_group("boat")
 	world_controller = get_tree().get_first_node_in_group("world")
 	dog = get_tree().get_first_node_in_group("dog")
+	radio = get_tree().get_first_node_in_group("radio")
 
 func _process(_delta: float) -> void:
 	if player == null:
@@ -32,13 +34,15 @@ func _process(_delta: float) -> void:
 		world_controller = get_tree().get_first_node_in_group("world")
 	if dog == null:
 		dog = get_tree().get_first_node_in_group("dog")
+	if radio == null:
+		radio = get_tree().get_first_node_in_group("radio")
 	queue_redraw()
 
 func _draw() -> void:
 	if player == null:
 		return
 
-	draw_rect(Rect2(20.0, 18.0, 292.0, 267.0), PANEL, true)
+	draw_rect(Rect2(20.0, 18.0, 292.0, 348.0), PANEL, true)
 	draw_rect(Rect2(20.0, 18.0, 292.0, 3.0), Color(0.55, 0.75, 0.83, 0.8), true)
 	_draw_text("ALASKA EXPLORER", Vector2(34.0, 48.0), 20, ICE)
 	var time_text := "--:--"
@@ -78,17 +82,32 @@ func _draw() -> void:
 			boat_text = "NORTHSTAR  %.1f KT" % float(boat.call("get_speed_knots"))
 			boat_color = Color(0.68, 0.88, 0.91, 0.98) if piloting else MUTED
 	_draw_text(boat_text, Vector2(34.0, 249.0), 13, boat_color)
+	var vessel_fuel := float(boat.call("get_fuel_percent")) if boat != null and boat.has_method("get_fuel_percent") else 0.0
+	var fuel_color := Color(0.93, 0.45, 0.28, 0.98) if vessel_fuel < 20.0 else Color(0.74, 0.86, 0.72, 0.94)
+	_draw_text("BOAT FUEL  %d%%" % roundi(vessel_fuel), Vector2(34.0, 272.0), 13, fuel_color)
 	var dog_text := "SCOUT  STAYING" if dog != null and bool(dog.get("is_sitting")) else "SCOUT  FOLLOWING"
-	_draw_text(dog_text, Vector2(34.0, 273.0), 13, Color(0.76, 0.84, 0.78, 0.92))
+	_draw_text(dog_text, Vector2(34.0, 295.0), 13, Color(0.76, 0.84, 0.78, 0.92))
+	var flag_name := str(world_controller.call("get_current_flag_name")) if world_controller != null and world_controller.has_method("get_current_flag_name") else "Northstar"
+	var flag_count := int(world_controller.call("get_unlocked_flag_count")) if world_controller != null and world_controller.has_method("get_unlocked_flag_count") else 1
+	_draw_text("FLAG  %s  %d/5" % [flag_name.to_upper(), flag_count], Vector2(34.0, 318.0), 12, Color(0.77, 0.86, 0.91, 0.94))
+	var radio_text := "RADIO  OFF"
+	if radio != null and bool(radio.call("is_powered")):
+		radio_text = "RADIO  %s  %s" % [str(radio.call("get_frequency_text")), str(radio.call("get_station_label"))]
+	_draw_text(radio_text, Vector2(34.0, 341.0), 11, MUTED, 264.0)
 
 	var center_width := minf(620.0, size.x - 360.0)
 	var center_x := (size.x - center_width) * 0.5
-	var objective := "THROTTLE  ·  STEER  ·  STAY IN THE CHANNEL" if piloting else "KEEP WARM  ·  STAY DRY  ·  FOLLOW THE RIVER"
+	var objective := "FIND FUEL DOCKS  ·  COLLECT FLAGS  ·  STAY IN THE CHANNEL" if piloting else "KEEP WARM  ·  EXPLORE THE RIVER  ·  LISTEN CAREFULLY"
 	_draw_text(objective, Vector2(center_x, 38.0), 14, Color(0.86, 0.94, 0.98, 0.72), center_width, HORIZONTAL_ALIGNMENT_CENTER)
 
 	if not OS.has_feature("mobile"):
-		var controls := "W/S THROTTLE   A/D STEER   E LEAVE   F LAMP" if piloting else "WASD MOVE   SHIFT RUN   E USE   F LAMP"
-		_draw_text(controls, Vector2(size.x - 475.0, 38.0), 13, MUTED, 447.0, HORIZONTAL_ALIGNMENT_RIGHT)
+		var controls := "W/S THROTTLE   A/D STEER   E LEAVE   F LAMP" if piloting else "WASD MOVE   SHIFT RUN   E USE   LMB/X SWORD   F LAMP"
+		_draw_text(controls, Vector2(size.x - 515.0, 38.0), 12, MUTED, 487.0, HORIZONTAL_ALIGNMENT_RIGHT)
+
+	if radio != null:
+		var broadcast := str(radio.call("get_broadcast_caption"))
+		if broadcast != "":
+			_draw_broadcast(broadcast)
 
 	var prompt := str(player.get("interaction_prompt"))
 	if prompt != "":
@@ -121,6 +140,16 @@ func _draw_crosshair() -> void:
 	draw_line(center + Vector2(2.0, 0.0), center + Vector2(7.0, 0.0), Color(0.9, 0.96, 1.0, 0.65), 1.5)
 	draw_line(center - Vector2(0.0, 7.0), center - Vector2(0.0, 2.0), Color(0.9, 0.96, 1.0, 0.65), 1.5)
 	draw_line(center + Vector2(0.0, 2.0), center + Vector2(0.0, 7.0), Color(0.9, 0.96, 1.0, 0.65), 1.5)
+
+func _draw_broadcast(caption: String) -> void:
+	var panel_width := minf(760.0, size.x - 80.0)
+	var lines := caption.split("\n")
+	var panel_height := 26.0 + float(lines.size()) * 20.0
+	var panel_position := Vector2((size.x - panel_width) * 0.5, size.y - 246.0)
+	draw_rect(Rect2(panel_position, Vector2(panel_width, panel_height)), Color(0.025, 0.045, 0.045, 0.88), true)
+	draw_rect(Rect2(panel_position, Vector2(panel_width, 2.0)), Color(0.72, 0.48, 0.27, 0.72), true)
+	for index in range(lines.size()):
+		_draw_text(str(lines[index]), panel_position + Vector2(14.0, 26.0 + float(index) * 20.0), 14, Color(0.92, 0.82, 0.65, 0.96), panel_width - 28.0, HORIZONTAL_ALIGNMENT_CENTER)
 
 func _core_color(core: float) -> Color:
 	if core < 34.5:

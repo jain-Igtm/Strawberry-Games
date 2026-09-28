@@ -29,6 +29,11 @@ func _run() -> void:
 	var river_audio := game.get_node_or_null("GeneratedWorld/RiverAmbience")
 	var wind_audio := game.get_node_or_null("GeneratedWorld/WinterWindAmbience")
 	var dog := game.get_node_or_null("GeneratedWorld/Dog")
+	var cabin_radio := game.get_node_or_null("GeneratedWorld/CabinBoat/CabinRadio")
+	var flag_locker := game.get_node_or_null("GeneratedWorld/CabinBoat/FlagLocker")
+	var hoisted_flag := game.get_node_or_null("GeneratedWorld/CabinBoat/HoistedFlag")
+	var first_fuel_station := game.get_node_or_null("GeneratedWorld/FuelStop1/FuelPump")
+	var first_flag_pickup := game.get_node_or_null("GeneratedWorld/FuelStop1/FlagPickup_raven")
 	var environment_cycle := game.get_node_or_null("GeneratedWorld/EnvironmentCycle")
 	var sun := game.get_node_or_null("GeneratedWorld/LowWinterSun") as DirectionalLight3D
 	var winter_environment := game.get_node_or_null("GeneratedWorld/WinterEnvironment") as WorldEnvironment
@@ -42,6 +47,20 @@ func _run() -> void:
 	_expect(cabin_door != null, "hinged cabin door generated")
 	_expect(boarding_ladder != null, "waterline boarding ladder generated")
 	_expect(dog != null and str(dog.call("get_interaction_prompt")) == "Tell Scout to sit", "Scout is generated with a sit command")
+	_expect(cabin_radio != null and flag_locker != null and hoisted_flag != null, "radio and working flag rig are installed aboard the Northstar")
+	_expect(first_fuel_station != null and first_flag_pickup != null, "river fuel stops include refueling and collectible flags")
+	var fuel_stop_positions: Array[float] = []
+	for station_index in range(1, 5):
+		var station := game.get_node_or_null("GeneratedWorld/FuelStop%d/FuelPump" % station_index)
+		if station != null:
+			fuel_stop_positions.append(station.global_position.z)
+	_expect(fuel_stop_positions.size() == 4, "four fuel stations are distributed along the river")
+	if fuel_stop_positions.size() == 4:
+		fuel_stop_positions.sort()
+		var minimum_spacing := INF
+		for index in range(1, fuel_stop_positions.size()):
+			minimum_spacing = minf(minimum_spacing, fuel_stop_positions[index] - fuel_stop_positions[index - 1])
+		_expect(minimum_spacing > 150.0, "river fuel stations appear at useful travel intervals")
 	_expect(environment_cycle != null, "day night and weather controller generated")
 	_expect(sun != null and winter_environment != null and snowfall != null, "daylight and weather visuals are connected")
 	_expect(boat != null and boat.get_node_or_null("SternBoardingRamp") != null and boat.get_node_or_null("SternBoardingPlatform") != null, "stern reboarding route generated")
@@ -54,10 +73,34 @@ func _run() -> void:
 	var ground_hit: Dictionary = game.get_world_3d().direct_space_state.intersect_ray(ground_query)
 	var ground_normal: Vector3 = ground_hit.get("normal", Vector3.ZERO)
 	_expect(not ground_hit.is_empty() and ground_normal.y > 0.8, "snow terrain collision faces upward")
+
+	if cabin_radio != null:
+		_expect(not bool(cabin_radio.call("is_powered")), "cabin radio starts switched off")
+		cabin_radio.call("interact", player)
+		await process_frame
+		var receiver := cabin_radio.get_node_or_null("ReceiverAudio") as AudioStreamPlayer3D
+		_expect(bool(cabin_radio.call("is_powered")) and str(cabin_radio.call("get_frequency_text")) == "87.9", "radio tuning reaches the old-time music station")
+		_expect(receiver != null and receiver.stream != null and receiver.playing, "radio broadcasts audible program audio")
+		for _channel in range(int(cabin_radio.call("get_channel_count")) - 1):
+			cabin_radio.call("interact", player)
+		_expect(not bool(cabin_radio.call("is_powered")), "radio tuning includes a reliable off position")
+
+	if first_flag_pickup != null and flag_locker != null:
+		var flags_before := int(game.call("get_unlocked_flag_count"))
+		first_flag_pickup.call("interact", player)
+		_expect(int(game.call("get_unlocked_flag_count")) == flags_before + 1 and not first_flag_pickup.visible, "a discovered river flag is added to the collection")
+		var flag_before := str(game.call("get_current_flag_name"))
+		flag_locker.call("interact", player)
+		_expect(str(game.call("get_current_flag_name")) != flag_before, "the cabin locker hoists a recovered flag")
+
 	if player != null:
 		for _frame in range(18):
 			await physics_frame
 		_expect(player.global_position.y > 1.9 and player.global_position.y < 2.6, "player settles safely on the boat deck")
+		var swings_before := int(player.call("get_sword_swing_count"))
+		player.call("request_attack")
+		await process_frame
+		_expect(int(player.call("get_sword_swing_count")) == swings_before + 1 and player.get_node_or_null("CameraPivot/Camera3D/Sword") != null, "player carries and can swing the sword")
 		player.call("_update_interaction")
 		_expect(str(player.get("interaction_prompt")) == "Open cabin door", "cabin door is reachable with the use control")
 		if cabin_door != null:
@@ -277,6 +320,17 @@ func _run() -> void:
 		await physics_frame
 		var ladder_boarded_local: Vector3 = boat.to_local(player.global_position)
 		_expect(ladder_boarded_local.y > 1.9 and absf(ladder_boarded_local.x) < 2.0 and absf(ladder_boarded_local.z) < 6.0, "waterline use reliably returns the player to the deck")
+
+	if boat != null and first_fuel_station != null:
+		boat.set("fuel", 55.0)
+		boat.set("current_speed", float(boat.get("forward_speed")))
+		boat.call("_consume_fuel", 4.0)
+		_expect(float(boat.get("fuel")) < 53.0, "running the Northstar consumes vessel fuel")
+		boat.set("current_speed", 0.0)
+		var pump_position: Vector3 = first_fuel_station.global_position
+		boat.global_position = Vector3(pump_position.x - 7.0, 0.0, pump_position.z)
+		first_fuel_station.call("interact", player)
+		_expect(float(boat.call("get_fuel_percent")) > 99.0, "a river fuel pump refills the Northstar alongside the dock")
 
 	game.queue_free()
 	await process_frame

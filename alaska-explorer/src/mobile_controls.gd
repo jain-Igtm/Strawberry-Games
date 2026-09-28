@@ -34,6 +34,10 @@ func _input(event: InputEvent) -> void:
 				player.call("request_interact")
 				queue_redraw()
 				return
+			if _inside(event.position, _attack_center(), BUTTON_RADIUS + 10.0) and player.get("piloting_boat") == null:
+				player.call("request_attack")
+				queue_redraw()
+				return
 			if _inside(event.position, _lamp_center(), BUTTON_RADIUS + 10.0):
 				player.call("toggle_headlamp")
 				return
@@ -89,6 +93,9 @@ func _sprint_center() -> Vector2:
 func _lamp_center() -> Vector2:
 	return Vector2(size.x - 88.0, size.y - 222.0)
 
+func _attack_center() -> Vector2:
+	return Vector2(size.x - 212.0, size.y - 222.0)
+
 func _joystick_center() -> Vector2:
 	return Vector2(172.0, size.y - 165.0)
 
@@ -112,6 +119,7 @@ func _draw() -> void:
 	_draw_button(_use_center(), "LEAVE" if piloting else "USE", false)
 	if not piloting:
 		_draw_button(_sprint_center(), "RUN", sprint_touch != -1)
+		_draw_button(_attack_center(), "SWORD", false)
 	_draw_button(_lamp_center(), "LAMP", player != null and bool(player.get("lamp_on")))
 
 func _draw_button(center: Vector2, label: String, active: bool) -> void:

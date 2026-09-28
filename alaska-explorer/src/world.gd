@@ -8,6 +8,11 @@ const CabinDoorScript = preload("res://src/cabin_door.gd")
 const BoardingLadderScript = preload("res://src/boarding_ladder.gd")
 const DogScript = preload("res://src/dog.gd")
 const EnvironmentCycleScript = preload("res://src/environment_cycle.gd")
+const FuelStationScript = preload("res://src/fuel_station.gd")
+const FlagPickupScript = preload("res://src/flag_pickup.gd")
+const FlagLockerScript = preload("res://src/flag_locker.gd")
+const FlagClothScript = preload("res://src/flag_cloth.gd")
+const CabinRadioScript = preload("res://src/cabin_radio.gd")
 const RiverShader = preload("res://shaders/river.gdshader")
 
 const TERRAIN_HALF_WIDTH := 220.0
@@ -15,6 +20,19 @@ const TERRAIN_HALF_LENGTH := 480.0
 const TERRAIN_STEP := 8.0
 const WATER_LEVEL := 0.05
 const BOAT_POSITION := Vector3(8.0, 0.0, 0.0)
+const FUEL_STOPS := [
+	{"z": -326.0, "name": "Raven Bend Fuel", "flag": "raven"},
+	{"z": -162.0, "name": "Kuskokwim Landing", "flag": "aurora"},
+	{"z": 158.0, "name": "Glacier Mile Service", "flag": "glacier"},
+	{"z": 324.0, "name": "Midnight Sun Fuel", "flag": "midnight_sun"},
+]
+const FLAG_DATA := {
+	"northstar": {"name": "Northstar", "upper": Color(0.08, 0.23, 0.34), "lower": Color(0.82, 0.89, 0.91)},
+	"aurora": {"name": "Aurora", "upper": Color(0.10, 0.60, 0.51), "lower": Color(0.20, 0.12, 0.36)},
+	"raven": {"name": "Raven", "upper": Color(0.055, 0.065, 0.075), "lower": Color(0.65, 0.18, 0.12)},
+	"glacier": {"name": "Glacier", "upper": Color(0.76, 0.93, 0.97), "lower": Color(0.10, 0.42, 0.62)},
+	"midnight_sun": {"name": "Midnight Sun", "upper": Color(0.08, 0.09, 0.19), "lower": Color(0.94, 0.49, 0.13)},
+}
 
 @onready var generated: Node3D = $GeneratedWorld
 @onready var player: CharacterBody3D = $Player
@@ -33,6 +51,12 @@ var dog: CharacterBody3D
 var environment_cycle: Node
 var winter_environment: WorldEnvironment
 var winter_sun: DirectionalLight3D
+var cabin_radio: StaticBody3D
+var flag_visual: Node3D
+var fuel_stations: Array[StaticBody3D] = []
+var flag_pickups: Array[StaticBody3D] = []
+var unlocked_flags: Array[String] = ["northstar"]
+var current_flag_index := 0
 
 var snow_material: StandardMaterial3D
 var rock_material: StandardMaterial3D
@@ -62,6 +86,7 @@ func _ready() -> void:
 	_build_ice_floes()
 	_build_forest()
 	_build_boat()
+	_build_fuel_stations()
 	_build_ambient_audio()
 	_build_snowfall()
 	_build_dog()
@@ -128,11 +153,30 @@ func get_nearby_interactable(world_position: Vector3) -> Node:
 		var beside_hull := absf(boat_local.x) < 4.2 and absf(boat_local.z) < 8.8
 		if beside_hull and boat_local.y < 1.70:
 			return boarding_ladder
-	if cabin_door != null and world_position.distance_to(cabin_door.global_position) < 3.25:
-		return cabin_door
-	if dog != null and world_position.distance_to(dog.global_position) < 4.25:
-		return dog
-	return null
+	var nearest: Node3D
+	var nearest_distance := INF
+	if cabin_door != null:
+		var door_distance := world_position.distance_to(cabin_door.global_position)
+		if door_distance < 2.8:
+			nearest = cabin_door
+			nearest_distance = door_distance
+	if dog != null:
+		var dog_distance := world_position.distance_to(dog.global_position)
+		if dog_distance < 4.25 and dog_distance < nearest_distance:
+			nearest = dog
+			nearest_distance = dog_distance
+	for candidate_node in get_tree().get_nodes_in_group("world_interactable"):
+		var candidate := candidate_node as Node3D
+		if candidate == null or not candidate.visible:
+			continue
+		var radius := 3.0
+		if candidate.has_method("get_interaction_radius"):
+			radius = float(candidate.call("get_interaction_radius"))
+		var distance := world_position.distance_to(candidate.global_position)
+		if distance <= radius and distance < nearest_distance:
+			nearest = candidate
+			nearest_distance = distance
+	return nearest
 
 func constrain_boat_position(proposed: Vector3) -> Vector3:
 	var result := proposed
@@ -501,6 +545,9 @@ func _build_boat() -> void:
 	_build_boarding_ladder(boat)
 	_build_heater(boat)
 	_build_supplies(boat)
+	_build_flag_rig(boat)
+	_build_flag_locker(boat)
+	_build_cabin_radio(boat)
 	generated.add_child(boat)
 	_build_gangway()
 
@@ -768,6 +815,223 @@ func _build_supplies(boat_body: AnimatableBody3D) -> void:
 	fuel.set("remaining", 3)
 	_add_box(fuel, "FuelCan", Vector3(0.62, 0.78, 0.42), Vector3.ZERO, _material(Color(0.46, 0.13, 0.08), 0.62, 0.18))
 	boat_body.add_child(fuel)
+
+func _build_flag_rig(boat_body: AnimatableBody3D) -> void:
+	_add_cylinder(boat_body, "FlagMast", 0.045, 3.55, Vector3(-1.54, 5.48, 0.82), metal_material, false)
+	_add_cylinder(boat_body, "FlagHalyard", 0.012, 3.18, Vector3(-1.47, 5.38, 0.82), _material(Color(0.72, 0.68, 0.57), 0.88), false)
+	var mast_light := OmniLight3D.new()
+	mast_light.name = "MastLight"
+	mast_light.position = Vector3(-1.54, 7.28, 0.82)
+	mast_light.light_color = Color(1.0, 0.22, 0.12)
+	mast_light.light_energy = 0.85
+	mast_light.omni_range = 4.0
+	boat_body.add_child(mast_light)
+
+	flag_visual = Node3D.new()
+	flag_visual.name = "HoistedFlag"
+	flag_visual.position = Vector3(-1.54, 6.55, 0.82)
+	flag_visual.set_script(FlagClothScript)
+	var upper_materials: Array[StandardMaterial3D] = []
+	var lower_materials: Array[StandardMaterial3D] = []
+	for segment_index in range(3):
+		var panel := Node3D.new()
+		panel.name = "FlagPanel%d" % segment_index
+		panel.position = Vector3(0.0, 0.0, float(segment_index) * 0.42)
+		flag_visual.add_child(panel)
+		var upper := _material(Color.WHITE, 0.76)
+		var lower := _material(Color.WHITE, 0.76)
+		upper_materials.append(upper)
+		lower_materials.append(lower)
+		_add_box(panel, "Upper", Vector3(0.045, 0.36, 0.42), Vector3(0.0, 0.18, 0.21), upper, false)
+		_add_box(panel, "Lower", Vector3(0.045, 0.36, 0.42), Vector3(0.0, -0.18, 0.21), lower, false)
+	boat_body.add_child(flag_visual)
+	flag_visual.call("configure_materials", upper_materials, lower_materials)
+	_apply_current_flag()
+
+func _build_flag_locker(boat_body: AnimatableBody3D) -> void:
+	var locker := StaticBody3D.new()
+	locker.name = "FlagLocker"
+	locker.position = Vector3(-1.76, 2.66, 1.34)
+	locker.collision_layer = 1
+	locker.collision_mask = 2
+	locker.set_script(FlagLockerScript)
+	_add_box(locker, "LockerCase", Vector3(0.22, 0.68, 0.76), Vector3.ZERO, _material(Color(0.18, 0.23, 0.24), 0.64, 0.32))
+	_add_box(locker, "LockerStripe", Vector3(0.025, 0.10, 0.58), Vector3(0.13, 0.13, 0.0), _material(Color(0.71, 0.28, 0.18), 0.70), false)
+	var label := Label3D.new()
+	label.name = "FlagLockerLabel"
+	label.position = Vector3(0.14, -0.08, 0.0)
+	label.text = "FLAGS"
+	label.font_size = 28
+	label.pixel_size = 0.0045
+	label.modulate = Color(0.83, 0.89, 0.88)
+	label.billboard = BaseMaterial3D.BILLBOARD_ENABLED
+	locker.add_child(label)
+	boat_body.add_child(locker)
+
+func _build_cabin_radio(boat_body: AnimatableBody3D) -> void:
+	cabin_radio = StaticBody3D.new()
+	cabin_radio.name = "CabinRadio"
+	cabin_radio.position = Vector3(-1.76, 2.68, -0.18)
+	cabin_radio.collision_layer = 1
+	cabin_radio.collision_mask = 2
+	cabin_radio.set_script(CabinRadioScript)
+	var radio_case := _material(Color(0.12, 0.095, 0.07), 0.90)
+	var radio_metal := _material(Color(0.34, 0.31, 0.25), 0.58, 0.24)
+	_add_box(cabin_radio, "RadioCase", Vector3(0.24, 0.58, 0.94), Vector3.ZERO, radio_case)
+	_add_box(cabin_radio, "SpeakerGrille", Vector3(0.03, 0.25, 0.36), Vector3(0.135, 0.08, 0.22), radio_metal, false)
+	for knob_z in [-0.29, -0.10]:
+		_add_cylinder(cabin_radio, "TuningKnob", 0.075, 0.055, Vector3(0.16, -0.15, knob_z), radio_metal, false, Vector3(0.0, 0.0, deg_to_rad(90.0)))
+	var display := Label3D.new()
+	display.name = "FrequencyDisplay"
+	display.position = Vector3(0.15, 0.15, -0.20)
+	display.text = "OFF"
+	display.font_size = 34
+	display.pixel_size = 0.0042
+	display.outline_size = 5
+	display.outline_modulate = Color(0.04, 0.025, 0.018)
+	display.billboard = BaseMaterial3D.BILLBOARD_ENABLED
+	cabin_radio.add_child(display)
+	var receiver := AudioStreamPlayer3D.new()
+	receiver.name = "ReceiverAudio"
+	receiver.volume_db = 2.0
+	receiver.unit_size = 2.8
+	receiver.max_distance = 22.0
+	receiver.attenuation_filter_cutoff_hz = 3900.0
+	cabin_radio.add_child(receiver)
+	boat_body.add_child(cabin_radio)
+
+func _build_fuel_stations() -> void:
+	for index in range(FUEL_STOPS.size()):
+		var stop: Dictionary = FUEL_STOPS[index]
+		_build_fuel_station(index, float(stop["z"]), str(stop["name"]), str(stop["flag"]))
+
+func _build_fuel_station(index: int, station_z: float, station_name: String, flag_id: String) -> void:
+	var river_x := _river_center(station_z)
+	var dock_center_x := river_x + _river_half_width(station_z) - 0.15
+	var root := Node3D.new()
+	root.name = "FuelStop%d" % (index + 1)
+	root.position = Vector3(dock_center_x, 0.0, station_z)
+
+	var dock := StaticBody3D.new()
+	dock.name = "FuelDock"
+	dock.collision_layer = 1
+	dock.collision_mask = 2
+	_add_box(dock, "DockDeck", Vector3(9.0, 0.24, 4.5), Vector3(0.0, 1.20, 0.0), wood_material)
+	for post_x in [-4.18, -2.6, 0.8, 4.18]:
+		for post_z in [-1.92, 1.92]:
+			_add_cylinder(dock, "DockPost", 0.10, 2.2, Vector3(post_x, 0.72, post_z), wood_material, false)
+	for bollard_z in [-1.42, 1.42]:
+		_add_cylinder(dock, "MooringBollard", 0.13, 0.62, Vector3(-3.72, 1.60, bollard_z), metal_material, false)
+	root.add_child(dock)
+
+	var pump := StaticBody3D.new()
+	pump.name = "FuelPump"
+	pump.position = Vector3(1.25, 1.34, -0.35)
+	pump.collision_layer = 1
+	pump.collision_mask = 2
+	pump.set_script(FuelStationScript)
+	pump.set("station_name", station_name)
+	var pump_red := _material(Color(0.54, 0.12, 0.075), 0.56, 0.18)
+	_add_box(pump, "PumpBody", Vector3(0.72, 1.15, 0.72), Vector3(0.0, 0.57, 0.0), pump_red)
+	_add_box(pump, "PumpFace", Vector3(0.04, 0.38, 0.46), Vector3(-0.38, 0.70, 0.0), _material(Color(0.82, 0.84, 0.76), 0.48), false)
+	_add_cylinder(pump, "PumpHose", 0.035, 1.20, Vector3(0.40, 0.43, 0.0), _material(Color(0.035, 0.04, 0.04), 0.92), false)
+	var pump_label := Label3D.new()
+	pump_label.name = "PumpLabel"
+	pump_label.position = Vector3(0.0, 1.50, 0.0)
+	pump_label.text = "RIVER FUEL"
+	pump_label.font_size = 42
+	pump_label.pixel_size = 0.0052
+	pump_label.modulate = Color(1.0, 0.82, 0.54)
+	pump_label.outline_size = 7
+	pump_label.outline_modulate = Color(0.10, 0.035, 0.02)
+	pump_label.billboard = BaseMaterial3D.BILLBOARD_ENABLED
+	pump.add_child(pump_label)
+	root.add_child(pump)
+	fuel_stations.append(pump)
+
+	var canopy := StaticBody3D.new()
+	canopy.name = "FuelCanopy"
+	canopy.collision_layer = 1
+	canopy.collision_mask = 2
+	_add_box(canopy, "CanopyRoof", Vector3(4.15, 0.20, 4.15), Vector3(2.10, 4.12, 0.0), roof_material)
+	for post_x in [0.30, 3.90]:
+		for post_z in [-1.68, 1.68]:
+			_add_cylinder(canopy, "CanopyPost", 0.075, 3.0, Vector3(post_x, 2.63, post_z), metal_material)
+	root.add_child(canopy)
+
+	var beacon := OmniLight3D.new()
+	beacon.name = "FuelBeacon"
+	beacon.position = Vector3(-2.8, 4.3, 0.0)
+	beacon.light_color = Color(1.0, 0.43, 0.18)
+	beacon.light_energy = 3.0
+	beacon.omni_range = 17.0
+	root.add_child(beacon)
+
+	var pickup := StaticBody3D.new()
+	pickup.name = "FlagPickup_%s" % flag_id
+	pickup.position = Vector3(-1.55, 1.72, 0.76)
+	pickup.collision_layer = 1
+	pickup.collision_mask = 2
+	pickup.set_script(FlagPickupScript)
+	pickup.set("flag_id", flag_id)
+	var flag_name := get_flag_name(flag_id)
+	pickup.set("flag_name", flag_name)
+	var flag_data: Dictionary = FLAG_DATA[flag_id]
+	_add_box(pickup, "FlagStand", Vector3(0.38, 0.68, 0.38), Vector3(0.0, 0.0, 0.0), _material(Color(0.24, 0.18, 0.11), 0.92))
+	_add_box(pickup, "FlagUpper", Vector3(0.055, 0.28, 0.72), Vector3(0.0, 0.48, 0.08), _material(flag_data["upper"], 0.76), false)
+	_add_box(pickup, "FlagLower", Vector3(0.055, 0.28, 0.72), Vector3(0.0, 0.20, 0.08), _material(flag_data["lower"], 0.76), false)
+	var flag_label := Label3D.new()
+	flag_label.name = "FlagName"
+	flag_label.position = Vector3(0.0, 0.95, 0.0)
+	flag_label.text = flag_name.upper()
+	flag_label.font_size = 30
+	flag_label.pixel_size = 0.0045
+	flag_label.modulate = Color(0.89, 0.93, 0.90)
+	flag_label.billboard = BaseMaterial3D.BILLBOARD_ENABLED
+	pickup.add_child(flag_label)
+	root.add_child(pickup)
+	flag_pickups.append(pickup)
+
+	generated.add_child(root)
+
+func unlock_flag(flag_id: String) -> bool:
+	if not FLAG_DATA.has(flag_id) or flag_id in unlocked_flags:
+		return false
+	unlocked_flags.append(flag_id)
+	return true
+
+func cycle_flag(player_node: Node = null) -> void:
+	if unlocked_flags.size() <= 1:
+		if player_node != null and player_node.has_method("show_status_message"):
+			player_node.call("show_status_message", "The Northstar flag is flying. Find more flags at river fuel stops.", 3.2)
+		return
+	current_flag_index = (current_flag_index + 1) % unlocked_flags.size()
+	_apply_current_flag()
+	if player_node != null and player_node.has_method("show_status_message"):
+		player_node.call("show_status_message", "%s flag hoisted." % get_current_flag_name(), 2.5)
+
+func get_flag_name(flag_id: String) -> String:
+	if not FLAG_DATA.has(flag_id):
+		return "Unknown"
+	return str(FLAG_DATA[flag_id]["name"])
+
+func get_current_flag_name() -> String:
+	return get_flag_name(unlocked_flags[current_flag_index])
+
+func get_next_flag_name() -> String:
+	if unlocked_flags.size() <= 1:
+		return get_current_flag_name()
+	return get_flag_name(unlocked_flags[(current_flag_index + 1) % unlocked_flags.size()])
+
+func get_unlocked_flag_count() -> int:
+	return unlocked_flags.size()
+
+func _apply_current_flag() -> void:
+	if flag_visual == null or unlocked_flags.is_empty():
+		return
+	var flag_id := unlocked_flags[current_flag_index]
+	var data: Dictionary = FLAG_DATA[flag_id]
+	flag_visual.call("set_palette", data["upper"], data["lower"])
 
 func _build_gangway() -> void:
 	var start := BOAT_POSITION + Vector3(2.30, 1.23, 4.85)
