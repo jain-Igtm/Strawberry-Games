@@ -551,25 +551,29 @@ func _build_boat_details(boat_body: AnimatableBody3D) -> void:
 	_build_reboarding_ramp(boat_body)
 
 func _build_reboarding_ramp(boat_body: AnimatableBody3D) -> void:
-	# Broad, shallow stern steps are intentionally forgiving on touch controls.
-	_add_box(boat_body, "SternBoardingPlatform", Vector3(1.75, 0.16, 0.90), Vector3(0.0, 0.18, 8.00), metal_material)
-	var step_data := [
-		{"name": "SternBoardingRamp", "z": 7.55, "y": 0.34},
-		{"name": "BoardingStep2", "z": 7.15, "y": 0.52},
-		{"name": "BoardingStep3", "z": 6.75, "y": 0.70},
-		{"name": "BoardingStep4", "z": 6.35, "y": 0.88},
-		{"name": "BoardingStep5", "z": 5.98, "y": 1.06},
-	]
-	for data in step_data:
+	# Meet the deck exactly at its stern edge so the player never catches the
+	# deck's vertical collision face while walking up from the waterline.
+	var ramp_angle := deg_to_rad(36.0)
+	_add_box(boat_body, "SternBoardingPlatform", Vector3(1.75, 0.16, 0.90), Vector3(0.0, 0.18, 8.28), metal_material)
+	_add_box(
+		boat_body,
+		"SternBoardingRamp",
+		Vector3(1.62, 0.14, 1.80),
+		Vector3(0.0, 0.785, 7.375),
+		metal_material,
+		true,
+		Vector3(ramp_angle, 0.0, 0.0)
+	)
+	for x in [-0.82, 0.82]:
 		_add_box(
 			boat_body,
-			str(data["name"]),
-			Vector3(1.62, 0.18, 0.58),
-			Vector3(0.0, float(data["y"]), float(data["z"])),
-			metal_material
-		)
-	for x in [-0.82, 0.82]:
-		_add_box(boat_body, "BoardingHandrail", Vector3(0.06, 0.06, 2.55), Vector3(x, 1.42, 6.90), metal_material, false)
+			"BoardingHandrail",
+			Vector3(0.06, 0.06, 1.80),
+			Vector3(x, 1.34, 7.375),
+			metal_material,
+			false,
+			Vector3(ramp_angle, 0.0, 0.0)
+	)
 
 func _build_dog() -> void:
 	if boat == null:
