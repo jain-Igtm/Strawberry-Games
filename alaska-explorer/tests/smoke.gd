@@ -117,7 +117,7 @@ func _run() -> void:
 		for _frame in range(95):
 			await physics_frame
 		player.call("set_mobile_move", Vector2.ZERO)
-		var boarded_local := boat.to_local(player.global_position)
+		var boarded_local: Vector3 = boat.to_local(player.global_position)
 		print("[SMOKE INFO] reboard local ", boarded_local, " floor=", player.is_on_floor())
 		_expect(boarded_local.z < 6.65 and boarded_local.y > 1.85, "stern ramp lets the player climb back onto the boat")
 
