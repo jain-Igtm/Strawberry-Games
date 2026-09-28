@@ -24,11 +24,15 @@ func _run() -> void:
 	var boat := game.get_node_or_null("GeneratedWorld/CabinBoat")
 	var helm := game.get_node_or_null("GeneratedWorld/CabinBoat/Helm")
 	var cabin_door := game.get_node_or_null("GeneratedWorld/CabinBoat/CabinDoor")
+	var boarding_ladder := game.get_node_or_null("GeneratedWorld/CabinBoat/BoardingLadder")
 	var gangway := game.get_node_or_null("GeneratedWorld/ShoreGangway")
 	var river_audio := game.get_node_or_null("GeneratedWorld/RiverAmbience")
 	var wind_audio := game.get_node_or_null("GeneratedWorld/WinterWindAmbience")
 	var dog := game.get_node_or_null("GeneratedWorld/Dog")
 	var environment_cycle := game.get_node_or_null("GeneratedWorld/EnvironmentCycle")
+	var sun := game.get_node_or_null("GeneratedWorld/LowWinterSun") as DirectionalLight3D
+	var winter_environment := game.get_node_or_null("GeneratedWorld/WinterEnvironment") as WorldEnvironment
+	var snowfall := game.get_node_or_null("GeneratedWorld/FallingSnow") as GPUParticles3D
 	_expect(player != null, "player exists")
 	_expect(heater != null, "diesel heater exists")
 	_expect(food != null and fuel != null, "finite cabin supplies exist")
@@ -36,12 +40,14 @@ func _run() -> void:
 	_expect(game.get_node_or_null("GeneratedWorld/WinterRiver") != null, "river generated")
 	_expect(boat != null and helm != null, "controllable cabin boat and helm generated")
 	_expect(cabin_door != null, "hinged cabin door generated")
-	_expect(dog != null and str(dog.call("get_interaction_prompt")) == "Pet dog", "pet dog companion generated and interactable")
+	_expect(boarding_ladder != null, "waterline boarding ladder generated")
+	_expect(dog != null and str(dog.call("get_interaction_prompt")) == "Tell Scout to sit", "Scout is generated with a sit command")
 	_expect(environment_cycle != null, "day night and weather controller generated")
+	_expect(sun != null and winter_environment != null and snowfall != null, "daylight and weather visuals are connected")
 	_expect(boat != null and boat.get_node_or_null("SternBoardingRamp") != null and boat.get_node_or_null("SternBoardingPlatform") != null, "stern reboarding route generated")
 	if boat != null and helm != null:
 		var bunk := boat.get_node_or_null("BunkFrame")
-		_expect(bunk != null and absf(bunk.position.z - helm.position.z) > 1.1, "helm is physically separated from the bunk")
+		_expect(bunk != null and absf(bunk.position.z - helm.position.z) > 2.4, "helm is visibly separated from the bunk")
 	_expect(river_audio != null and river_audio.stream != null and bool(river_audio.stream.get("loop")) and river_audio.playing, "river ambience loops in the world")
 	_expect(wind_audio != null and wind_audio.stream != null and bool(wind_audio.stream.get("loop")) and wind_audio.playing, "winter wind ambience loops in the world")
 	var ground_query := PhysicsRayQueryParameters3D.create(Vector3(30.0, 20.0, 4.85), Vector3(30.0, -20.0, 4.85), 1)
@@ -74,6 +80,14 @@ func _run() -> void:
 				await physics_frame
 			player.call("_update_environment")
 			_expect(not bool(cabin_door.get("is_open")) and bool(player.get("sheltered")), "closed cabin door restores shelter")
+			var nearby_door := game.call("get_nearby_interactable", player.global_position)
+			_expect(nearby_door == cabin_door, "cabin door works nearby without exact aiming")
+			cabin_door.call("interact", player)
+			await physics_frame
+			cabin_door.call("interact", player)
+			for _frame in range(30):
+				await physics_frame
+			_expect(not bool(cabin_door.get("is_open")) and not bool(cabin_door.get("moving")), "cabin door reverses cleanly and remains responsive")
 		player.global_position = Vector3(8.0, 2.24, 4.85)
 		player.velocity = Vector3.ZERO
 		player.rotation = Vector3.ZERO
@@ -98,6 +112,36 @@ func _run() -> void:
 		_expect(player.global_position.x > shore_start_x + 2.0, "player can walk across the snow terrain")
 		_expect(player.is_on_floor() and absf(player.global_position.y - (terrain_y + 0.9)) < 1.1, "terrain mesh has dependable walkable collision")
 
+	if dog != null and player != null:
+		var dog_x := 28.0
+		var dog_z := 4.85
+		dog.global_position = Vector3(dog_x, float(game.call("_terrain_height", dog_x, dog_z)) + 0.85, dog_z)
+		dog.velocity = Vector3.ZERO
+		player.global_position = Vector3(30.5, float(game.call("_terrain_height", 30.5, dog_z)) + 0.92, dog_z)
+		player.velocity = Vector3.ZERO
+		for _frame in range(20):
+			await physics_frame
+		_expect(game.call("get_nearby_interactable", player.global_position) == dog, "Scout can be commanded without precise aiming")
+		player.call("request_interact")
+		_expect(bool(dog.get("is_sitting")), "Scout can be told to sit and stay")
+		var sitting_position: Vector3 = dog.global_position
+		player.global_position = Vector3(39.0, float(game.call("_terrain_height", 39.0, dog_z)) + 0.92, dog_z)
+		player.velocity = Vector3.ZERO
+		for _frame in range(45):
+			await physics_frame
+		_expect(dog.global_position.distance_to(sitting_position) < 0.35, "Scout stays still while the player moves away")
+		player.global_position = sitting_position + Vector3(2.5, 0.1, 0.0)
+		player.velocity = Vector3.ZERO
+		await physics_frame
+		player.call("request_interact")
+		_expect(not bool(dog.get("is_sitting")), "Scout can be called back to follow")
+		player.global_position = Vector3(39.0, float(game.call("_terrain_height", 39.0, dog_z)) + 0.92, dog_z)
+		player.velocity = Vector3.ZERO
+		for _frame in range(110):
+			await physics_frame
+		var dog_distance := Vector2(dog.global_position.x - player.global_position.x, dog.global_position.z - player.global_position.z).length()
+		_expect(dog_distance > 2.6 and dog_distance < 6.0, "Scout follows at a comfortable distance")
+
 	if environment_cycle != null:
 		var time_before := str(environment_cycle.call("get_time_string"))
 		environment_cycle.call("_process", 10.0)
@@ -108,6 +152,25 @@ func _run() -> void:
 		environment_cycle.call("_process", 0.1)
 		var weather_after := str(environment_cycle.call("get_weather_name"))
 		_expect(weather_before != weather_after, "weather cycle changes conditions")
+		environment_cycle.set("time_of_day", 2.0)
+		environment_cycle.call("_apply_environment")
+		var night_energy := sun.light_energy if sun != null else 1.0
+		environment_cycle.set("time_of_day", 12.5)
+		environment_cycle.call("_apply_environment")
+		var day_energy := sun.light_energy if sun != null else 0.0
+		_expect(night_energy < 0.05 and day_energy > 0.35, "day night cycle changes natural light")
+		environment_cycle.set("weather_index", 0)
+		environment_cycle.call("_apply_environment")
+		var clear_fog := winter_environment.environment.fog_density if winter_environment != null else 0.0
+		var clear_chill := float(environment_cycle.call("get_wind_chill"))
+		environment_cycle.set("weather_index", 3)
+		environment_cycle.call("_apply_environment")
+		_expect(snowfall == null or snowfall.amount >= 1200, "a squall thickens the snowfall")
+		_expect(winter_environment == null or winter_environment.environment.fog_density > clear_fog * 3.0, "weather changes visibility")
+		_expect(float(environment_cycle.call("get_wind_chill")) < clear_chill - 8.0, "weather changes survival exposure")
+		environment_cycle.set("weather_index", 1)
+		environment_cycle.set("time_of_day", 10.25)
+		environment_cycle.call("_apply_environment")
 
 	if player != null and boat != null:
 		player.global_position = boat.to_global(Vector3(0.0, 1.22, 8.30))
@@ -164,9 +227,12 @@ func _run() -> void:
 		helm.call("interact", player)
 		await physics_frame
 		_expect(player.get("piloting_boat") == boat, "helm puts the player in control of the boat")
-		_expect(gangway != null and not gangway.visible, "casting off retracts the shore gangway")
+		_expect(gangway != null and gangway.visible, "gangway stays available until throttle is applied")
 		player.call("set_mobile_move", Vector2(0.42, -1.0))
-		for _frame in range(180):
+		for _frame in range(5):
+			await physics_frame
+		_expect(gangway != null and not gangway.visible, "applying throttle retracts the gangway")
+		for _frame in range(175):
 			await physics_frame
 		player.call("set_mobile_move", Vector2.ZERO)
 		var travelled: float = boat.global_position.distance_to(boat_start)
@@ -187,6 +253,15 @@ func _run() -> void:
 			await physics_frame
 		var exit_local: Vector3 = boat.to_local(player.global_position)
 		_expect(absf(exit_local.x) < 1.85 and absf(exit_local.z) < 2.85 and player.is_on_floor(), "moving deck carries the player after leaving the helm")
+		player.global_position = boat.to_global(Vector3(3.15, 0.65, 4.55))
+		player.velocity = Vector3.ZERO
+		await physics_frame
+		var nearby_ladder := game.call("get_nearby_interactable", player.global_position)
+		_expect(nearby_ladder == boarding_ladder, "boarding is available from the water without exact aiming")
+		player.call("request_interact")
+		await physics_frame
+		var ladder_boarded_local: Vector3 = boat.to_local(player.global_position)
+		_expect(ladder_boarded_local.y > 1.9 and absf(ladder_boarded_local.x) < 2.0 and absf(ladder_boarded_local.z) < 6.0, "waterline use reliably returns the player to the deck")
 
 	game.queue_free()
 	await process_frame

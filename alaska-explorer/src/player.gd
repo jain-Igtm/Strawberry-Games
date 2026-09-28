@@ -173,7 +173,8 @@ func _update_survival(delta: float) -> void:
 		target_core = 35.75
 		thermal_rate = 0.0011
 	else:
-		thermal_rate *= 1.0 + wetness / 52.0
+		var weather_exposure := clampf((-wind_chill - 12.0) / 20.0, 0.0, 1.35)
+		thermal_rate *= (1.0 + weather_exposure * 0.72) * (1.0 + wetness / 52.0)
 
 	if hunger < 20.0 and target_core < core_temperature:
 		thermal_rate *= 1.25
@@ -206,12 +207,9 @@ func _update_camera_bob(delta: float, move_input: Vector2) -> void:
 
 func _update_interaction() -> void:
 	interaction_prompt = ""
-	interaction_ray.force_raycast_update()
-	if not interaction_ray.is_colliding():
-		return
-	var collider := interaction_ray.get_collider()
-	if collider != null and collider.has_method("get_interaction_prompt"):
-		interaction_prompt = str(collider.call("get_interaction_prompt"))
+	var interactable := _get_interactable()
+	if interactable != null and interactable.has_method("get_interaction_prompt"):
+		interaction_prompt = str(interactable.call("get_interaction_prompt"))
 
 func request_interact() -> void:
 	if is_dead:
@@ -221,15 +219,24 @@ func request_interact() -> void:
 		if piloting_boat.has_method("end_piloting"):
 			piloting_boat.call("end_piloting")
 		return
-	interaction_ray.force_raycast_update()
-	if not interaction_ray.is_colliding():
+	var interactable := _get_interactable()
+	if interactable == null:
 		show_status_message("Nothing within reach.", 1.4)
 		return
-	var collider := interaction_ray.get_collider()
-	if collider != null and collider.has_method("interact"):
-		collider.call("interact", self)
+	if interactable.has_method("interact"):
+		interactable.call("interact", self)
 	else:
 		show_status_message("Nothing useful here.", 1.4)
+
+func _get_interactable() -> Node:
+	interaction_ray.force_raycast_update()
+	if interaction_ray.is_colliding():
+		var collider := interaction_ray.get_collider() as Node
+		if collider != null and collider.has_method("interact"):
+			return collider
+	if world_controller != null and world_controller.has_method("get_nearby_interactable"):
+		return world_controller.call("get_nearby_interactable", global_position) as Node
+	return null
 
 func eat_ration() -> bool:
 	if hunger >= 96.0:
@@ -282,7 +289,7 @@ func begin_boat_piloting(next_boat: Node3D, next_seat: Marker3D, next_exit: Mark
 	collision_mask = 0
 	is_sprinting = false
 	mobile_sprint = false
-	show_status_message("Lines in. The Northstar is underway.", 2.6)
+	show_status_message("Helm engaged. Apply throttle to cast off.", 2.6)
 
 func end_boat_piloting() -> void:
 	var exit_position := global_position
@@ -299,6 +306,17 @@ func end_boat_piloting() -> void:
 	collision_mask = 1
 	interaction_prompt = ""
 	show_status_message("You leave the helm.", 1.5)
+
+func board_boat(boarding_point: Marker3D) -> void:
+	if is_dead or boarding_point == null:
+		return
+	if world_controller != null and get_parent() != world_controller:
+		reparent(world_controller, true)
+	global_position = boarding_point.global_position
+	velocity = Vector3.ZERO
+	in_water = false
+	reset_physics_interpolation()
+	show_status_message("You climb aboard the Northstar.", 2.2)
 
 func set_mobile_move(value: Vector2) -> void:
 	mobile_move = value.limit_length(1.0)

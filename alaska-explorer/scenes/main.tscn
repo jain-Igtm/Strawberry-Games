@@ -39,8 +39,8 @@ near = 0.05
 far = 360.0
 
 [node name="InteractionRay" type="RayCast3D" parent="Player/CameraPivot/Camera3D"]
-target_position = Vector3(0, 0, -3.2)
-collision_mask = 1
+target_position = Vector3(0, 0, -3.8)
+collision_mask = 5
 collide_with_areas = false
 
 [node name="Headlamp" type="SpotLight3D" parent="Player/CameraPivot/Camera3D"]

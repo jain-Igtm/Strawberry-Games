@@ -4,6 +4,7 @@ var player: CharacterBody3D
 var heater: Node
 var boat: Node
 var world_controller: Node
+var dog: Node
 
 const ICE := Color(0.86, 0.94, 0.98, 0.96)
 const MUTED := Color(0.68, 0.79, 0.84, 0.88)
@@ -18,6 +19,7 @@ func _find_nodes() -> void:
 	heater = get_tree().get_first_node_in_group("heater")
 	boat = get_tree().get_first_node_in_group("boat")
 	world_controller = get_tree().get_first_node_in_group("world")
+	dog = get_tree().get_first_node_in_group("dog")
 
 func _process(_delta: float) -> void:
 	if player == null:
@@ -28,13 +30,15 @@ func _process(_delta: float) -> void:
 		boat = get_tree().get_first_node_in_group("boat")
 	if world_controller == null:
 		world_controller = get_tree().get_first_node_in_group("world")
+	if dog == null:
+		dog = get_tree().get_first_node_in_group("dog")
 	queue_redraw()
 
 func _draw() -> void:
 	if player == null:
 		return
 
-	draw_rect(Rect2(20.0, 18.0, 292.0, 242.0), PANEL, true)
+	draw_rect(Rect2(20.0, 18.0, 292.0, 267.0), PANEL, true)
 	draw_rect(Rect2(20.0, 18.0, 292.0, 3.0), Color(0.55, 0.75, 0.83, 0.8), true)
 	_draw_text("ALASKA EXPLORER", Vector2(34.0, 48.0), 20, ICE)
 	var time_text := "--:--"
@@ -74,6 +78,8 @@ func _draw() -> void:
 			boat_text = "NORTHSTAR  %.1f KT" % float(boat.call("get_speed_knots"))
 			boat_color = Color(0.68, 0.88, 0.91, 0.98) if piloting else MUTED
 	_draw_text(boat_text, Vector2(34.0, 249.0), 13, boat_color)
+	var dog_text := "SCOUT  STAYING" if dog != null and bool(dog.get("is_sitting")) else "SCOUT  FOLLOWING"
+	_draw_text(dog_text, Vector2(34.0, 273.0), 13, Color(0.76, 0.84, 0.78, 0.92))
 
 	var center_width := minf(620.0, size.x - 360.0)
 	var center_x := (size.x - center_width) * 0.5

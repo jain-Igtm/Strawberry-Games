@@ -12,6 +12,8 @@ var helm_seat: Marker3D
 var helm_exit: Marker3D
 var current_speed := 0.0
 var moored := true
+var throttle_input := 0.0
+var steering_input := 0.0
 
 func _ready() -> void:
 	add_to_group("boat")
@@ -29,8 +31,17 @@ func _physics_process(delta: float) -> void:
 	if pilot != null and pilot.has_method("get_piloting_input"):
 		control = pilot.call("get_piloting_input")
 
-	var throttle := clampf(-control.y, -1.0, 1.0)
-	var target_speed := throttle * (forward_speed if throttle >= 0.0 else reverse_speed)
+	throttle_input = clampf(-control.y, -1.0, 1.0)
+	steering_input = clampf(control.x, -1.0, 1.0)
+	if absf(throttle_input) < 0.08:
+		throttle_input = 0.0
+	if absf(steering_input) < 0.08:
+		steering_input = 0.0
+
+	if moored and absf(throttle_input) > 0.08:
+		_cast_off()
+
+	var target_speed := throttle_input * (forward_speed if throttle_input >= 0.0 else reverse_speed)
 	var rate := acceleration if absf(target_speed) > absf(current_speed) else deceleration
 	current_speed = move_toward(current_speed, target_speed, rate * delta)
 
@@ -38,7 +49,7 @@ func _physics_process(delta: float) -> void:
 	if absf(current_speed) > 0.10:
 		var steering_strength := clampf(absf(current_speed) / forward_speed, 0.22, 1.0)
 		var reverse_sign := 1.0 if current_speed >= 0.0 else -1.0
-		var steering_delta := -control.x * deg_to_rad(turn_rate_degrees) * steering_strength * reverse_sign * delta
+		var steering_delta := -steering_input * deg_to_rad(turn_rate_degrees) * steering_strength * reverse_sign * delta
 		next_transform.basis = next_transform.basis.rotated(Vector3.UP, steering_delta).orthonormalized()
 
 	if absf(current_speed) > 0.01:
@@ -52,13 +63,18 @@ func _physics_process(delta: float) -> void:
 func begin_piloting(next_pilot: CharacterBody3D) -> void:
 	if pilot != null or next_pilot == null or helm_seat == null:
 		return
-	if moored:
-		moored = false
-		if world_controller != null and world_controller.has_method("cast_off_boat"):
-			world_controller.call("cast_off_boat")
 	pilot = next_pilot
 	if pilot.has_method("begin_boat_piloting"):
 		pilot.call("begin_boat_piloting", self, helm_seat, helm_exit)
+
+func _cast_off() -> void:
+	if not moored:
+		return
+	moored = false
+	if world_controller != null and world_controller.has_method("cast_off_boat"):
+		world_controller.call("cast_off_boat")
+	if pilot != null and pilot.has_method("show_status_message"):
+		pilot.call("show_status_message", "Lines clear. The Northstar answers the throttle.", 2.8)
 
 func end_piloting() -> void:
 	if pilot == null:
@@ -77,3 +93,6 @@ func get_speed_mps() -> float:
 
 func get_speed_knots() -> float:
 	return absf(current_speed) * 1.94384
+
+func get_throttle_percent() -> int:
+	return roundi(throttle_input * 100.0)

@@ -42,9 +42,9 @@ func _input(event: InputEvent) -> void:
 				player.call("set_mobile_sprint", true)
 				queue_redraw()
 				return
-			if event.position.x < size.x * 0.43 and move_touch == -1:
+			if _inside(event.position, _joystick_center(), JOYSTICK_RADIUS + 46.0) and move_touch == -1:
 				move_touch = event.index
-				move_origin = event.position
+				move_origin = _joystick_center()
 				move_current = event.position
 				_update_move()
 				queue_redraw()
@@ -89,14 +89,15 @@ func _sprint_center() -> Vector2:
 func _lamp_center() -> Vector2:
 	return Vector2(size.x - 88.0, size.y - 222.0)
 
+func _joystick_center() -> Vector2:
+	return Vector2(172.0, size.y - 165.0)
+
 func _draw() -> void:
 	if not OS.has_feature("mobile"):
 		return
-	var ghost_center := Vector2(172.0, size.y - 165.0)
-	var stick_center := ghost_center
-	var stick_knob := ghost_center
+	var stick_center := _joystick_center()
+	var stick_knob := stick_center
 	if move_touch != -1:
-		stick_center = move_origin
 		var offset := move_current - move_origin
 		if offset.length() > JOYSTICK_RADIUS:
 			offset = offset.normalized() * JOYSTICK_RADIUS
@@ -108,10 +109,6 @@ func _draw() -> void:
 	draw_arc(stick_knob, KNOB_RADIUS, 0.0, TAU, 44, Color(0.88, 0.95, 1.0, 0.52), 3.0)
 
 	var piloting := player != null and player.get("piloting_boat") != null
-	if piloting:
-		var hint := "THROTTLE / STEER"
-		var hint_size := ThemeDB.fallback_font.get_string_size(hint, HORIZONTAL_ALIGNMENT_LEFT, -1, 15)
-		draw_string(ThemeDB.fallback_font, Vector2(stick_center.x - hint_size.x * 0.5, stick_center.y - JOYSTICK_RADIUS - 18.0), hint, HORIZONTAL_ALIGNMENT_LEFT, -1, 15, Color(0.90, 0.96, 1.0, 0.78))
 	_draw_button(_use_center(), "LEAVE" if piloting else "USE", false)
 	if not piloting:
 		_draw_button(_sprint_center(), "RUN", sprint_touch != -1)

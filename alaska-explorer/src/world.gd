@@ -5,6 +5,7 @@ const SupplyScript = preload("res://src/supply_cache.gd")
 const BoatScript = preload("res://src/boat.gd")
 const HelmScript = preload("res://src/helm.gd")
 const CabinDoorScript = preload("res://src/cabin_door.gd")
+const BoardingLadderScript = preload("res://src/boarding_ladder.gd")
 const DogScript = preload("res://src/dog.gd")
 const EnvironmentCycleScript = preload("res://src/environment_cycle.gd")
 const RiverShader = preload("res://shaders/river.gdshader")
@@ -23,6 +24,7 @@ var detail_noise := FastNoiseLite.new()
 var heater: Node3D
 var boat: AnimatableBody3D
 var cabin_door: AnimatableBody3D
+var boarding_ladder: StaticBody3D
 var gangway: StaticBody3D
 var snowfall: GPUParticles3D
 var river_audio: AudioStreamPlayer3D
@@ -93,7 +95,7 @@ func get_survival_environment(world_position: Vector3) -> Dictionary:
 		and world_position.y > 1.20
 		and world_position.y < 3.72
 	)
-	var door_open := cabin_door != null and bool(cabin_door.get("is_open"))
+	var door_open := cabin_door != null and (bool(cabin_door.get("is_open")) or bool(cabin_door.get("moving")))
 	var sheltered := inside_cabin and not door_open
 	var river_distance := absf(world_position.x - _river_center(world_position.z))
 	var in_river := river_distance < _river_half_width(world_position.z) - 0.25 and world_position.y < 0.84
@@ -119,6 +121,18 @@ func get_survival_environment(world_position: Vector3) -> Dictionary:
 		"air_temperature": (cabin_air + 2.0 if sheltered else (cabin_air if inside_cabin else outside_air)),
 		"wind_chill": (cabin_chill + 3.0 if sheltered else (cabin_chill if inside_cabin else outside_chill)),
 	}
+
+func get_nearby_interactable(world_position: Vector3) -> Node:
+	if boat != null and boarding_ladder != null:
+		var boat_local := boat.to_local(world_position)
+		var beside_hull := absf(boat_local.x) < 4.2 and absf(boat_local.z) < 8.8
+		if beside_hull and boat_local.y < 1.70:
+			return boarding_ladder
+	if cabin_door != null and world_position.distance_to(cabin_door.global_position) < 3.25:
+		return cabin_door
+	if dog != null and world_position.distance_to(dog.global_position) < 4.25:
+		return dog
+	return null
 
 func constrain_boat_position(proposed: Vector3) -> Vector3:
 	var result := proposed
@@ -484,6 +498,7 @@ func _build_boat() -> void:
 	_build_boat_details(boat)
 	_build_cabin_door(boat)
 	_build_helm(boat)
+	_build_boarding_ladder(boat)
 	_build_heater(boat)
 	_build_supplies(boat)
 	generated.add_child(boat)
@@ -532,10 +547,10 @@ func _build_cabin_shell(boat_body: AnimatableBody3D) -> void:
 	boat_body.add_child(nameplate)
 
 func _build_boat_details(boat_body: AnimatableBody3D) -> void:
-	_add_box(boat_body, "BunkFrame", Vector3(1.20, 0.28, 2.10), Vector3(1.22, 1.63, -0.62), wood_material)
-	_add_box(boat_body, "BunkMattress", Vector3(1.08, 0.20, 1.92), Vector3(1.22, 1.87, -0.62), mattress_material, false)
-	_add_box(boat_body, "TableTop", Vector3(1.35, 0.12, 0.82), Vector3(0.76, 2.05, 1.15), wood_material)
-	for x in [0.20, 1.32]:
+	_add_box(boat_body, "BunkFrame", Vector3(1.20, 0.28, 2.10), Vector3(1.20, 1.63, 0.35), wood_material)
+	_add_box(boat_body, "BunkMattress", Vector3(1.08, 0.20, 1.92), Vector3(1.20, 1.87, 0.35), mattress_material, false)
+	_add_box(boat_body, "TableTop", Vector3(1.35, 0.12, 0.82), Vector3(-0.76, 2.05, 1.15), wood_material)
+	for x in [-1.32, -0.20]:
 		for z in [0.86, 1.44]:
 			_add_box(boat_body, "TableLeg", Vector3(0.10, 0.62, 0.10), Vector3(x, 1.70, z), wood_material)
 
@@ -676,6 +691,35 @@ func _build_helm(boat_body: AnimatableBody3D) -> void:
 	helm_exit.name = "HelmExit"
 	helm_exit.position = Vector3(0.0, 2.24, 2.18)
 	boat_body.add_child(helm_exit)
+
+func _build_boarding_ladder(boat_body: AnimatableBody3D) -> void:
+	boarding_ladder = StaticBody3D.new()
+	boarding_ladder.name = "BoardingLadder"
+	boarding_ladder.position = Vector3(2.46, 0.75, 4.55)
+	boarding_ladder.collision_layer = 4
+	boarding_ladder.collision_mask = 2
+	boarding_ladder.set_script(BoardingLadderScript)
+	for z in [-0.34, 0.34]:
+		_add_cylinder(boarding_ladder, "LadderRail", 0.045, 1.86, Vector3(0.0, 0.0, z), metal_material, false)
+	for rung_y in [-0.70, -0.35, 0.0, 0.35, 0.70]:
+		_add_cylinder(boarding_ladder, "LadderRung", 0.038, 0.70, Vector3(0.0, rung_y, 0.0), metal_material, false, Vector3(deg_to_rad(90.0), 0.0, 0.0))
+	var interaction_shape := BoxShape3D.new()
+	interaction_shape.size = Vector3(0.60, 2.05, 1.10)
+	var interaction_collision := CollisionShape3D.new()
+	interaction_collision.name = "BoardingInteractionCollision"
+	interaction_collision.shape = interaction_shape
+	boarding_ladder.add_child(interaction_collision)
+	boat_body.add_child(boarding_ladder)
+
+	var boarding_point := Marker3D.new()
+	boarding_point.name = "BoardingPoint"
+	boarding_point.position = Vector3(1.52, 2.24, 4.55)
+	boat_body.add_child(boarding_point)
+
+	var dog_spot := Marker3D.new()
+	dog_spot.name = "DogSpot"
+	dog_spot.position = Vector3(-1.20, 1.78, 4.25)
+	boat_body.add_child(dog_spot)
 
 func _build_heater(boat_body: AnimatableBody3D) -> void:
 	var heater_body := StaticBody3D.new()
