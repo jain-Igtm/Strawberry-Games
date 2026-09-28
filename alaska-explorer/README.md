@@ -1,15 +1,18 @@
 # Alaska Explorer
 
-A survival-first Godot prototype for Strawberry Games. The first playable build deliberately has no creatures, combat, or supernatural systems. It establishes the place and the survival rules first.
+A survival-first Godot prototype for Strawberry Games. The first playable build deliberately has no hostile creatures, combat, or supernatural systems. It establishes the place and the survival rules first, with one friendly dog companion.
 
 ## First playable slice
 
 - Large walkable Alaskan winter valley with upward-facing terrain collision and stable slope traversal
 - Curving open river with current, animated water, new ice, snowbanks, rocks, spruce forest, and positional river ambience
-- Boardable and drivable river boat with throttle, steering, channel limits, a cast-off gangway, bunk, working helm, food, fuel, and diesel heater
+- Boardable and drivable river boat with throttle, steering, channel limits, a cast-off gangway, a stern reboarding ramp, bunk, working helm, food, fuel, and diesel heater
 - Hinged cabin door that opens for entry and must be closed to restore full wind shelter
 - Grounded survival simulation: core temperature, exposure, wetness, hunger, stamina, health, shelter, water immersion, drying, and heater fuel
-- Snowfall, low winter sun, distance fog, warm cabin lighting, headlamp, and continuous winter wind
+- Full day/night cycle with short early-winter daylight, moonlight, changing fog and sky light
+- Cycling winter weather: clear spells, flurries, steady snow, overcast conditions, and squalls that alter visibility, wind, and exposure
+- A pet dog companion that follows the player, rides the Northstar, and can be petted
+- Snowfall, distance fog, warm cabin lighting, headlamp, and continuous winter wind
 - Android landscape controls with independent movement/look touches and dedicated use, run, and lamp controls
 - Desktop controls for quick testing
 
