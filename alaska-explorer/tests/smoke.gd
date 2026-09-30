@@ -142,8 +142,9 @@ func _run() -> void:
 		_expect(not bool(player.call("is_sword_drawn")) and not sword.visible, "sword can be sheathed across the player's back")
 		player.call("_update_interaction")
 		_expect(str(player.get("interaction_prompt")) == "Open cabin door", "cabin door is reachable with the use control")
+		var door_collision: CollisionShape3D
 		if cabin_door != null:
-			var door_collision := cabin_door.get_node_or_null("DoorPanelCollision") as CollisionShape3D
+			door_collision = cabin_door.get_node_or_null("DoorPanelCollision") as CollisionShape3D
 			_expect(not bool(cabin_door.get("is_open")), "cabin door starts secured")
 			cabin_door.call("interact", player)
 			for _frame in range(32):
