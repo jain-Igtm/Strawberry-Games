@@ -983,7 +983,7 @@ func _build_fuel_station(index: int, station_z: float, station_name: String, fla
 	var flag_label := Label3D.new()
 	flag_label.name = "FlagName"
 	flag_label.position = Vector3(0.0, 0.95, 0.0)
-	flag_label.text = flag_name.upper()
+	flag_label.text = flag_name.to_upper()
 	flag_label.font_size = 30
 	flag_label.pixel_size = 0.0045
 	flag_label.modulate = Color(0.89, 0.93, 0.90)
