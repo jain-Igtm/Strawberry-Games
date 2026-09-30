@@ -327,8 +327,8 @@ func _run() -> void:
 		boat.call("_consume_fuel", 4.0)
 		_expect(float(boat.get("fuel")) < 53.0, "running the Northstar consumes vessel fuel")
 		boat.set("current_speed", 0.0)
-		var pump_position: Vector3 = first_fuel_station.global_position
-		boat.global_position = Vector3(pump_position.x - 7.0, 0.0, pump_position.z)
+		var station_root := first_fuel_station.get_parent() as Node3D
+		station_root.global_position = boat.global_position + Vector3(7.0, 0.0, 0.0)
 		first_fuel_station.call("interact", player)
 		_expect(float(boat.call("get_fuel_percent")) > 99.0, "a river fuel pump refills the Northstar alongside the dock")
 
