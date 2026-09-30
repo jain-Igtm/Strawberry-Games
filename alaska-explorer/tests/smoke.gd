@@ -49,6 +49,19 @@ func _run() -> void:
 	_expect(dog != null and str(dog.call("get_interaction_prompt")) == "Tell Scout to sit", "Scout is generated with a sit command")
 	_expect(cabin_radio != null and flag_locker != null and hoisted_flag != null, "radio and working flag rig are installed aboard the Northstar")
 	_expect(first_fuel_station != null and first_flag_pickup != null, "river fuel stops include refueling and collectible flags")
+	if cabin_radio != null:
+		var radio_case := cabin_radio.get_node_or_null("RadioCase") as MeshInstance3D
+		var radio_case_mesh: BoxMesh
+		if radio_case != null:
+			radio_case_mesh = radio_case.mesh as BoxMesh
+		_expect(radio_case_mesh != null and radio_case_mesh.size.y < 0.40 and radio_case_mesh.size.z < 0.72, "cabin radio uses a compact receiver body")
+		_expect(cabin_radio.get_node_or_null("SpeakerSlit5") != null and cabin_radio.get_node_or_null("DialWindow") != null and cabin_radio.get_node_or_null("RadioKnob") != null, "cabin radio has a detailed marine faceplate")
+	if flag_locker != null:
+		_expect(flag_locker.get_node_or_null("FlagLockerLabel") == null and flag_locker.get_node_or_null("FoldedSignal2") != null, "signal-flag folio replaces the oversized labeled box")
+	if hoisted_flag != null:
+		_expect(hoisted_flag.get_child_count() == 5 and hoisted_flag.get_node_or_null("FlagPanel0/HoistBand") != null, "mast flag uses five thin cloth sections and a proper hoist band")
+	if first_flag_pickup != null:
+		_expect(first_flag_pickup.get_node_or_null("FlagName") == null and first_flag_pickup.get_node_or_null("FoldedFlagAccent") != null, "recoverable flags appear as tied folded cloth instead of signposts")
 	var fuel_stop_positions: Array[float] = []
 	for station_index in range(1, 5):
 		var station := game.get_node_or_null("GeneratedWorld/FuelStop%d/FuelPump" % station_index)
@@ -76,14 +89,17 @@ func _run() -> void:
 
 	if cabin_radio != null:
 		_expect(not bool(cabin_radio.call("is_powered")), "cabin radio starts switched off")
+		var dial_light := cabin_radio.get_node_or_null("DialLight") as OmniLight3D
+		_expect(dial_light != null and dial_light.light_energy == 0.0, "radio dial stays dark while switched off")
 		cabin_radio.call("interact", player)
 		await process_frame
 		var receiver := cabin_radio.get_node_or_null("ReceiverAudio") as AudioStreamPlayer3D
 		_expect(bool(cabin_radio.call("is_powered")) and str(cabin_radio.call("get_frequency_text")) == "87.9", "radio tuning reaches the old-time music station")
 		_expect(receiver != null and receiver.stream != null and receiver.playing, "radio broadcasts audible program audio")
+		_expect(dial_light != null and dial_light.light_energy > 0.2, "radio dial glows only while receiving")
 		for _channel in range(int(cabin_radio.call("get_channel_count")) - 1):
 			cabin_radio.call("interact", player)
-		_expect(not bool(cabin_radio.call("is_powered")), "radio tuning includes a reliable off position")
+		_expect(not bool(cabin_radio.call("is_powered")) and (dial_light == null or dial_light.light_energy == 0.0), "radio tuning includes a reliable off position")
 
 	if first_flag_pickup != null and flag_locker != null:
 		var flags_before := int(game.call("get_unlocked_flag_count"))
@@ -100,7 +116,12 @@ func _run() -> void:
 		var swings_before := int(player.call("get_sword_swing_count"))
 		player.call("request_attack")
 		await process_frame
-		_expect(int(player.call("get_sword_swing_count")) == swings_before + 1 and player.get_node_or_null("CameraPivot/Camera3D/Sword") != null, "player carries and can swing the sword")
+		var sword := player.get_node_or_null("CameraPivot/Camera3D/Sword") as Node3D
+		var sword_blade: MeshInstance3D
+		if sword != null:
+			sword_blade = sword.get_node_or_null("Blade") as MeshInstance3D
+		_expect(int(player.call("get_sword_swing_count")) == swings_before + 1 and sword != null, "player carries and can swing the sword")
+		_expect(sword_blade != null and sword_blade.mesh is ArrayMesh and sword.get_node_or_null("Guard") != null and sword.get_node_or_null("GripWrap4") != null, "sword uses a tapered forged blade and detailed hilt")
 		player.call("_update_interaction")
 		_expect(str(player.get("interaction_prompt")) == "Open cabin door", "cabin door is reachable with the use control")
 		if cabin_door != null:

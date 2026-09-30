@@ -12,6 +12,7 @@ const CHANNELS := [
 var channel_index := 0
 var receiver: AudioStreamPlayer3D
 var display: Label3D
+var dial_light: OmniLight3D
 var replay_at_msec := 0
 var caption_until_msec := 0
 
@@ -20,6 +21,7 @@ func _ready() -> void:
 	add_to_group("radio")
 	receiver = get_node_or_null("ReceiverAudio") as AudioStreamPlayer3D
 	display = get_node_or_null("FrequencyDisplay") as Label3D
+	dial_light = get_node_or_null("DialLight") as OmniLight3D
 	if receiver != null:
 		receiver.finished.connect(_on_receiver_finished)
 	_apply_channel(false)
@@ -75,6 +77,8 @@ func _apply_channel(announce_caption: bool) -> void:
 	if display != null:
 		display.text = "OFF" if channel_index == 0 else str(CHANNELS[channel_index]["frequency"])
 		display.modulate = Color(0.38, 0.22, 0.12) if channel_index == 0 else Color(1.0, 0.60, 0.24)
+	if dial_light != null:
+		dial_light.light_energy = 0.0 if channel_index == 0 else 0.42
 	if channel_index == 0 or receiver == null:
 		caption_until_msec = 0
 		return

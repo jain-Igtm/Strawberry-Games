@@ -45,8 +45,8 @@ var sword_swing_count := 0
 
 const CAMERA_BASE := Vector3(0.0, 0.64, 0.0)
 const FALLBACK_SPAWN := Vector3(8.0, 2.24, 5.15)
-const SWORD_REST_POSITION := Vector3(0.54, -0.48, -0.86)
-const SWORD_REST_ROTATION := Vector3(-0.16, -0.12, -0.22)
+const SWORD_REST_POSITION := Vector3(0.64, -0.64, -1.05)
+const SWORD_REST_ROTATION := Vector3(-0.12, -0.16, 0.38)
 const SWORD_SWING_DURATION := 0.46
 
 func _ready() -> void:
@@ -376,22 +376,31 @@ func _build_sword() -> void:
 	camera.add_child(sword_pivot)
 
 	var blade_material := StandardMaterial3D.new()
-	blade_material.albedo_color = Color(0.72, 0.78, 0.80)
-	blade_material.metallic = 0.82
-	blade_material.roughness = 0.28
-	var edge_material := StandardMaterial3D.new()
-	edge_material.albedo_color = Color(0.92, 0.96, 0.96)
-	edge_material.metallic = 0.92
-	edge_material.roughness = 0.18
+	blade_material.albedo_color = Color(0.60, 0.66, 0.67)
+	blade_material.metallic = 0.88
+	blade_material.roughness = 0.23
+	blade_material.cull_mode = BaseMaterial3D.CULL_DISABLED
+	var fuller_material := StandardMaterial3D.new()
+	fuller_material.albedo_color = Color(0.25, 0.29, 0.30)
+	fuller_material.metallic = 0.84
+	fuller_material.roughness = 0.34
+	var guard_material := StandardMaterial3D.new()
+	guard_material.albedo_color = Color(0.42, 0.35, 0.22)
+	guard_material.metallic = 0.72
+	guard_material.roughness = 0.39
 	var grip_material := StandardMaterial3D.new()
-	grip_material.albedo_color = Color(0.16, 0.09, 0.055)
-	grip_material.roughness = 0.92
+	grip_material.albedo_color = Color(0.105, 0.070, 0.048)
+	grip_material.roughness = 0.96
 
-	_add_sword_box("Blade", Vector3(0.082, 0.88, 0.040), Vector3(0.0, 0.37, 0.0), blade_material)
-	_add_sword_box("BladeEdge", Vector3(0.018, 0.91, 0.045), Vector3(-0.047, 0.385, 0.0), edge_material)
-	_add_sword_box("Guard", Vector3(0.42, 0.065, 0.09), Vector3(0.0, -0.10, 0.0), blade_material)
-	_add_sword_box("Grip", Vector3(0.105, 0.34, 0.105), Vector3(0.0, -0.30, 0.0), grip_material)
-	_add_sword_box("Pommel", Vector3(0.17, 0.10, 0.13), Vector3(0.0, -0.50, 0.0), blade_material)
+	_add_sword_blade(blade_material)
+	_add_sword_box("Fuller", Vector3(0.016, 0.62, 0.008), Vector3(0.0, 0.34, 0.021), fuller_material)
+	_add_sword_cylinder("Guard", 0.020, 0.31, Vector3(0.0, -0.035, 0.0), guard_material, Vector3(0.0, 0.0, deg_to_rad(90.0)))
+	_add_sword_sphere("GuardCapLeft", 0.027, Vector3(-0.157, -0.035, 0.0), guard_material)
+	_add_sword_sphere("GuardCapRight", 0.027, Vector3(0.157, -0.035, 0.0), guard_material)
+	_add_sword_cylinder("Grip", 0.037, 0.25, Vector3(0.0, -0.185, 0.0), grip_material)
+	for wrap_index in range(5):
+		_add_sword_cylinder("GripWrap%d" % wrap_index, 0.040, 0.010, Vector3(0.0, -0.095 - float(wrap_index) * 0.045, 0.0), guard_material)
+	_add_sword_sphere("Pommel", 0.052, Vector3(0.0, -0.345, 0.0), guard_material)
 
 	sword_audio = AudioStreamPlayer.new()
 	sword_audio.name = "SwordSwingAudio"
@@ -410,6 +419,74 @@ func _add_sword_box(node_name: String, size: Vector3, position: Vector3, materia
 	instance.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 	sword_pivot.add_child(instance)
 
+func _add_sword_blade(material: Material) -> void:
+	var blade_surface := SurfaceTool.new()
+	blade_surface.begin(Mesh.PRIMITIVE_TRIANGLES)
+	blade_surface.set_material(material)
+	var left_base := Vector3(-0.058, 0.0, 0.0)
+	var right_base := Vector3(0.058, 0.0, 0.0)
+	var front_base := Vector3(0.0, 0.0, 0.019)
+	var back_base := Vector3(0.0, 0.0, -0.019)
+	var left_shoulder := Vector3(-0.043, 0.74, 0.0)
+	var right_shoulder := Vector3(0.043, 0.74, 0.0)
+	var front_shoulder := Vector3(0.0, 0.74, 0.014)
+	var back_shoulder := Vector3(0.0, 0.74, -0.014)
+	var tip := Vector3(0.0, 0.96, 0.0)
+	_add_blade_quad(blade_surface, left_base, left_shoulder, front_shoulder, front_base)
+	_add_blade_quad(blade_surface, front_base, front_shoulder, right_shoulder, right_base)
+	_add_blade_quad(blade_surface, back_base, back_shoulder, left_shoulder, left_base)
+	_add_blade_quad(blade_surface, right_base, right_shoulder, back_shoulder, back_base)
+	_add_blade_triangle(blade_surface, left_shoulder, tip, front_shoulder)
+	_add_blade_triangle(blade_surface, front_shoulder, tip, right_shoulder)
+	_add_blade_triangle(blade_surface, back_shoulder, tip, left_shoulder)
+	_add_blade_triangle(blade_surface, right_shoulder, tip, back_shoulder)
+	_add_blade_triangle(blade_surface, left_base, front_base, right_base)
+	_add_blade_triangle(blade_surface, left_base, right_base, back_base)
+	blade_surface.generate_normals()
+	var instance := MeshInstance3D.new()
+	instance.name = "Blade"
+	instance.mesh = blade_surface.commit()
+	instance.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	sword_pivot.add_child(instance)
+
+func _add_blade_quad(surface: SurfaceTool, a: Vector3, b: Vector3, c: Vector3, d: Vector3) -> void:
+	_add_blade_triangle(surface, a, b, c)
+	_add_blade_triangle(surface, a, c, d)
+
+func _add_blade_triangle(surface: SurfaceTool, a: Vector3, b: Vector3, c: Vector3) -> void:
+	surface.add_vertex(a)
+	surface.add_vertex(b)
+	surface.add_vertex(c)
+
+func _add_sword_cylinder(node_name: String, radius: float, height: float, position: Vector3, material: Material, rotation: Vector3 = Vector3.ZERO) -> void:
+	var cylinder := CylinderMesh.new()
+	cylinder.top_radius = radius
+	cylinder.bottom_radius = radius
+	cylinder.height = height
+	cylinder.radial_segments = 12
+	cylinder.material = material
+	var instance := MeshInstance3D.new()
+	instance.name = node_name
+	instance.mesh = cylinder
+	instance.position = position
+	instance.rotation = rotation
+	instance.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	sword_pivot.add_child(instance)
+
+func _add_sword_sphere(node_name: String, radius: float, position: Vector3, material: Material) -> void:
+	var sphere := SphereMesh.new()
+	sphere.radius = radius
+	sphere.height = radius * 2.0
+	sphere.radial_segments = 10
+	sphere.rings = 5
+	sphere.material = material
+	var instance := MeshInstance3D.new()
+	instance.name = node_name
+	instance.mesh = sphere
+	instance.position = position
+	instance.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	sword_pivot.add_child(instance)
+
 func _update_sword_animation(delta: float) -> void:
 	if sword_pivot == null:
 		return
@@ -420,8 +497,8 @@ func _update_sword_animation(delta: float) -> void:
 	sword_swing_elapsed += delta
 	var phase := clampf(sword_swing_elapsed / SWORD_SWING_DURATION, 0.0, 1.0)
 	var arc := sin(phase * PI)
-	sword_pivot.rotation = SWORD_REST_ROTATION + Vector3(-arc * 0.46, arc * 0.18, -arc * 1.28)
-	sword_pivot.position = SWORD_REST_POSITION + Vector3(-arc * 0.28, arc * 0.10, -arc * 0.14)
+	sword_pivot.rotation = SWORD_REST_ROTATION + Vector3(-arc * 0.38, arc * 0.18, -arc * 1.35)
+	sword_pivot.position = SWORD_REST_POSITION + Vector3(-arc * 0.30, arc * 0.11, -arc * 0.12)
 	if phase >= 1.0:
 		sword_swing_elapsed = -1.0
 

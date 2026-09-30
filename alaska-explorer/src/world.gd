@@ -27,11 +27,11 @@ const FUEL_STOPS := [
 	{"z": 324.0, "name": "Midnight Sun Fuel", "flag": "midnight_sun"},
 ]
 const FLAG_DATA := {
-	"northstar": {"name": "Northstar", "upper": Color(0.08, 0.23, 0.34), "lower": Color(0.82, 0.89, 0.91)},
-	"aurora": {"name": "Aurora", "upper": Color(0.10, 0.60, 0.51), "lower": Color(0.20, 0.12, 0.36)},
-	"raven": {"name": "Raven", "upper": Color(0.055, 0.065, 0.075), "lower": Color(0.65, 0.18, 0.12)},
-	"glacier": {"name": "Glacier", "upper": Color(0.76, 0.93, 0.97), "lower": Color(0.10, 0.42, 0.62)},
-	"midnight_sun": {"name": "Midnight Sun", "upper": Color(0.08, 0.09, 0.19), "lower": Color(0.94, 0.49, 0.13)},
+	"northstar": {"name": "Northstar", "upper": Color(0.08, 0.23, 0.34), "lower": Color(0.82, 0.89, 0.91), "accent": Color(0.86, 0.58, 0.20)},
+	"aurora": {"name": "Aurora", "upper": Color(0.10, 0.60, 0.51), "lower": Color(0.20, 0.12, 0.36), "accent": Color(0.74, 0.92, 0.80)},
+	"raven": {"name": "Raven", "upper": Color(0.055, 0.065, 0.075), "lower": Color(0.65, 0.18, 0.12), "accent": Color(0.78, 0.70, 0.48)},
+	"glacier": {"name": "Glacier", "upper": Color(0.76, 0.93, 0.97), "lower": Color(0.10, 0.42, 0.62), "accent": Color(0.08, 0.20, 0.28)},
+	"midnight_sun": {"name": "Midnight Sun", "upper": Color(0.08, 0.09, 0.19), "lower": Color(0.94, 0.49, 0.13), "accent": Color(0.97, 0.78, 0.31)},
 }
 
 @onready var generated: Node3D = $GeneratedWorld
@@ -817,8 +817,9 @@ func _build_supplies(boat_body: AnimatableBody3D) -> void:
 	boat_body.add_child(fuel)
 
 func _build_flag_rig(boat_body: AnimatableBody3D) -> void:
-	_add_cylinder(boat_body, "FlagMast", 0.045, 3.55, Vector3(-1.54, 5.48, 0.82), metal_material, false)
-	_add_cylinder(boat_body, "FlagHalyard", 0.012, 3.18, Vector3(-1.47, 5.38, 0.82), _material(Color(0.72, 0.68, 0.57), 0.88), false)
+	_add_cylinder(boat_body, "FlagMast", 0.038, 3.55, Vector3(-1.54, 5.48, 0.82), metal_material, false)
+	_add_cylinder(boat_body, "FlagHalyard", 0.008, 3.18, Vector3(-1.47, 5.38, 0.82), _material(Color(0.66, 0.61, 0.50), 0.96), false)
+	_add_cylinder(boat_body, "MastCap", 0.062, 0.09, Vector3(-1.54, 7.30, 0.82), _material(Color(0.50, 0.55, 0.56), 0.42, 0.62), false)
 	var mast_light := OmniLight3D.new()
 	mast_light.name = "MastLight"
 	mast_light.position = Vector3(-1.54, 7.28, 0.82)
@@ -829,68 +830,106 @@ func _build_flag_rig(boat_body: AnimatableBody3D) -> void:
 
 	flag_visual = Node3D.new()
 	flag_visual.name = "HoistedFlag"
-	flag_visual.position = Vector3(-1.54, 6.55, 0.82)
+	flag_visual.position = Vector3(-1.54, 6.58, 0.84)
 	flag_visual.set_script(FlagClothScript)
 	var upper_materials: Array[StandardMaterial3D] = []
 	var lower_materials: Array[StandardMaterial3D] = []
-	for segment_index in range(3):
+	var accent_materials: Array[StandardMaterial3D] = []
+	var segment_length := 0.245
+	for segment_index in range(5):
 		var panel := Node3D.new()
 		panel.name = "FlagPanel%d" % segment_index
-		panel.position = Vector3(0.0, 0.0, float(segment_index) * 0.42)
+		panel.position = Vector3(0.0, 0.0, float(segment_index) * segment_length)
 		flag_visual.add_child(panel)
-		var upper := _material(Color.WHITE, 0.76)
-		var lower := _material(Color.WHITE, 0.76)
+		var upper := _material(Color.WHITE, 0.96)
+		var lower := _material(Color.WHITE, 0.96)
 		upper_materials.append(upper)
 		lower_materials.append(lower)
-		_add_box(panel, "Upper", Vector3(0.045, 0.36, 0.42), Vector3(0.0, 0.18, 0.21), upper, false)
-		_add_box(panel, "Lower", Vector3(0.045, 0.36, 0.42), Vector3(0.0, -0.18, 0.21), lower, false)
+		var panel_height := 0.58 if segment_index < 3 else (0.52 if segment_index == 3 else 0.42)
+		var panel_center_y := (0.58 - panel_height) * 0.5
+		_add_box(panel, "UpperCloth", Vector3(0.012, panel_height * 0.5, segment_length + 0.012), Vector3(0.0, panel_center_y + panel_height * 0.25, segment_length * 0.5), upper, false)
+		_add_box(panel, "LowerCloth", Vector3(0.012, panel_height * 0.5, segment_length + 0.012), Vector3(0.0, panel_center_y - panel_height * 0.25, segment_length * 0.5), lower, false)
+		if segment_index == 0:
+			var accent := _material(Color.WHITE, 0.94)
+			accent_materials.append(accent)
+			_add_box(panel, "HoistBand", Vector3(0.018, panel_height, 0.055), Vector3(0.011, panel_center_y, 0.040), accent, false)
 	boat_body.add_child(flag_visual)
-	flag_visual.call("configure_materials", upper_materials, lower_materials)
+	flag_visual.call("configure_materials", upper_materials, lower_materials, accent_materials)
 	_apply_current_flag()
 
 func _build_flag_locker(boat_body: AnimatableBody3D) -> void:
 	var locker := StaticBody3D.new()
 	locker.name = "FlagLocker"
-	locker.position = Vector3(-1.76, 2.66, 1.34)
+	locker.position = Vector3(-1.79, 2.60, 1.34)
 	locker.collision_layer = 1
 	locker.collision_mask = 2
 	locker.set_script(FlagLockerScript)
-	_add_box(locker, "LockerCase", Vector3(0.22, 0.68, 0.76), Vector3.ZERO, _material(Color(0.18, 0.23, 0.24), 0.64, 0.32))
-	_add_box(locker, "LockerStripe", Vector3(0.025, 0.10, 0.58), Vector3(0.13, 0.13, 0.0), _material(Color(0.71, 0.28, 0.18), 0.70), false)
-	var label := Label3D.new()
-	label.name = "FlagLockerLabel"
-	label.position = Vector3(0.14, -0.08, 0.0)
-	label.text = "FLAGS"
-	label.font_size = 28
-	label.pixel_size = 0.0045
-	label.modulate = Color(0.83, 0.89, 0.88)
-	label.billboard = BaseMaterial3D.BILLBOARD_ENABLED
-	locker.add_child(label)
+	var folio_wood := _material(Color(0.22, 0.135, 0.075), 0.92)
+	var worn_brass := _material(Color(0.48, 0.38, 0.20), 0.62, 0.56)
+	var canvas := _material(Color(0.26, 0.28, 0.25), 0.98)
+	_add_box(locker, "FolioBack", Vector3(0.10, 0.56, 0.66), Vector3.ZERO, folio_wood)
+	_add_box(locker, "FolioTopRail", Vector3(0.15, 0.065, 0.70), Vector3(0.045, 0.28, 0.0), folio_wood, false)
+	_add_box(locker, "FolioBottomRail", Vector3(0.15, 0.065, 0.70), Vector3(0.045, -0.28, 0.0), folio_wood, false)
+	for side_z in [-0.33, 0.33]:
+		_add_box(locker, "FolioSideRail", Vector3(0.15, 0.50, 0.052), Vector3(0.045, 0.0, side_z), folio_wood, false)
+	var folded_colors := [
+		_material(Color(0.09, 0.27, 0.37), 0.98),
+		_material(Color(0.68, 0.76, 0.73), 0.98),
+		_material(Color(0.42, 0.16, 0.12), 0.98),
+	]
+	for fold_index in range(3):
+		_add_box(locker, "FoldedSignal%d" % fold_index, Vector3(0.045, 0.105, 0.52), Vector3(0.092, 0.15 - float(fold_index) * 0.15, 0.0), folded_colors[fold_index], false)
+	_add_box(locker, "CanvasKeeper", Vector3(0.028, 0.42, 0.065), Vector3(0.124, 0.0, 0.0), canvas, false)
+	_add_box(locker, "BrassNameplate", Vector3(0.025, 0.065, 0.25), Vector3(0.126, 0.245, 0.0), worn_brass, false)
+	_add_cylinder(locker, "FolioLatch", 0.028, 0.042, Vector3(0.145, -0.23, 0.25), worn_brass, false, Vector3(0.0, 0.0, deg_to_rad(90.0)))
 	boat_body.add_child(locker)
 
 func _build_cabin_radio(boat_body: AnimatableBody3D) -> void:
 	cabin_radio = StaticBody3D.new()
 	cabin_radio.name = "CabinRadio"
-	cabin_radio.position = Vector3(-1.76, 2.68, -0.18)
+	cabin_radio.position = Vector3(-1.79, 2.63, -0.18)
 	cabin_radio.collision_layer = 1
 	cabin_radio.collision_mask = 2
 	cabin_radio.set_script(CabinRadioScript)
-	var radio_case := _material(Color(0.12, 0.095, 0.07), 0.90)
-	var radio_metal := _material(Color(0.34, 0.31, 0.25), 0.58, 0.24)
-	_add_box(cabin_radio, "RadioCase", Vector3(0.24, 0.58, 0.94), Vector3.ZERO, radio_case)
-	_add_box(cabin_radio, "SpeakerGrille", Vector3(0.03, 0.25, 0.36), Vector3(0.135, 0.08, 0.22), radio_metal, false)
-	for knob_z in [-0.29, -0.10]:
-		_add_cylinder(cabin_radio, "TuningKnob", 0.075, 0.055, Vector3(0.16, -0.15, knob_z), radio_metal, false, Vector3(0.0, 0.0, deg_to_rad(90.0)))
+	var radio_case := _material(Color(0.075, 0.082, 0.078), 0.72, 0.26)
+	var radio_face := _material(Color(0.20, 0.205, 0.18), 0.68, 0.36)
+	var radio_metal := _material(Color(0.44, 0.42, 0.33), 0.48, 0.62)
+	var grille_dark := _material(Color(0.025, 0.030, 0.028), 0.94)
+	var dial_glass := _material(Color(0.16, 0.095, 0.035), 0.34, 0.12, Color(0.16, 0.065, 0.012, 1.0))
+	_add_box(cabin_radio, "RadioMount", Vector3(0.07, 0.42, 0.75), Vector3(-0.055, 0.0, 0.0), radio_metal)
+	_add_box(cabin_radio, "RadioCase", Vector3(0.17, 0.35, 0.69), Vector3(0.035, 0.0, 0.0), radio_case)
+	_add_box(cabin_radio, "RadioFaceplate", Vector3(0.026, 0.30, 0.63), Vector3(0.132, 0.0, 0.0), radio_face, false)
+	_add_box(cabin_radio, "DialWindow", Vector3(0.015, 0.105, 0.225), Vector3(0.150, 0.067, -0.155), dial_glass, false)
+	for grille_index in range(6):
+		_add_box(cabin_radio, "SpeakerSlit%d" % grille_index, Vector3(0.015, 0.012, 0.245), Vector3(0.151, 0.105 - float(grille_index) * 0.037, 0.165), grille_dark, false)
+	for knob_z in [-0.255, 0.285]:
+		_add_cylinder(cabin_radio, "RadioKnob", 0.042, 0.042, Vector3(0.160, -0.105, knob_z), radio_metal, false, Vector3(0.0, 0.0, deg_to_rad(90.0)))
+		_add_box(cabin_radio, "KnobIndex", Vector3(0.010, 0.035, 0.008), Vector3(0.184, -0.086, knob_z), grille_dark, false)
+	for tick_index in range(5):
+		var tick_z := -0.245 + float(tick_index) * 0.046
+		_add_box(cabin_radio, "DialTick%d" % tick_index, Vector3(0.010, 0.024, 0.005), Vector3(0.164, 0.014, tick_z), radio_metal, false)
+	_add_box(cabin_radio, "Handle", Vector3(0.075, 0.035, 0.46), Vector3(0.015, 0.225, 0.0), radio_metal, false)
+	for handle_z in [-0.23, 0.23]:
+		_add_box(cabin_radio, "HandlePost", Vector3(0.075, 0.13, 0.035), Vector3(0.015, 0.172, handle_z), radio_metal, false)
+	_add_cylinder(cabin_radio, "WhipAntenna", 0.010, 0.55, Vector3(0.02, 0.43, 0.285), radio_metal, false)
 	var display := Label3D.new()
 	display.name = "FrequencyDisplay"
-	display.position = Vector3(0.15, 0.15, -0.20)
+	display.position = Vector3(0.163, 0.066, -0.155)
+	display.rotation.y = deg_to_rad(90.0)
 	display.text = "OFF"
-	display.font_size = 34
-	display.pixel_size = 0.0042
-	display.outline_size = 5
+	display.font_size = 21
+	display.pixel_size = 0.0021
+	display.outline_size = 2
 	display.outline_modulate = Color(0.04, 0.025, 0.018)
-	display.billboard = BaseMaterial3D.BILLBOARD_ENABLED
 	cabin_radio.add_child(display)
+	var dial_light := OmniLight3D.new()
+	dial_light.name = "DialLight"
+	dial_light.position = Vector3(0.25, 0.07, -0.15)
+	dial_light.light_color = Color(1.0, 0.42, 0.12)
+	dial_light.light_energy = 0.0
+	dial_light.omni_range = 0.95
+	dial_light.shadow_enabled = false
+	cabin_radio.add_child(dial_light)
 	var receiver := AudioStreamPlayer3D.new()
 	receiver.name = "ReceiverAudio"
 	receiver.volume_db = 2.0
@@ -969,7 +1008,7 @@ func _build_fuel_station(index: int, station_z: float, station_name: String, fla
 
 	var pickup := StaticBody3D.new()
 	pickup.name = "FlagPickup_%s" % flag_id
-	pickup.position = Vector3(-1.55, 1.72, 0.76)
+	pickup.position = Vector3(-1.55, 1.52, 0.76)
 	pickup.collision_layer = 1
 	pickup.collision_mask = 2
 	pickup.set_script(FlagPickupScript)
@@ -977,18 +1016,14 @@ func _build_fuel_station(index: int, station_z: float, station_name: String, fla
 	var flag_name := get_flag_name(flag_id)
 	pickup.set("flag_name", flag_name)
 	var flag_data: Dictionary = FLAG_DATA[flag_id]
-	_add_box(pickup, "FlagStand", Vector3(0.38, 0.68, 0.38), Vector3(0.0, 0.0, 0.0), _material(Color(0.24, 0.18, 0.11), 0.92))
-	_add_box(pickup, "FlagUpper", Vector3(0.055, 0.28, 0.72), Vector3(0.0, 0.48, 0.08), _material(flag_data["upper"], 0.76), false)
-	_add_box(pickup, "FlagLower", Vector3(0.055, 0.28, 0.72), Vector3(0.0, 0.20, 0.08), _material(flag_data["lower"], 0.76), false)
-	var flag_label := Label3D.new()
-	flag_label.name = "FlagName"
-	flag_label.position = Vector3(0.0, 0.95, 0.0)
-	flag_label.text = flag_name.to_upper()
-	flag_label.font_size = 30
-	flag_label.pixel_size = 0.0045
-	flag_label.modulate = Color(0.89, 0.93, 0.90)
-	flag_label.billboard = BaseMaterial3D.BILLBOARD_ENABLED
-	pickup.add_child(flag_label)
+	var bundle_wood := _material(Color(0.25, 0.17, 0.095), 0.96)
+	var binding := _material(Color(0.62, 0.54, 0.40), 0.98)
+	_add_box(pickup, "FlagCase", Vector3(0.46, 0.22, 0.66), Vector3(0.0, -0.05, 0.0), bundle_wood)
+	_add_box(pickup, "FoldedFlagLower", Vector3(0.40, 0.075, 0.58), Vector3(0.0, 0.105, 0.0), _material(flag_data["lower"], 0.98), false)
+	_add_box(pickup, "FoldedFlagUpper", Vector3(0.40, 0.075, 0.58), Vector3(0.0, 0.18, -0.015), _material(flag_data["upper"], 0.98), false)
+	_add_box(pickup, "FoldedFlagAccent", Vector3(0.40, 0.028, 0.50), Vector3(0.0, 0.232, 0.01), _material(flag_data["accent"], 0.96), false)
+	for strap_z in [-0.16, 0.16]:
+		_add_box(pickup, "BundleStrap", Vector3(0.44, 0.018, 0.038), Vector3(0.0, 0.25, strap_z), binding, false)
 	root.add_child(pickup)
 	flag_pickups.append(pickup)
 
@@ -1031,7 +1066,7 @@ func _apply_current_flag() -> void:
 		return
 	var flag_id := unlocked_flags[current_flag_index]
 	var data: Dictionary = FLAG_DATA[flag_id]
-	flag_visual.call("set_palette", data["upper"], data["lower"])
+	flag_visual.call("set_palette", data["upper"], data["lower"], data["accent"])
 
 func _build_gangway() -> void:
 	var start := BOAT_POSITION + Vector3(2.30, 1.23, 4.85)
