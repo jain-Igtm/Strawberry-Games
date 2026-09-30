@@ -40,14 +40,21 @@ var status_message := ""
 var status_message_until := 0
 var sword_pivot: Node3D
 var sword_audio: AudioStreamPlayer
+var sword_equipped := false
 var sword_swing_elapsed := -1.0
+var sword_hit_applied := false
 var sword_swing_count := 0
+var sword_hit_check_count := 0
 
 const CAMERA_BASE := Vector3(0.0, 0.64, 0.0)
 const FALLBACK_SPAWN := Vector3(8.0, 2.24, 5.15)
 const SWORD_REST_POSITION := Vector3(0.64, -0.64, -1.05)
 const SWORD_REST_ROTATION := Vector3(-0.12, -0.16, 0.38)
-const SWORD_SWING_DURATION := 0.46
+const SWORD_WINDUP_POSITION := Vector3(0.82, -0.72, -0.90)
+const SWORD_WINDUP_ROTATION := Vector3(0.08, -0.28, 0.76)
+const SWORD_STRIKE_POSITION := Vector3(0.10, -0.20, -1.54)
+const SWORD_STRIKE_ROTATION := Vector3(-0.70, 0.24, -1.20)
+const SWORD_SWING_DURATION := 0.58
 
 func _ready() -> void:
 	world_controller = get_parent() as Node3D
@@ -117,8 +124,8 @@ func _physics_process(delta: float) -> void:
 		request_interact()
 	if Input.is_action_just_pressed("toggle_lamp"):
 		toggle_headlamp()
-	if Input.is_action_just_pressed("attack"):
-		request_attack()
+	if Input.is_action_just_pressed("toggle_sword"):
+		toggle_sword()
 
 	if global_position.y < -12.0:
 		global_position = world_controller.call("get_rescue_position") if world_controller != null and world_controller.has_method("get_rescue_position") else FALLBACK_SPAWN
@@ -302,8 +309,7 @@ func begin_boat_piloting(next_boat: Node3D, next_seat: Marker3D, next_exit: Mark
 	collision_mask = 0
 	is_sprinting = false
 	mobile_sprint = false
-	if sword_pivot != null:
-		sword_pivot.visible = false
+	set_sword_equipped(false, false)
 	show_status_message("Helm engaged. Apply throttle to cast off.", 2.6)
 
 func end_boat_piloting() -> void:
@@ -320,8 +326,6 @@ func end_boat_piloting() -> void:
 	collision_layer = 2
 	collision_mask = 1
 	interaction_prompt = ""
-	if sword_pivot != null:
-		sword_pivot.visible = true
 	show_status_message("You leave the helm.", 1.5)
 
 func board_boat(boarding_point: Marker3D) -> void:
@@ -349,15 +353,39 @@ func toggle_headlamp() -> void:
 	headlamp.visible = lamp_on
 	show_status_message("Headlamp on." if lamp_on else "Headlamp off.", 1.3)
 
-func request_attack() -> void:
+func toggle_sword() -> void:
 	if is_dead or piloting_boat != null or sword_swing_elapsed >= 0.0:
 		return
+	set_sword_equipped(not sword_equipped)
+
+func set_sword_equipped(equipped: bool, announce: bool = true) -> void:
+	sword_equipped = equipped
+	sword_swing_elapsed = -1.0
+	sword_hit_applied = false
+	if sword_pivot != null:
+		sword_pivot.visible = sword_equipped and piloting_boat == null
+		sword_pivot.position = SWORD_REST_POSITION
+		sword_pivot.rotation = SWORD_REST_ROTATION
+	if announce:
+		show_status_message("Sword drawn." if sword_equipped else "Sword sheathed across your back.", 1.6)
+
+func is_sword_drawn() -> bool:
+	return sword_equipped
+
+func request_attack() -> void:
+	if is_dead or piloting_boat != null or not sword_equipped or sword_swing_elapsed >= 0.0:
+		return
 	sword_swing_elapsed = 0.0
+	sword_hit_applied = false
 	sword_swing_count += 1
 	if sword_audio != null:
 		sword_audio.play()
+
+func _perform_sword_hit() -> void:
+	sword_hit_applied = true
+	sword_hit_check_count += 1
 	var from := camera.global_position
-	var to := from + -camera.global_transform.basis.z * 2.35
+	var to := from + -camera.global_transform.basis.z * 2.65
 	var query := PhysicsRayQueryParameters3D.create(from, to, 5)
 	query.exclude = [get_rid()]
 	var hit := get_world_3d().direct_space_state.intersect_ray(query)
@@ -368,11 +396,15 @@ func request_attack() -> void:
 func get_sword_swing_count() -> int:
 	return sword_swing_count
 
+func get_sword_hit_check_count() -> int:
+	return sword_hit_check_count
+
 func _build_sword() -> void:
 	sword_pivot = Node3D.new()
 	sword_pivot.name = "Sword"
 	sword_pivot.position = SWORD_REST_POSITION
 	sword_pivot.rotation = SWORD_REST_ROTATION
+	sword_pivot.visible = false
 	camera.add_child(sword_pivot)
 
 	var blade_material := StandardMaterial3D.new()
@@ -490,17 +522,34 @@ func _add_sword_sphere(node_name: String, radius: float, position: Vector3, mate
 func _update_sword_animation(delta: float) -> void:
 	if sword_pivot == null:
 		return
+	if not sword_equipped:
+		sword_pivot.visible = false
+		return
+	sword_pivot.visible = piloting_boat == null
 	if sword_swing_elapsed < 0.0:
 		sword_pivot.position = SWORD_REST_POSITION
 		sword_pivot.rotation = SWORD_REST_ROTATION
 		return
 	sword_swing_elapsed += delta
 	var phase := clampf(sword_swing_elapsed / SWORD_SWING_DURATION, 0.0, 1.0)
-	var arc := sin(phase * PI)
-	sword_pivot.rotation = SWORD_REST_ROTATION + Vector3(-arc * 0.38, arc * 0.18, -arc * 1.35)
-	sword_pivot.position = SWORD_REST_POSITION + Vector3(-arc * 0.30, arc * 0.11, -arc * 0.12)
+	if phase < 0.22:
+		var windup_t := smoothstep(0.0, 0.22, phase)
+		sword_pivot.position = SWORD_REST_POSITION.lerp(SWORD_WINDUP_POSITION, windup_t)
+		sword_pivot.rotation = SWORD_REST_ROTATION.lerp(SWORD_WINDUP_ROTATION, windup_t)
+	elif phase < 0.56:
+		var strike_t := smoothstep(0.22, 0.56, phase)
+		sword_pivot.position = SWORD_WINDUP_POSITION.lerp(SWORD_STRIKE_POSITION, strike_t)
+		sword_pivot.rotation = SWORD_WINDUP_ROTATION.lerp(SWORD_STRIKE_ROTATION, strike_t)
+	else:
+		var recover_t := smoothstep(0.56, 1.0, phase)
+		sword_pivot.position = SWORD_STRIKE_POSITION.lerp(SWORD_REST_POSITION, recover_t)
+		sword_pivot.rotation = SWORD_STRIKE_ROTATION.lerp(SWORD_REST_ROTATION, recover_t)
+	if not sword_hit_applied and phase >= 0.43:
+		_perform_sword_hit()
 	if phase >= 1.0:
 		sword_swing_elapsed = -1.0
+		sword_pivot.position = SWORD_REST_POSITION
+		sword_pivot.rotation = SWORD_REST_ROTATION
 
 func _apply_look(delta_look: Vector2) -> void:
 	rotate_y(-delta_look.x)

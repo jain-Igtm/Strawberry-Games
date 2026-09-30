@@ -101,7 +101,7 @@ func _draw() -> void:
 	_draw_text(objective, Vector2(center_x, 38.0), 14, Color(0.86, 0.94, 0.98, 0.72), center_width, HORIZONTAL_ALIGNMENT_CENTER)
 
 	if not OS.has_feature("mobile"):
-		var controls := "W/S THROTTLE   A/D STEER   E LEAVE   F LAMP" if piloting else "WASD MOVE   SHIFT RUN   E USE   LMB/X SWORD   F LAMP"
+		var controls := "W/S THROTTLE   A/D STEER   E LEAVE   F LAMP" if piloting else "WASD MOVE   SHIFT RUN   E USE   X DRAW/SHEATHE   LMB STRIKE   F LAMP"
 		_draw_text(controls, Vector2(size.x - 515.0, 38.0), 12, MUTED, 487.0, HORIZONTAL_ALIGNMENT_RIGHT)
 
 	if radio != null:

@@ -9,7 +9,7 @@ A survival-first Godot prototype for Strawberry Games. The current build still h
 - Boardable and drivable river boat with throttle, steering, consumable vessel fuel, channel limits, a cast-off gangway, a stern ramp plus forgiving waterline ladder, an unobstructed cabin aisle, bunk, working helm, food, and diesel heater
 - Four illuminated river fuel docks spaced in both exploration directions, each with a working pump and a recoverable flag
 - Five-flag collection with a thin sectional cloth flag, tied folded discoveries, and a compact cabin signal folio used to hoist any recovered design
-- Restrained first-person sword with a tapered forged blade, narrow guard, wrapped grip, responsive swing animation, sound, desktop input, and a dedicated Android control
+- Sheathable first-person sword with a tapered forged blade, narrow guard, wrapped grip, a full wind-up/forward-strike/recovery animation, impact-timed hit check, sound, and separate draw, strike, and sheathe controls
 - Compact marine cabin receiver with a fixed faceplate, tuning scale, knobs, speaker grille, working amber dial light, OFF position, original old-time waltz, open-carrier static, and three voiced unsettling river transmissions
 - Hinged cabin door with nearby-use assistance, instant reversal, and shelter that returns only when the door is fully secured
 - Grounded survival simulation: core temperature, exposure, wetness, hunger, stamina, health, shelter, water immersion, drying, and heater fuel
@@ -30,7 +30,8 @@ A survival-first Godot prototype for Strawberry Games. The current build still h
 | Run | Shift | Hold RUN |
 | Use / command Scout / board / leave helm | E | Tap USE / LEAVE |
 | Headlamp | F | Tap LAMP |
-| Swing sword | Left mouse / X | Tap SWORD |
+| Draw / sheathe sword | X | Tap DRAW / SHEATHE |
+| Strike with drawn sword | Left mouse | Tap STRIKE |
 | Tune radio / refuel / collect or hoist flag | E | Tap USE |
 | Swim upward | Space | Move and let buoyancy lift you |
 

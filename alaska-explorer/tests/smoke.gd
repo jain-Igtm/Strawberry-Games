@@ -49,6 +49,12 @@ func _run() -> void:
 	_expect(dog != null and str(dog.call("get_interaction_prompt")) == "Tell Scout to sit", "Scout is generated with a sit command")
 	_expect(cabin_radio != null and flag_locker != null and hoisted_flag != null, "radio and working flag rig are installed aboard the Northstar")
 	_expect(first_fuel_station != null and first_flag_pickup != null, "river fuel stops include refueling and collectible flags")
+	if fuel != null:
+		var fuel_can := fuel.get_node_or_null("FuelCan") as MeshInstance3D
+		var fuel_can_mesh: BoxMesh
+		if fuel_can != null:
+			fuel_can_mesh = fuel_can.mesh as BoxMesh
+		_expect(fuel.position.z > 5.0 and fuel.position.x < -1.5 and fuel_can_mesh != null and fuel_can_mesh.size.x <= 0.52, "aft diesel can stays against the rail and clear of the cabin exit")
 	if cabin_radio != null:
 		var radio_case := cabin_radio.get_node_or_null("RadioCase") as MeshInstance3D
 		var radio_case_mesh: BoxMesh
@@ -113,23 +119,37 @@ func _run() -> void:
 		for _frame in range(18):
 			await physics_frame
 		_expect(player.global_position.y > 1.9 and player.global_position.y < 2.6, "player settles safely on the boat deck")
+		var sword := player.get_node_or_null("CameraPivot/Camera3D/Sword") as Node3D
+		_expect(not bool(player.call("is_sword_drawn")) and sword != null and not sword.visible, "sword begins sheathed and out of the player's hands")
 		var swings_before := int(player.call("get_sword_swing_count"))
 		player.call("request_attack")
-		await process_frame
-		var sword := player.get_node_or_null("CameraPivot/Camera3D/Sword") as Node3D
+		_expect(int(player.call("get_sword_swing_count")) == swings_before, "sheathed sword cannot strike until deliberately drawn")
+		player.call("toggle_sword")
+		_expect(bool(player.call("is_sword_drawn")) and sword.visible, "sword can be deliberately drawn")
+		var hit_checks_before := int(player.call("get_sword_hit_check_count"))
+		player.call("request_attack")
 		var sword_blade: MeshInstance3D
 		if sword != null:
 			sword_blade = sword.get_node_or_null("Blade") as MeshInstance3D
 		_expect(int(player.call("get_sword_swing_count")) == swings_before + 1 and sword != null, "player carries and can swing the sword")
 		_expect(sword_blade != null and sword_blade.mesh is ArrayMesh and sword.get_node_or_null("Guard") != null and sword.get_node_or_null("GripWrap4") != null, "sword uses a tapered forged blade and detailed hilt")
+		var sword_rest_position: Vector3 = sword.position
+		player.call("_update_sword_animation", 0.30)
+		_expect(sword.position.distance_to(sword_rest_position) > 0.45, "sword drives forward through a visible strike instead of merely turning")
+		_expect(int(player.call("get_sword_hit_check_count")) == hit_checks_before + 1, "sword checks for impact during the forward strike")
+		player.call("_update_sword_animation", 0.40)
+		player.call("toggle_sword")
+		_expect(not bool(player.call("is_sword_drawn")) and not sword.visible, "sword can be sheathed across the player's back")
 		player.call("_update_interaction")
 		_expect(str(player.get("interaction_prompt")) == "Open cabin door", "cabin door is reachable with the use control")
 		if cabin_door != null:
+			var door_collision := cabin_door.get_node_or_null("DoorPanelCollision") as CollisionShape3D
 			_expect(not bool(cabin_door.get("is_open")), "cabin door starts secured")
 			cabin_door.call("interact", player)
 			for _frame in range(32):
 				await physics_frame
 			_expect(bool(cabin_door.get("is_open")) and absf(cabin_door.rotation.y) > 1.5, "cabin door opens on its hinge")
+			_expect(door_collision != null and door_collision.disabled, "open cabin door cannot form a collision pocket around the player")
 		player.call("set_mobile_move", Vector2(0.0, -1.0))
 		for _frame in range(46):
 			await physics_frame
@@ -143,7 +163,7 @@ func _run() -> void:
 			for _frame in range(32):
 				await physics_frame
 			player.call("_update_environment")
-			_expect(not bool(cabin_door.get("is_open")) and bool(player.get("sheltered")), "closed cabin door restores shelter")
+			_expect(not bool(cabin_door.get("is_open")) and bool(player.get("sheltered")) and (door_collision == null or not door_collision.disabled), "closed cabin door safely restores collision and shelter")
 			var nearby_door: Node = game.call("get_nearby_interactable", player.global_position) as Node
 			_expect(nearby_door == cabin_door, "cabin door works nearby without exact aiming")
 			cabin_door.call("interact", player)

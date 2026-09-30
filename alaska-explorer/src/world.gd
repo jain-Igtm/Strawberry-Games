@@ -807,13 +807,15 @@ func _build_supplies(boat_body: AnimatableBody3D) -> void:
 
 	var fuel := StaticBody3D.new()
 	fuel.name = "DieselCans"
-	fuel.position = Vector3(-1.38, 1.68, 4.64)
+	# Keep the can secured against the aft rail instead of creating a pocket
+	# between the open cabin door and the stern walkway.
+	fuel.position = Vector3(-1.72, 1.66, 5.32)
 	fuel.collision_layer = 1
 	fuel.collision_mask = 2
 	fuel.set_script(SupplyScript)
 	fuel.set("supply_kind", "fuel")
 	fuel.set("remaining", 3)
-	_add_box(fuel, "FuelCan", Vector3(0.62, 0.78, 0.42), Vector3.ZERO, _material(Color(0.46, 0.13, 0.08), 0.62, 0.18))
+	_add_box(fuel, "FuelCan", Vector3(0.52, 0.72, 0.36), Vector3.ZERO, _material(Color(0.46, 0.13, 0.08), 0.62, 0.18))
 	boat_body.add_child(fuel)
 
 func _build_flag_rig(boat_body: AnimatableBody3D) -> void:

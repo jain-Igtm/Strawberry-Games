@@ -34,8 +34,15 @@ func _input(event: InputEvent) -> void:
 				player.call("request_interact")
 				queue_redraw()
 				return
+			if bool(player.call("is_sword_drawn")) and _inside(event.position, _sheathe_center(), BUTTON_RADIUS + 8.0) and player.get("piloting_boat") == null:
+				player.call("toggle_sword")
+				queue_redraw()
+				return
 			if _inside(event.position, _attack_center(), BUTTON_RADIUS + 10.0) and player.get("piloting_boat") == null:
-				player.call("request_attack")
+				if bool(player.call("is_sword_drawn")):
+					player.call("request_attack")
+				else:
+					player.call("toggle_sword")
 				queue_redraw()
 				return
 			if _inside(event.position, _lamp_center(), BUTTON_RADIUS + 10.0):
@@ -96,6 +103,9 @@ func _lamp_center() -> Vector2:
 func _attack_center() -> Vector2:
 	return Vector2(size.x - 212.0, size.y - 222.0)
 
+func _sheathe_center() -> Vector2:
+	return Vector2(size.x - 336.0, size.y - 222.0)
+
 func _joystick_center() -> Vector2:
 	return Vector2(172.0, size.y - 165.0)
 
@@ -116,10 +126,13 @@ func _draw() -> void:
 	draw_arc(stick_knob, KNOB_RADIUS, 0.0, TAU, 44, Color(0.88, 0.95, 1.0, 0.52), 3.0)
 
 	var piloting := player != null and player.get("piloting_boat") != null
+	var sword_drawn := player != null and bool(player.call("is_sword_drawn"))
 	_draw_button(_use_center(), "LEAVE" if piloting else "USE", false)
 	if not piloting:
 		_draw_button(_sprint_center(), "RUN", sprint_touch != -1)
-		_draw_button(_attack_center(), "SWORD", false)
+		_draw_button(_attack_center(), "STRIKE" if sword_drawn else "DRAW", sword_drawn)
+		if sword_drawn:
+			_draw_button(_sheathe_center(), "SHEATHE", false)
 	_draw_button(_lamp_center(), "LAMP", player != null and bool(player.get("lamp_on")))
 
 func _draw_button(center: Vector2, label: String, active: bool) -> void:
