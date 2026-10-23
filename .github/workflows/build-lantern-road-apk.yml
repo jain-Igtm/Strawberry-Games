@@ -9,6 +9,12 @@ on:
       - 'LanternRoad/**'
       - '.github/workflows/build-lantern-road-apk.yml'
 
+  pull_request:
+    branches: [main]
+    paths:
+      - 'LanternRoad/**'
+      - '.github/workflows/build-lantern-road-apk.yml'
+
 permissions:
   contents: read
 
