@@ -212,7 +212,7 @@ func _input(event: InputEvent) -> void:
 				quest = 2
 			enter_region(0, false)
 	if event is InputEventScreenTouch:
-		var p := get_canvas_transform().affine_inverse() * event.position
+		var p: Vector2 = get_canvas_transform().affine_inverse() * event.position
 		var names := ["left", "right", "jump", "attack", "interact"]
 		var rects := [Rect2(12, 218, 43, 42), Rect2(61, 218, 43, 42), Rect2(328, 218, 43, 42), Rect2(378, 218, 43, 42), Rect2(428, 218, 43, 42)]
 		for i in range(names.size()):
