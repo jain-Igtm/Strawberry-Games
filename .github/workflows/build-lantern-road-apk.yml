@@ -4,6 +4,7 @@ on:
   workflow_dispatch:
   push:
     branches:
+      - main
       - feature/lantern-road-godot
     paths:
       - 'LanternRoad/**'
