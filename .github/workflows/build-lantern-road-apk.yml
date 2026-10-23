@@ -26,10 +26,13 @@ jobs:
       - uses: actions/checkout@v4
 
       - name: Java 17
-        uses: actions/setup-java@v4
+        uses: actions/setup-java@v5
         with:
           distribution: temurin
           java-version: '17'
+
+      - name: Install Android command-line tools
+        uses: android-actions/setup-android@v4
 
       - name: Install Android packages
         run: |
