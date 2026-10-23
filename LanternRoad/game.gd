@@ -204,6 +204,29 @@ func interact() -> void:
 		select_dialogue(0)
 		return
 	if region != 0:
+		if region == 1 and absf(player.x - 720) < 55 and not story_flags.has("blue_lantern"):
+			story_flags["blue_lantern"] = true
+			quest = maxi(quest, 2)
+			dialogue = "A blue lantern hangs from a root. Inside is a note: THE BELL KNOWS OUR NAMES."
+			dialogue_options = ["Take the note."]
+			talking_to = "clue"
+			save_game()
+			return
+		if region == 1 and absf(player.x - 1010) < 48 and not story_flags.has("fox"):
+			story_flags["fox"] = true
+			shards += 3
+			dialogue = "A silver fox uncovers a hidden lantern cache. Three fragments are yours."
+			dialogue_options = ["Thank you."]
+			talking_to = "clue"
+			save_game()
+			return
+		if region == 2 and absf(player.x - 660) < 40 and not story_flags.has("inscription"):
+			story_flags["inscription"] = true
+			dialogue = "The inscription reads: 'We are not your prisoners. We are your memories.'"
+			dialogue_options = ["Remember."]
+			talking_to = "clue"
+			save_game()
+			return
 		if region == 2 and player.x > 830:
 			dialogue = "The ancient bell hums beneath the stone. Something is listening."
 			dialogue_options = ["Continue"]
@@ -217,20 +240,35 @@ func interact() -> void:
 				dialogue_options = ["Who were they?", "I'll investigate."]
 			elif talking_to == "Tobin":
 				dialogue = "Tobin: I heard a bell under the ground. Our tower hasn't rung in sixty years."
-				dialogue_options = ["Tell me more.", "Goodbye."]
+				dialogue_options = ["Where is the tower?", "Why are you afraid?"]
 			else:
 				dialogue = "Keeper: The bell was buried to keep a promise. Something has broken it."
-				dialogue_options = ["What promise?", "I'll find the bell."]
+				dialogue_options = ["What promise?", "How can I stop it?"]
 			return
 
 func select_dialogue(choice: int) -> void:
-	if talking_to == "Mira" and choice == 0:
+	if talking_to == "Mira" and choice == 1:
+		story_flags["mira_promise"] = true
+		quest = maxi(quest, 1)
+		dialogue = "Mira: Bring them home, if there is still a way."
+		dialogue_options = ["I promise."]
+		talking_to = "followup"
+		save_game()
+	elif talking_to == "Mira" and choice == 0:
 		dialogue = "Mira: My brother Eren, the miller, and a girl from the north road. Look for their blue lanterns."
 		dialogue_options = ["I will."]
+		talking_to = "followup"
+	elif talking_to == "Tobin" and choice == 1:
+		dialogue = "Tobin: Because the last person who heard it forgot his own name."
+		dialogue_options = ["I understand."]
 		talking_to = "followup"
 	elif talking_to == "Tobin" and choice == 0:
 		dialogue = "Tobin: There is a stair beneath the old roots, past the weeping wood."
 		dialogue_options = ["Thank you."]
+		talking_to = "followup"
+	elif talking_to == "Bell Keeper" and choice == 1:
+		dialogue = "Keeper: The old bell cannot be destroyed. But its guardian can be made to listen."
+		dialogue_options = ["I'll try."]
 		talking_to = "followup"
 	elif talking_to == "Bell Keeper" and choice == 0:
 		dialogue = "Keeper: We promised the thing below that the village would remember its name."
@@ -408,6 +446,8 @@ func _draw() -> void:
 	if dead or won:
 		rect(40, 77, 400, 100, Color("#202337"))
 		label_at("THE BELL REMEMBERS" if won else "YOUR LANTERN WENT DARK", 103, 114, 17, Color("#ffe1ac"))
+		if won:
+			label_at("The villagers have a path home." if story_flags.has("blue_lantern") else "The bell falls silent. Questions remain.", 110, 131, 10)
 		label_at("Press R or tap TALK to restart", 134, 147, 11)
 	var names := ["<", ">", "JUMP", "HIT", "TALK"]
 	var xs := [12.0, 61.0, 328.0, 378.0, 428.0]
