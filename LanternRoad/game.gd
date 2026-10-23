@@ -29,6 +29,16 @@ var won := false
 var touch := {}
 var font: Font = ThemeDB.fallback_font
 var save_path := "user://lanternroad.save"
+var title_screen := true
+var platforms: Array[Rect2] = []
+var pickups: Array[Dictionary] = []
+var collected_ids: Dictionary = {}
+var story_flags: Dictionary = {}
+var standing_platform := false
+var jump_was_down := false
+var attack_was_down := false
+var notice := ""
+var notice_timer := 0.0
 var regions := ["BRIARHOLLOW", "THE WEEPING WOOD", "THE SUNKEN BELFRY"]
 var region_colors := [Color("#8db7a1"), Color("#496e74"), Color("#41415d")]
 var npcs := [
@@ -45,7 +55,7 @@ func _ready() -> void:
 func save_game() -> void:
 	var file := FileAccess.open(save_path, FileAccess.WRITE)
 	if file:
-		file.store_var({"quest": quest, "shards": shards, "region": region, "hp": hp, "defeated": defeated})
+		file.store_var({"quest": quest, "shards": shards, "region": region, "hp": hp, "defeated": defeated, "collected_ids": collected_ids, "story_flags": story_flags})
 
 func load_game() -> void:
 	if not FileAccess.file_exists(save_path):
@@ -59,12 +69,24 @@ func load_game() -> void:
 			region = clampi(int(data.get("region", 0)), 0, 2)
 			hp = int(data.get("hp", 5))
 			defeated = int(data.get("defeated", 0))
+			collected_ids = data.get("collected_ids", {})
+			story_flags = data.get("story_flags", {})
 
 func enter_region(which: int, from_edge: bool) -> void:
 	region = clampi(which, 0, 2)
 	player = Vector2(1100 if from_edge else 65, GROUND)
 	velocity = Vector2.ZERO
 	enemies.clear()
+	platforms.clear()
+	pickups.clear()
+	for i in range(5):
+		var px := 195.0 + i * 198.0
+		var py := 170.0 if i % 2 == 0 else 185.0
+		platforms.append(Rect2(px, py, 98, 8))
+	for i in range(9):
+		var item_id := "%d:%d" % [region, i]
+		if not collected_ids.has(item_id):
+			pickups.append({"id": item_id, "x": 117.0 + i * 125.0, "y": (151.0 if i % 3 == 0 else GROUND - 22.0)})
 	if region == 1:
 		for i in range(5):
 			enemies.append({"x": 260.0 + i * 170.0, "y": GROUND, "hp": 2, "dir": -1, "cool": 0.0, "alive": true, "type": 0})
@@ -76,6 +98,10 @@ func enter_region(which: int, from_edge: bool) -> void:
 
 func _physics_process(delta: float) -> void:
 	game_time += delta
+	notice_timer = maxf(0.0, notice_timer - delta)
+	if title_screen:
+		queue_redraw()
+		return
 	if not dialogue.is_empty() or dead or won:
 		queue_redraw()
 		return
@@ -85,10 +111,32 @@ func _physics_process(delta: float) -> void:
 	if direction != 0:
 		facing = direction
 	velocity.x = direction * SPEED
-	if (Input.is_key_pressed(KEY_SPACE) or Input.is_key_pressed(KEY_W) or Input.is_key_pressed(KEY_UP) or touch.get("jump", false)) and player.y >= GROUND - 0.1:
+	var jump_down: bool = Input.is_key_pressed(KEY_SPACE) or Input.is_key_pressed(KEY_W) or Input.is_key_pressed(KEY_UP) or touch.get("jump", false)
+	if jump_down and not jump_was_down and (player.y >= GROUND - 0.1 or standing_platform):
 		velocity.y = JUMP
+		standing_platform = false
+	jump_was_down = jump_down
 	velocity.y += GRAVITY * delta
+	var old_y := player.y
 	player += velocity * delta
+	standing_platform = false
+	if velocity.y >= 0:
+		for ledge in platforms:
+			if player.x + 6 >= ledge.position.x and player.x - 6 <= ledge.end.x and old_y <= ledge.position.y and player.y >= ledge.position.y:
+				player.y = ledge.position.y
+				velocity.y = 0
+				standing_platform = true
+	for item in pickups.duplicate():
+		if absf(player.x - float(item.x)) < 13 and absf(player.y - float(item.y)) < 24:
+			shards += 1
+			collected_ids[str(item.id)] = true
+			pickups.erase(item)
+			if shards % 5 == 0:
+				hp = mini(5, hp + 1)
+				show_notice("Five fragments restore one heart.")
+			else:
+				show_notice("Lantern fragment found.")
+			save_game()
 	if player.y > GROUND:
 		player.y = GROUND
 		velocity.y = 0
@@ -102,8 +150,10 @@ func _physics_process(delta: float) -> void:
 			enter_region(region - 1, true)
 		else:
 			player.x = 0
-	if Input.is_key_pressed(KEY_J) or touch.get("attack", false):
+	var attack_down: bool = Input.is_key_pressed(KEY_J) or touch.get("attack", false)
+	if attack_down and not attack_was_down:
 		attack()
+	attack_was_down = attack_down
 	for i in range(enemies.size()):
 		var e: Dictionary = enemies[i]
 		if not e.alive:
@@ -200,7 +250,12 @@ func select_dialogue(choice: int) -> void:
 
 func _input(event: InputEvent) -> void:
 	if event is InputEventKey and event.pressed and not event.echo:
-		if event.keycode == KEY_E:
+		if title_screen:
+			title_screen = false
+			return
+		if not dialogue.is_empty() and event.keycode in [KEY_1, KEY_2]:
+			select_dialogue(0 if event.keycode == KEY_1 else 1)
+		elif event.keycode == KEY_E:
 			interact()
 		elif event.keycode == KEY_ESCAPE:
 			dialogue = ""
@@ -212,6 +267,9 @@ func _input(event: InputEvent) -> void:
 				quest = 2
 			enter_region(0, false)
 	if event is InputEventScreenTouch:
+		if title_screen and event.pressed:
+			title_screen = false
+			return
 		var p: Vector2 = get_canvas_transform().affine_inverse() * event.position
 		var names := ["left", "right", "jump", "attack", "interact"]
 		var rects := [Rect2(12, 218, 43, 42), Rect2(61, 218, 43, 42), Rect2(328, 218, 43, 42), Rect2(378, 218, 43, 42), Rect2(428, 218, 43, 42)]
@@ -228,7 +286,11 @@ func _input(event: InputEvent) -> void:
 				else:
 					touch[names[i]] = event.pressed
 		if event.pressed and not dialogue.is_empty() and p.y > 148 and p.y < 215:
-			select_dialogue(0)
+			select_dialogue(1 if p.x > 235 and dialogue_options.size() > 1 else 0)
+
+func show_notice(message: String) -> void:
+	notice = message
+	notice_timer = 2.5
 
 func rect(x: float, y: float, w: float, h: float, c: Color) -> void:
 	draw_rect(Rect2(x, y, w, h), c)
@@ -280,6 +342,15 @@ func _draw() -> void:
 			var x := float(i * 177 + 90) - cam
 			rect(x, 159, 24, 61, Color("#646078"))
 			rect(x - 7, 153, 38, 8, Color("#8d8293"))
+	for ledge in platforms:
+		var lx := ledge.position.x - cam
+		rect(lx, ledge.position.y, ledge.size.x, ledge.size.y, Color("#646076") if region == 2 else Color("#7d6952"))
+		rect(lx, ledge.position.y, ledge.size.x, 3, Color("#aba0a9") if region == 2 else Color("#acb882"))
+	for item in pickups:
+		var sx: float = float(item.x) - cam
+		var sy: float = float(item.y) + sin(game_time * 3.0 + sx) * 3.0
+		draw_colored_polygon(PackedVector2Array([Vector2(sx, sy - 7), Vector2(sx + 5, sy), Vector2(sx, sy + 7), Vector2(sx - 5, sy)]), Color("#fce5a4"))
+		draw_circle(Vector2(sx, sy), 2, Color.WHITE)
 	for e in enemies:
 		if not e.alive:
 			continue
@@ -303,6 +374,9 @@ func _draw() -> void:
 	label_at("✦ %d" % shards, 368, 17, 12, Color("#ffe1a0"))
 	if quest > 0 and not won:
 		label_at("Find the bell beneath the woods", 130, 37, 9, Color("#f7e6b7"))
+	if notice_timer > 0:
+		rect(116, 46, 270, 20, Color("#1c2233"))
+		label_at(notice, 124, 60, 10, Color("#ffe3a4"))
 	if not dialogue.is_empty():
 		rect(13, 151, 454, 64, Color("#1c2233"))
 		draw_rect(Rect2(13, 151, 454, 64), Color("#d9c6a0"), false, 2)
@@ -320,6 +394,17 @@ func _draw() -> void:
 			label_at(lines[i], 23, 169 + i * 14, 10)
 		for i in range(mini(dialogue_options.size(), 2)):
 			label_at(("> " if i == 0 else "  ") + dialogue_options[i], 24 + i * 200, 204, 9, Color("#ffe4a6"))
+	if title_screen:
+		rect(0, 0, W, H, Color("#1d2635"))
+		for i in range(35):
+			draw_circle(Vector2(float((i * 61) % 478), float((i * 73) % 260)), 1.0, Color("#929fb8"))
+		draw_circle(Vector2(238, 94), 42, Color("#cfbe99"))
+		draw_circle(Vector2(250, 84), 42, Color("#1d2635"))
+		label_at("THE LANTERN ROAD", 86, 131, 24, Color("#f5d9a7"))
+		label_at("A village. A promise. A buried bell.", 127, 158, 11)
+		label_at("TAP OR PRESS A KEY TO BEGIN", 146, 194, 11, Color("#ffe1a0"))
+		label_at("MOVE A/D   JUMP SPACE   ATTACK J   TALK E", 103, 241, 10)
+		return
 	if dead or won:
 		rect(40, 77, 400, 100, Color("#202337"))
 		label_at("THE BELL REMEMBERS" if won else "YOUR LANTERN WENT DARK", 103, 114, 17, Color("#ffe1ac"))
