@@ -1,0 +1,97 @@
+name: Build Lantern Road Android APK
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - main
+      - feature/lantern-road-godot
+    paths:
+      - 'LanternRoad/**'
+      - '.github/workflows/build-lantern-road-apk.yml'
+
+  pull_request:
+    branches: [main]
+    paths:
+      - 'LanternRoad/**'
+      - '.github/workflows/build-lantern-road-apk.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  android:
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Java 17
+        uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: Install Android command-line tools
+        uses: android-actions/setup-android@v4
+
+      - name: Install Android packages
+        run: |
+          sdkmanager --version
+          yes | sdkmanager --licenses >/dev/null || true
+          sdkmanager "platform-tools" "build-tools;35.0.1" "platforms;android-35"
+
+      - name: Download Godot and export templates
+        env:
+          VERSION: '4.4.1'
+        run: |
+          mkdir -p "$HOME/godot" "$HOME/.local/share/godot/export_templates/$VERSION.stable"
+          curl -fL --retry 3 "https://github.com/godotengine/godot-builds/releases/download/$VERSION-stable/Godot_v$VERSION-stable_linux.x86_64.zip" -o /tmp/godot.zip
+          unzip -q /tmp/godot.zip -d "$HOME/godot"
+          chmod +x "$HOME/godot/Godot_v$VERSION-stable_linux.x86_64"
+          curl -fL --retry 3 "https://github.com/godotengine/godot-builds/releases/download/$VERSION-stable/Godot_v$VERSION-stable_export_templates.tpz" -o /tmp/templates.tpz
+          unzip -q /tmp/templates.tpz -d /tmp
+          cp -a /tmp/templates/. "$HOME/.local/share/godot/export_templates/$VERSION.stable/"
+          echo "GODOT=$HOME/godot/Godot_v$VERSION-stable_linux.x86_64" >> "$GITHUB_ENV"
+
+      - name: Configure Android debug signing
+        run: |
+          mkdir -p "$HOME/.android"
+          keytool -genkeypair -keystore "$HOME/.android/debug.keystore" -storepass android -alias androiddebugkey -keypass android -keyalg RSA -keysize 2048 -validity 10000 -dname "CN=Android Debug,O=Android,C=US"
+          mkdir -p "$HOME/.config/godot" LanternRoad/build
+          python3 - <<'PY'
+          from pathlib import Path
+          import os
+          p=Path.home()/'.config/godot/editor_settings-4.tres'
+          p.write_text('[gd_resource type="EditorSettings" format=3]\n\n[resource]\n'
+              +f'export/android/android_sdk_path = "{os.environ["ANDROID_HOME"]}"\n'
+              +f'export/android/java_sdk_path = "{os.environ["JAVA_HOME"]}"\n'
+              +f'export/android/debug_keystore = "{Path.home()/".android/debug.keystore"}"\n')
+          PY
+
+      - name: Import and validate Godot scripts
+        run: |
+          "$GODOT" --headless --editor --path LanternRoad --import 2>&1 | tee /tmp/import.log
+          if grep -E 'SCRIPT ERROR|Parse Error|Failed to load script' /tmp/import.log; then exit 1; fi
+
+      - name: Run game smoke test
+        run: |
+          "$GODOT" --headless --path LanternRoad --quit-after 90 2>&1 | tee /tmp/runtime.log
+          if grep -E 'SCRIPT ERROR|Parse Error|Invalid call|Invalid access' /tmp/runtime.log; then exit 1; fi
+
+      - name: Export APK
+        env:
+          GODOT_ANDROID_KEYSTORE_DEBUG_PATH: ${{ github.workspace }}/LanternRoad/debug.keystore
+          GODOT_ANDROID_KEYSTORE_DEBUG_USER: androiddebugkey
+          GODOT_ANDROID_KEYSTORE_DEBUG_PASSWORD: android
+        run: |
+          export GODOT_ANDROID_KEYSTORE_DEBUG_PATH="$HOME/.android/debug.keystore"
+          "$GODOT" --headless --path LanternRoad --export-debug Android "$GITHUB_WORKSPACE/LanternRoad/build/TheLanternRoad.apk"
+          test -s LanternRoad/build/TheLanternRoad.apk
+
+      - name: Upload APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: TheLanternRoad-Android-APK
+          path: LanternRoad/build/TheLanternRoad.apk
+          if-no-files-found: error
