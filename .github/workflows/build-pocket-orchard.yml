@@ -1,0 +1,111 @@
+name: Build Pocket Orchard
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - 'PocketOrchard/**'
+      - '.github/workflows/build-pocket-orchard.yml'
+  pull_request:
+    paths:
+      - 'PocketOrchard/**'
+      - '.github/workflows/build-pocket-orchard.yml'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: pocket-orchard-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    permissions:
+      contents: write
+    env:
+      VERSION: '4.4.1'
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: '17'
+      - uses: android-actions/setup-android@v4
+      - name: Install Android platform
+        run: |
+          sdkmanager "platform-tools" "build-tools;35.0.1" "platforms;android-35"
+      - name: Install Godot and export templates
+        run: |
+          mkdir -p "$HOME/godot" "$HOME/.local/share/godot/export_templates/$VERSION.stable"
+          curl -fL --retry 3 "https://github.com/godotengine/godot-builds/releases/download/$VERSION-stable/Godot_v$VERSION-stable_linux.x86_64.zip" -o /tmp/godot.zip
+          unzip -q /tmp/godot.zip -d "$HOME/godot"
+          chmod +x "$HOME/godot/Godot_v$VERSION-stable_linux.x86_64"
+          curl -fL --retry 3 "https://github.com/godotengine/godot-builds/releases/download/$VERSION-stable/Godot_v$VERSION-stable_export_templates.tpz" -o /tmp/templates.tpz
+          unzip -q /tmp/templates.tpz -d /tmp/godot-templates
+          cp -a /tmp/godot-templates/templates/. "$HOME/.local/share/godot/export_templates/$VERSION.stable/"
+          echo "GODOT=$HOME/godot/Godot_v$VERSION-stable_linux.x86_64" >> "$GITHUB_ENV"
+      - name: Import and check scripts
+        run: |
+          "$GODOT" --headless --editor --path PocketOrchard --import 2>&1 | tee /tmp/import.log
+          if grep -E 'SCRIPT ERROR|Parse Error|Failed to load script' /tmp/import.log; then exit 1; fi
+      - name: Gameplay regression tests
+        run: |
+          "$GODOT" --headless --path PocketOrchard --script tests/test_game.gd 2>&1 | tee /tmp/tests.log
+          if grep -E 'SCRIPT ERROR|Parse Error|^ERROR:' /tmp/tests.log; then exit 1; fi
+      - name: Runtime smoke test
+        run: |
+          "$GODOT" --headless --path PocketOrchard --quit-after 120 2>&1 | tee /tmp/runtime.log
+          if grep -E 'SCRIPT ERROR|Parse Error|Invalid call|Invalid access' /tmp/runtime.log; then exit 1; fi
+      - name: Configure Android signing
+        run: |
+          mkdir -p "$HOME/.android" "$HOME/.config/godot" PocketOrchard/build/web
+          keytool -genkeypair -keystore "$HOME/.android/debug.keystore" -storepass android -alias androiddebugkey -keypass android -keyalg RSA -keysize 2048 -validity 10000 -dname "CN=Pocket Orchard,O=Strawberry Games,C=US"
+          python3 - <<'PY'
+          from pathlib import Path
+          import os
+          p=Path.home()/'.config/godot/editor_settings-4.tres'
+          p.write_text('[gd_resource type="EditorSettings" format=3]\n\n[resource]\n'
+              +f'export/android/android_sdk_path = "{os.environ["ANDROID_HOME"]}"\n'
+              +f'export/android/java_sdk_path = "{os.environ["JAVA_HOME"]}"\n'
+              +f'export/android/debug_keystore = "{Path.home()/".android/debug.keystore"}"\n')
+          PY
+      - name: Export Android APK
+        run: |
+          export GODOT_ANDROID_KEYSTORE_DEBUG_PATH="$HOME/.android/debug.keystore"
+          export GODOT_ANDROID_KEYSTORE_DEBUG_USER=androiddebugkey
+          export GODOT_ANDROID_KEYSTORE_DEBUG_PASSWORD=android
+          "$GODOT" --headless --path PocketOrchard --export-debug Android "$GITHUB_WORKSPACE/PocketOrchard/build/PocketOrchard.apk" 2>&1 | tee /tmp/export.log
+          test -s PocketOrchard/build/PocketOrchard.apk
+          if grep -E 'SCRIPT ERROR|Parse Error|Export failed' /tmp/export.log; then exit 1; fi
+      - name: Export desktop and web builds
+        run: |
+          "$GODOT" --headless --path PocketOrchard --export-release Linux "$GITHUB_WORKSPACE/PocketOrchard/build/PocketOrchard.x86_64"
+          "$GODOT" --headless --path PocketOrchard --export-release Web "$GITHUB_WORKSPACE/PocketOrchard/build/web/index.html"
+          cd PocketOrchard/build
+          chmod +x PocketOrchard.x86_64
+          zip -q PocketOrchard-Linux.zip PocketOrchard.x86_64
+          cd web
+          zip -qr ../PocketOrchard-Web.zip .
+      - uses: actions/upload-artifact@v4
+        with:
+          name: PocketOrchard-1.0
+          path: |
+            PocketOrchard/build/PocketOrchard.apk
+            PocketOrchard/build/PocketOrchard-Linux.zip
+            PocketOrchard/build/PocketOrchard-Web.zip
+          if-no-files-found: error
+      - name: Publish playable downloads
+        if: github.ref == 'refs/heads/main' && github.event_name != 'pull_request'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          TAG="pocket-orchard-build-${GITHUB_RUN_NUMBER}"
+          gh release create "$TAG" --target "$GITHUB_SHA" \
+            --title "Pocket Orchard 1.0" \
+            --notes "An original six-course monochrome platformer. Android: download PocketOrchard.apk and install it. Linux: unzip and run PocketOrchard.x86_64. Web: serve the unzipped files over HTTP. Source and controls are in PocketOrchard/README.md." \
+            PocketOrchard/build/PocketOrchard.apk \
+            PocketOrchard/build/PocketOrchard-Linux.zip \
+            PocketOrchard/build/PocketOrchard-Web.zip
