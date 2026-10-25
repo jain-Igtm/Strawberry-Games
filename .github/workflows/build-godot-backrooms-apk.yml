@@ -146,6 +146,14 @@ jobs:
             exit "$STATUS"
           fi
 
+      - name: Upload Godot runtime smoke log
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: Arthur-Backrooms-Godot-runtime-log
+          path: /tmp/godot-runtime.log
+          if-no-files-found: warn
+
       - name: Export Android debug APK
         env:
           GODOT_ANDROID_KEYSTORE_DEBUG_PATH: ${{ github.workspace }}/../.android/debug.keystore
