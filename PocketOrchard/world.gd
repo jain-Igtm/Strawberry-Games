@@ -172,7 +172,7 @@ func build(n: int, secret: bool = false) -> void:
 	# Exit has a safe approach and a bell tower, shared by the six courses.
 	if n < 5:
 		floor_span(142,151,7,1 if n%2==0 else 7)
-		checkpoint=Vector2(72*16,112)
+		checkpoint=Vector2((77 if n in [1,4] else 72)*16,112)
 
 func tile_at(x: int, y: int) -> int:
 	if x<0: return 7

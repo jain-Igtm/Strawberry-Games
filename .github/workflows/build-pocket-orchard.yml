@@ -55,6 +55,14 @@ jobs:
         run: |
           "$GODOT" --headless --path PocketOrchard --script tests/test_game.gd 2>&1 | tee /tmp/tests.log
           if grep -E 'SCRIPT ERROR|Parse Error|^ERROR:' /tmp/tests.log; then exit 1; fi
+      - name: Course traversal and touch input tests
+        run: |
+          "$GODOT" --headless --path PocketOrchard --script tests/test_routes.gd
+          "$GODOT" --headless --path PocketOrchard --script tests/test_shell.gd
+      - uses: actions/cache@v4
+        with:
+          path: ~/.android/debug.keystore
+          key: pocket-orchard-debug-signing-v1
       - name: Runtime smoke test
         run: |
           "$GODOT" --headless --path PocketOrchard --quit-after 120 2>&1 | tee /tmp/runtime.log
@@ -62,7 +70,7 @@ jobs:
       - name: Configure Android signing
         run: |
           mkdir -p "$HOME/.android" "$HOME/.config/godot" PocketOrchard/build/web
-          keytool -genkeypair -keystore "$HOME/.android/debug.keystore" -storepass android -alias androiddebugkey -keypass android -keyalg RSA -keysize 2048 -validity 10000 -dname "CN=Pocket Orchard,O=Strawberry Games,C=US"
+          test -f "$HOME/.android/debug.keystore" || keytool -genkeypair -keystore "$HOME/.android/debug.keystore" -storepass android -alias androiddebugkey -keypass android -keyalg RSA -keysize 2048 -validity 10000 -dname "CN=Pocket Orchard,O=Strawberry Games,C=US"
           python3 - <<'PY'
           from pathlib import Path
           import os

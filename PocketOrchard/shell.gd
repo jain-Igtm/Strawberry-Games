@@ -7,6 +7,7 @@ var game: Node2D
 var lcd:=Rect2()
 var regions: Dictionary={}
 var fingers: Dictionary={}
+var run_fingers: Dictionary={}
 var keyboard: Dictionary={}
 var pad_center:=Vector2.ZERO
 var pad_size:=48.0
@@ -85,12 +86,12 @@ func _input(event: InputEvent) -> void:
 		if action!='': keyboard[10000+event.button_index]={'action':action,'held':event.pressed}
 	elif event is InputEventScreenTouch:
 		if event.pressed: fingers[event.index]=event.position
-		else: fingers.erase(event.index)
+		else: fingers.erase(event.index); run_fingers.erase(event.index)
 	elif event is InputEventScreenDrag:
 		if fingers.has(event.index): fingers[event.index]=event.position
 	elif event is InputEventMouseButton and event.button_index==MOUSE_BUTTON_LEFT:
 		if event.pressed: fingers[-1]=event.position
-		else: fingers.erase(-1)
+		else: fingers.erase(-1); run_fingers.erase(-1)
 	elif event is InputEventMouseMotion and fingers.has(-1): fingers[-1]=event.position
 	update_controls()
 
@@ -98,7 +99,10 @@ func update_controls() -> void:
 	var values: Dictionary={}
 	for entry in keyboard.values():
 		if entry.held: values[entry.action]=true
-	for p in fingers.values():
+	for finger in fingers:
+		var p: Vector2=fingers[finger]
+		if regions['run'].has_point(p): run_fingers[finger]=true
+		if run_fingers.has(finger) and p.x>get_viewport_rect().size.x*0.5: values['run']=true
 		var v: Vector2=p-pad_center
 		if absf(v.x)<pad_size*1.8 and absf(v.y)<pad_size*1.8:
 			if v.x < -pad_size*0.3: values['left']=true
@@ -121,14 +125,14 @@ func _process(_dt: float) -> void:
 
 func _notification(what: int) -> void:
 	if what==NOTIFICATION_APPLICATION_FOCUS_OUT:
-		fingers.clear(); keyboard.clear()
+		fingers.clear(); run_fingers.clear(); keyboard.clear()
 		if game:
 			game.controls={}
 			if game.state=='play': game.resume_state='play'; game.state='pause'
 	elif what==NOTIFICATION_WM_GO_BACK_REQUEST:
 		if game:
 			if game.state=='play': game.resume_state='play'; game.state='pause'
-			elif game.state=='pause': game.state='play'
+			elif game.state=='pause': game.state=game.resume_state
 
 func label_text(value: String, p: Vector2, size_px: int, color: Color, centered: bool = true) -> void:
 	if centered: p.x-=font.get_string_size(value,HORIZONTAL_ALIGNMENT_LEFT,-1,size_px).x/2

@@ -101,3 +101,13 @@ func toggle() -> void:
 		music.stop()
 		for p in players: p.stop()
 	elif music.stream: music.play()
+
+func _exit_tree() -> void:
+	if music:
+		music.stop()
+		music.stream=null
+	for p in players:
+		p.stop()
+		p.stream=null
+	songs.clear()
+	effects.clear()

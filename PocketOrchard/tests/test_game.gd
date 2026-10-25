@@ -123,6 +123,7 @@ func run() -> void:
 	for n in 6:
 		game.load_stage(n,false)
 		check(game.world.solid(int(game.world.exit.x/16),7),'Course '+str(n+1)+' has a safe finish.')
+		check(game.world.solid(int(game.world.checkpoint.x/16),7),'Course '+str(n+1)+' has a safe checkpoint respawn.')
 		check(game.world.entrance.x>0,'Course '+str(n+1)+' has an optional secret entrance.')
 		game.pos=game.world.exit+Vector2(1,-13)
 		game.boss.hp=0; game.freeze=0
@@ -135,7 +136,7 @@ func run() -> void:
 		for x in range(1,w.width-1):
 			if not w.solid(x,7): gap+=1
 			else:
-				check(gap<=5,'Course '+str(n+1)+' has no unbridgeable main-path chasm at '+str(x))
+				if gap>0: check(gap<=5,'Course '+str(n+1)+' has no unbridgeable main-path chasm at '+str(x))
 				gap=0
 	print('POCKET ORCHARD: ',checks,' checks; ',failures.size(),' failures. Jump heights: ',99-full_top,' / ',99-short_top)
 	game.queue_free()

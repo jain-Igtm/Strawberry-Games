@@ -21,7 +21,7 @@ The LCD is exactly **160 x 144 pixels**, with nearest-neighbor scaling and one o
 | Toggle audio | M | Sound button |
 | Return to title | Hold Up + X while paused | Hold Up + B while paused |
 
-Hold jump for a higher arc. Build speed with B before long gaps. Stomp enemies from above; holding A gives a higher stomp bounce. A berry lets Pip grow and absorb a hit. A flower grants a pollen suit: release and press B to fire a bouncing pollen shot. Every hundred seeds awards a life. A pennant saves your checkpoint for the current attempt. Cleared courses remain unlocked after closing the app; choose **Course** on the title screen and use Left/Right to select one. All six courses have a bonus room. The final boss takes five hits.
+Hold jump for a higher arc. Build speed with B before long gaps. On a touchscreen, hold B and slide onto A: B stays held until you lift your thumb, so running jumps need only two thumbs. Stomp enemies from above; holding A gives a higher stomp bounce. A berry lets Pip grow and absorb a hit. A flower grants a pollen suit: release and press B to fire a bouncing pollen shot. Every hundred seeds awards a life. A pennant saves your checkpoint for the current attempt. Cleared courses remain unlocked after closing the app; choose **Course** on the title screen and use Left/Right to select one. All six courses have a bonus room. The final boss takes five hits.
 
 ## Open or build
 
@@ -42,6 +42,7 @@ godot --path PocketOrchard
 - `world.gd`: six explicitly authored courses and their secret rooms.
 - `art.gd`: original pixel sprites, bitmap lettering and four-shade palettes.
 - `sound.gd`: synthesized original pulse-wave music, bass, noise percussion and effects.
+- `tests/test_routes.gd`: searches actual movement trajectories through every course.
 - `tests/test_game.gd`: behavior checks for movement, jump arcs, blocks, combat, springs, moving platforms, secrets, lives and course completion.
 
 The save file is `user://orchard.cfg`. Progress stores unlocked courses and the high score; it does not save a live run halfway through a course.

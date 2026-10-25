@@ -687,7 +687,7 @@ func draw_title() -> void:
 func draw_help() -> void:
 	draw_rect(Rect2(0,0,160,144),art.ink[0])
 	art.centered(self,'PIP HAS A DELIVERY!',8,3)
-	var lines: Array = ['RETURN THE STOLEN SUN SEEDS.','RING EVERY ORCHARD BELL.', '', 'D-PAD / ARROWS : MOVE','A / Z / SPACE : JUMP','HOLD A FOR A HIGHER JUMP','B / X / SHIFT : RUN','POLLEN SUIT + B : SHOOT','DOWN AT A DOOR : ENTER','','BERRIES MAKE PIP GROW.','FLOWERS GIVE A POLLEN SUIT.','100 SEEDS EARN A LIFE.','START / ENTER : PAUSE','SELECT / TAB : LCD PALETTE','M : SOUND ON / OFF']
+	var lines: Array = ['RETURN SEEDS. RING EVERY BELL.', '', 'D-PAD / ARROWS : MOVE','A / Z / SPACE : JUMP','HOLD A FOR A HIGHER JUMP','B / X / SHIFT : RUN','SLIDE B TO A : RUN + JUMP','POLLEN SUIT + B : SHOOT','DOWN AT A DOOR : ENTER','','BERRIES MAKE PIP GROW.','FLOWERS GIVE A POLLEN SUIT.','100 SEEDS EARN A LIFE.','START / ENTER : PAUSE','SELECT / TAB : LCD PALETTE','M : SOUND ON / OFF']
 	for i in lines.size(): art.text(self,lines[i],Vector2(5,22+i*7),3)
 	art.centered(self,'A: BACK',137,2)
 
